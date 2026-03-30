@@ -1,0 +1,38 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Stream {
+  id           String    @id @default(cuid())
+  roomId       String    @unique
+  title        String
+  hostToken    String    @unique
+  passwordHash String?
+  isLive       Boolean   @default(false)
+  isRecording  Boolean   @default(false)
+  scheduledAt  DateTime?
+  expiresAt    DateTime
+  viewerCount  Int       @default(0)
+  recordingUrl String?
+  rtmpUrl      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  reminders Reminder[]
+}
+
+model Reminder {
+  id        String   @id @default(cuid())
+  streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  type      String   // "email" | "sms"
+  contact   String
+  sent      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
