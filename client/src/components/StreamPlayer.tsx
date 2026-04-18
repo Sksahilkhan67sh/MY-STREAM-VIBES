@@ -1,37 +1,43 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   LiveKitRoom,
-  VideoTrack,
-  useLocalParticipant,
   useTracks,
-  useRoomContext,
+  VideoTrack,
   RoomAudioRenderer,
-  TrackToggle,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
-import { Track, RoomEvent } from 'livekit-client';
-import { Maximize2, Minimize2, Volume2, VolumeX, Radio } from 'lucide-react';
-
-const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'ws://localhost:7880';
+import { Track } from 'livekit-client';
+import { Maximize2, Minimize2, Volume2, VolumeX, Radio, PictureInPicture2 } from 'lucide-react';
 
 interface StreamPlayerProps {
   roomId: string;
   token: string;
   title: string;
   isHost: boolean;
-  onPublishStart?: () => void;
 }
 
-function VideoStage({ isHost, title }: { isHost: boolean; title: string }) {
-  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare], { onlySubscribed: true });
+function VideoStage({ title }: { title: string }) {
+  const tracks = useTracks(
+    [Track.Source.Camera, Track.Source.ScreenShare],
+    { onlySubscribed: true }
+  );
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [mainSource, setMainSource] = useState<Track.Source>(Track.Source.ScreenShare);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const videoTracks = tracks.filter(t =>
-    t.source === Track.Source.Camera || t.source === Track.Source.ScreenShare
-  );
+  const screenTrack = tracks.find(t => t.source === Track.Source.ScreenShare);
+  const cameraTrack = tracks.find(t => t.source === Track.Source.Camera);
+  const bothActive = !!screenTrack && !!cameraTrack;
+
+  // Main track: prefer screen, fall back to camera
+  const mainTrack = bothActive
+    ? (mainSource === Track.Source.ScreenShare ? screenTrack : cameraTrack)
+    : (screenTrack || cameraTrack);
+  const pipTrack = bothActive
+    ? (mainSource === Track.Source.ScreenShare ? cameraTrack : screenTrack)
+    : null;
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -43,10 +49,18 @@ function VideoStage({ isHost, title }: { isHost: boolean; title: string }) {
     }
   };
 
+  const swapMain = () => {
+    setMainSource(s =>
+      s === Track.Source.ScreenShare ? Track.Source.Camera : Track.Source.ScreenShare
+    );
+  };
+
   return (
-    <div ref={containerRef} className="relative w-full h-full bg-zinc-950 flex items-center justify-center group min-h-[280px]">
-      {videoTracks.length > 0 ? (
-        <VideoTrack trackRef={videoTracks[0]} className="w-full h-full object-contain" />
+    <div ref={containerRef} className="relative w-full h-full bg-zinc-950 flex items-center justify-center group min-h-[280px] overflow-hidden">
+
+      {/* Main video */}
+      {mainTrack ? (
+        <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
       ) : (
         <div className="flex flex-col items-center gap-4 text-zinc-600">
           <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
@@ -59,15 +73,38 @@ function VideoStage({ isHost, title }: { isHost: boolean; title: string }) {
         </div>
       )}
 
-      {/* HUD overlay */}
+      {/* PiP overlay — shown when both camera and screen are active */}
+      {pipTrack && (
+        <div
+          className="absolute bottom-14 right-3 w-40 h-24 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl cursor-pointer hover:border-brand-500 transition-all group/pip"
+          onClick={swapMain}
+          title="Click to swap main/PiP view"
+        >
+          <VideoTrack trackRef={pipTrack} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/0 group-hover/pip:bg-black/30 transition-colors flex items-center justify-center">
+            <PictureInPicture2 className="w-5 h-5 text-white opacity-0 group-hover/pip:opacity-100 transition-opacity" />
+          </div>
+          <div className="absolute bottom-1 left-1.5 text-[10px] text-white/60 font-medium">
+            {mainSource === Track.Source.ScreenShare ? 'Camera' : 'Screen'} · tap to swap
+          </div>
+        </div>
+      )}
+
+      {/* HUD */}
       <div className="absolute top-4 left-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        {videoTracks.length > 0 && (
+        {mainTrack && (
           <span className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-white">
             <span className="live-dot" /> LIVE
           </span>
         )}
+        {bothActive && (
+          <span className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-semibold text-zinc-300">
+            <PictureInPicture2 className="w-3 h-3" /> Camera + Screen
+          </span>
+        )}
       </div>
 
+      {/* Bottom controls */}
       <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => setMuted(!muted)}
@@ -90,17 +127,9 @@ function VideoStage({ isHost, title }: { isHost: boolean; title: string }) {
 
 export default function StreamPlayer({ roomId, token, title, isHost }: StreamPlayerProps) {
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'ws://localhost:7880';
-
   return (
-    <LiveKitRoom
-      serverUrl={livekitUrl}
-      token={token}
-      connect={true}
-      audio={isHost}
-      video={false}
-      className="h-full w-full"
-    >
-      <VideoStage isHost={isHost} title={title} />
+    <LiveKitRoom serverUrl={livekitUrl} token={token} connect={true} audio={isHost} video={false} className="h-full w-full">
+      <VideoStage title={title} />
     </LiveKitRoom>
   );
 }

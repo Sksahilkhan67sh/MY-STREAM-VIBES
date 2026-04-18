@@ -49,6 +49,16 @@ app.get('/health', (_req, res) => {
 // ── Socket.io ─────────────────────────────────────────────────
 initSocket(httpServer);
 
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: false,
+}));
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+
 // ── Start ─────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '4000');
 

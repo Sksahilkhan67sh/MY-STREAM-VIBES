@@ -1,4 +1,3 @@
-// This is your Prisma schema file
 generator client {
   provider = "prisma-client-js"
 }
@@ -24,15 +23,29 @@ model Stream {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  reminders Reminder[]
+  reminders  Reminder[]
+  recordings Recording[]
 }
 
 model Reminder {
   id        String   @id @default(cuid())
   streamId  String
   stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  type      String   // "email" | "sms"
+  type      String
   contact   String
   sent      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model Recording {
+  id          String    @id @default(cuid())
+  streamId    String
+  stream      Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  fileName    String
+  filePath    String
+  fileSize    Int       @default(0)
+  durationSec Int       @default(0)
+  startedAt   DateTime
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
 }
