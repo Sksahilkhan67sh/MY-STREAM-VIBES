@@ -1,4 +1,4 @@
-// File: C:\Users\sahil\Desktop\streamvault\client\src\app\host\page.tsx
+// File: /workspaces/MY-STREAM-VIBES/client/src/app/host/page.tsx
 import * as entry from '../../../../src/app/host/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
