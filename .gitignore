@@ -11,3 +11,7 @@ server/dev.db-journal
 server/recordings/
 .DS_Store
 Thumbs.db
+*.pdf
+*.webm
+*.mp4
+client/.next/
