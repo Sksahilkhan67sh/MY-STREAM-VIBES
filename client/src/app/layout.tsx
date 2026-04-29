@@ -1,18 +1,17 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import IntroWrapper from '@/components/IntroWrapper';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-geist' });
-
 export const metadata: Metadata = {
   title: 'StreamVault — Private Live Streaming',
-  description: 'Private live streaming. No signup. Instant links. End-to-end encrypted.',
-  icons: { icon: '/favicon.ico' },
+  description: 'Stream privately. Share instantly. No account required.',
 };
 
-
-export default function RootLayout({ children }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
@@ -23,4 +22,3 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
-
