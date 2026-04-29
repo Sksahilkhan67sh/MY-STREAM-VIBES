@@ -1,13 +1,13 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
-import { incrementViewerCount, decrementViewerCount, getViewerCount } from './redis';
+import { incrementViewerCount, decrementViewerCount } from './redis';
 
 let io: SocketServer;
 
 export function initSocket(httpServer: HttpServer) {
   io = new SocketServer(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:3000',
+      origin: true, // allow all origins
       methods: ['GET', 'POST'],
       credentials: true,
     },
@@ -17,6 +17,12 @@ export function initSocket(httpServer: HttpServer) {
     let currentRoom: string | null = null;
 
     socket.on('join-room', async ({ roomId, nickname }) => {
+      // Leave previous room if any
+      if (currentRoom && currentRoom !== roomId) {
+        socket.leave(currentRoom);
+        const prevCount = await decrementViewerCount(currentRoom);
+        io.to(currentRoom).emit('viewer-count', Math.max(0, prevCount));
+      }
       currentRoom = roomId;
       socket.join(roomId);
       const count = await incrementViewerCount(roomId);
@@ -62,4 +68,13 @@ export function initSocket(httpServer: HttpServer) {
 
 export function getIo() {
   return io;
+}
+
+// Broadcast poll event to ALL sockets in a room
+export function broadcastToRoom(roomId: string, event: string, data: unknown) {
+  if (io) {
+    io.to(roomId).emit(event, data);
+    return true;
+  }
+  return false;
 }

@@ -1,288 +1,275 @@
 'use client';
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { X, Youtube, Instagram, Radio, Copy, Check, ExternalLink, AlertCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 interface RtmpModalProps {
-  roomId: string;
-  hostToken: string;
-  onClose: () => void;
-  onActivate: () => void;
-  onDeactivate: () => void;
+  roomId: string; hostToken: string;
+  onClose: () => void; onActivate: () => void; onDeactivate: () => void;
+  streams?: MediaStream[];
 }
 
 const PLATFORMS = [
   {
-    id: 'youtube',
-    name: 'YouTube Live',
-    icon: Youtube,
-    color: 'text-red-500',
-    bg: 'bg-red-500/10 border-red-500/30',
-    activeBg: 'bg-red-500/20 border-red-500/50',
-    rtmpBase: 'rtmp://a.rtmp.youtube.com/live2/',
-    keyPlaceholder: 'xxxx-xxxx-xxxx-xxxx-xxxx',
-    helpUrl: 'https://studio.youtube.com',
-    helpText: 'Get stream key from YouTube Studio → Go Live → Stream',
-    streamUrl: '',
+    id: 'youtube', name: 'YouTube',
+    base: 'rtmp://a.rtmp.youtube.com/live2/',
+    placeholder: 'xxxx-xxxx-xxxx-xxxx',
+    steps: ['Go to studio.youtube.com', 'Click Go Live → Streaming software', 'Copy your Stream key'],
   },
   {
-    id: 'instagram',
-    name: 'Instagram Live',
-    icon: Instagram,
-    color: 'text-pink-500',
-    bg: 'bg-pink-500/10 border-pink-500/30',
-    activeBg: 'bg-pink-500/20 border-pink-500/50',
-    rtmpBase: 'rtmps://live-api-s.facebook.com:443/rtmp/',
-    keyPlaceholder: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-    helpUrl: 'https://www.instagram.com',
-    helpText: 'Get stream key from Instagram app → Live → Advanced Settings',
-    streamUrl: '',
+    id: 'instagram', name: 'Instagram',
+    base: 'rtmps://live-api-s.facebook.com:443/rtmp/',
+    placeholder: 'your-stream-key',
+    steps: ['Open Instagram app', 'Tap + → Live → Settings', 'Enable third-party app → copy key'],
   },
   {
-    id: 'custom',
-    name: 'Custom RTMP',
-    icon: Radio,
-    color: 'text-zinc-400',
-    bg: 'bg-zinc-800/50 border-zinc-700',
-    activeBg: 'bg-zinc-700/50 border-zinc-500',
-    rtmpBase: '',
-    keyPlaceholder: '',
-    helpUrl: '',
-    helpText: 'Enter any RTMP server URL and stream key',
-    streamUrl: '',
+    id: 'custom', name: 'Custom RTMP',
+    base: '',
+    placeholder: 'rtmp://your-server/live/key',
+    steps: [],
   },
 ];
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+type Status = 'idle' | 'connecting' | 'live' | 'error';
 
-export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDeactivate }: RtmpModalProps) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [streamKey, setStreamKey] = useState('');
+export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDeactivate, streams = [] }: RtmpModalProps) {
+  const [platform, setPlatform] = useState<string | null>(null);
+  const [key, setKey]           = useState('');
   const [customUrl, setCustomUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [active, setActive] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus]     = useState<Status>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [ffmpegOk, setFfmpegOk] = useState<boolean | null>(null);
+  const [bytesSent, setBytesSent] = useState(0);
 
-  const platform = PLATFORMS.find(p => p.id === selected);
+  const mrRef    = useRef<MediaRecorder | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
-  const getRtmpUrl = () => {
-    if (!platform) return '';
-    if (platform.id === 'custom') return customUrl;
-    return `${platform.rtmpBase}${streamKey}`;
+  useEffect(() => {
+    fetch(`${API}/api/egress/ffmpeg-check`)
+      .then(r => r.json())
+      .then(d => setFfmpegOk(d.available))
+      .catch(() => setFfmpegOk(false));
+  }, []);
+
+  const p = PLATFORMS.find(x => x.id === platform);
+  const rtmpUrl = platform === 'custom' ? customUrl : `${p?.base || ''}${key}`;
+
+  const flushChunks = async (port: number) => {
+    if (chunksRef.current.length === 0) return;
+    const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+    chunksRef.current = [];
+    try {
+      const res = await fetch(`${API}/api/egress/rtmp/chunk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'video/webm', 'x-room-id': roomId, 'x-host-token': hostToken },
+        body: blob,
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setBytesSent(prev => prev + (d.bytes || 0));
+      }
+    } catch {}
   };
 
-  const startRtmp = async () => {
-    if (!streamKey.trim() && selected !== 'custom') {
-      setError('Please enter your stream key');
-      return;
-    }
-    if (selected === 'custom' && !customUrl.trim()) {
-      setError('Please enter the RTMP URL');
-      return;
-    }
-    setError('');
-    setLoading(true);
+  const startStream = async () => {
+    if (!rtmpUrl) { setErrorMsg('Enter a stream key'); return; }
+    if (streams.length === 0) { setErrorMsg('Enable camera or screen first'); return; }
+    setErrorMsg(''); setStatus('connecting');
     try {
       const res = await fetch(`${API}/api/egress/rtmp/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomId,
-          hostToken,
-          rtmpUrl: getRtmpUrl(),
-          platform: selected,
-        }),
+        body: JSON.stringify({ roomId, hostToken, rtmpUrl, platform }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to start RTMP');
-      setActive(selected);
+      if (!res.ok) { setStatus('error'); setErrorMsg(data.error || 'Failed'); return; }
+
+      const combined = new MediaStream();
+      streams.forEach(s => s.getTracks().forEach(t => combined.addTrack(t)));
+      const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+        .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+      const mr = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 2_500_000 });
+      mrRef.current = mr;
+      mr.ondataavailable = (e) => { if (e.data?.size > 0) chunksRef.current.push(e.data); };
+      mr.start(500);
+      timerRef.current = setInterval(() => flushChunks(data.inputPort), 1000);
+
+      setStatus('live');
       onActivate();
     } catch (e: any) {
-      setError(e.message || 'Failed to start stream');
-    } finally {
-      setLoading(false);
+      stopStream();
+      setStatus('error');
+      setErrorMsg(e.message || 'Failed');
     }
   };
 
-  const stopRtmp = async () => {
-    setLoading(true);
+  const stopStream = async () => {
+    if (mrRef.current && mrRef.current.state !== 'inactive') mrRef.current.stop();
+    mrRef.current = null;
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    chunksRef.current = [];
     try {
       await fetch(`${API}/api/egress/rtmp/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId, hostToken, platform: active }),
+        body: JSON.stringify({ roomId, hostToken }),
       });
-      setActive(null);
-      onDeactivate();
-      setStreamKey('');
-      setSelected(null);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch {}
+    setStatus('idle'); setKey(''); setPlatform(null); setBytesSent(0);
+    onDeactivate();
   };
 
-  const copyRtmpUrl = () => {
-    navigator.clipboard.writeText(getRtmpUrl());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  useEffect(() => () => { stopStream(); }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        initial={{ opacity: 0, scale: 0.97, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl"
+        className="bg-white rounded-xl border border-gray-100 shadow-xl w-full max-w-sm max-h-[90vh] flex flex-col"
+        style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-brand-500" />
-            <h2 className="font-bold text-sm">Go Live on Social Media</h2>
-          </div>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors">
-            <X className="w-4 h-4 text-zinc-400" />
-          </button>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+          <h2 className="font-semibold text-sm text-gray-900">Stream to social media</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 transition-colors text-xl leading-none">×</button>
         </div>
 
-        <div className="p-5 space-y-4">
-          {/* Active stream banner */}
-          {active && (
-            <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-xl px-4 py-3">
-              <div className="flex items-center gap-2">
-                <span className="live-dot" />
-                <span className="text-sm font-semibold text-green-400">
-                  Live on {PLATFORMS.find(p => p.id === active)?.name}
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+
+          {/* FFmpeg status */}
+          <div className={`text-xs px-3 py-2.5 rounded-lg border ${
+            ffmpegOk === true  ? 'bg-green-50 border-green-100 text-green-600'
+            : ffmpegOk === false ? 'bg-red-50 border-red-100 text-red-500'
+            : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+            {ffmpegOk === true  && '✓ FFmpeg ready — your stream will go live on social media'}
+            {ffmpegOk === false && (
+              <div className="space-y-1">
+                <p className="font-semibold">FFmpeg not found</p>
+                <p>Install it first: <code className="bg-red-100 px-1 rounded">winget install ffmpeg</code></p>
+              </div>
+            )}
+            {ffmpegOk === null && 'Checking FFmpeg...'}
+          </div>
+
+          {/* No stream warning */}
+          {streams.length === 0 && (
+            <div className="text-xs px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-100 text-amber-600">
+              Enable camera or screen in the studio first
+            </div>
+          )}
+
+          {/* Live status */}
+          {status === 'live' && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between bg-green-50 border border-green-100 rounded-lg px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-sm font-semibold text-green-700">Live on {p?.name}</span>
+                </div>
+                <span className="text-xs text-green-600">
+                  {bytesSent > 1024 * 1024 ? `${(bytesSent / 1024 / 1024).toFixed(1)} MB` : `${(bytesSent / 1024).toFixed(0)} KB`} sent
                 </span>
               </div>
               <button
-                onClick={stopRtmp}
-                disabled={loading}
-                className="text-xs font-bold text-red-400 hover:text-red-300 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-lg transition-colors"
+                onClick={stopStream}
+                className="w-full py-2.5 text-sm font-semibold text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
               >
-                Stop
+                Stop stream
               </button>
             </div>
           )}
 
-          {/* Platform selector */}
-          {!active && (
+          {status === 'connecting' && (
+            <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
+              <div className="w-4 h-4 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin flex-shrink-0" />
+              <p className="text-sm text-gray-600">Connecting to {p?.name}...</p>
+            </div>
+          )}
+
+          {status === 'error' && (
+            <div className="bg-red-50 border border-red-100 rounded-lg p-4 space-y-2">
+              <p className="text-sm font-semibold text-red-600">Stream failed</p>
+              <p className="text-xs text-red-500">{errorMsg}</p>
+              <button onClick={() => { setStatus('idle'); setErrorMsg(''); }} className="text-xs text-gray-500 underline">
+                Try again
+              </button>
+            </div>
+          )}
+
+          {/* Platform + form */}
+          {(status === 'idle' || status === 'error') && (
             <>
-              <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Select Platform</p>
-              <div className="grid grid-cols-3 gap-2">
-                {PLATFORMS.map(p => {
-                  const Icon = p.icon;
-                  const isSelected = selected === p.id;
-                  return (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Platform</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {PLATFORMS.map(pl => (
                     <button
-                      key={p.id}
-                      onClick={() => { setSelected(p.id); setStreamKey(''); setError(''); }}
-                      className={`flex flex-col items-center gap-2 py-3.5 rounded-xl border text-xs font-semibold transition-all
-                        ${isSelected ? p.activeBg : p.bg} ${isSelected ? '' : 'hover:brightness-125'}`}
+                      key={pl.id}
+                      onClick={() => { setPlatform(pl.id); setKey(''); setErrorMsg(''); }}
+                      className={`py-2.5 rounded-lg text-xs font-semibold border transition-all ${
+                        platform === pl.id
+                          ? 'bg-gray-900 text-white border-gray-900'
+                          : 'bg-gray-50 text-gray-600 border-gray-100 hover:border-gray-300'}`}
                     >
-                      <Icon className={`w-5 h-5 ${p.color}`} />
-                      <span className={isSelected ? 'text-zinc-200' : 'text-zinc-500'}>
-                        {p.id === 'youtube' ? 'YouTube' : p.id === 'instagram' ? 'Instagram' : 'Custom'}
-                      </span>
+                      {pl.name}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
 
-              {/* Stream key input */}
-              {selected && platform && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-3"
-                >
-                  {/* Help text */}
-                  <div className="flex items-start gap-2 bg-zinc-800/60 rounded-xl px-3 py-2.5">
-                    <AlertCircle className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-zinc-400 leading-relaxed">{platform.helpText}</p>
-                      {platform.helpUrl && (
-                        <a href={platform.helpUrl} target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 mt-1">
-                          Open {platform.name} <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Custom URL field */}
-                  {selected === 'custom' && (
-                    <div>
-                      <label className="block text-xs font-semibold text-zinc-400 mb-1.5 uppercase tracking-wider">RTMP Server URL</label>
-                      <input
-                        value={customUrl}
-                        onChange={e => setCustomUrl(e.target.value)}
-                        placeholder="rtmp://a.rtmp.youtube.com/live2/your-key"
-                        className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm font-mono placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
-                      />
-                    </div>
-                  )}
-
-                  {/* Stream key field */}
-                  {selected !== 'custom' && (
-                    <div>
-                      <label className="block text-xs font-semibold text-zinc-400 mb-1.5 uppercase tracking-wider">Stream Key</label>
-                      <input
-                        type="password"
-                        value={streamKey}
-                        onChange={e => setStreamKey(e.target.value)}
-                        placeholder={platform.keyPlaceholder}
-                        className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm font-mono placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
-                      />
-                      <p className="text-xs text-zinc-600 mt-1.5">Your stream key is never stored — only used for this session.</p>
-                    </div>
-                  )}
-
-                  {/* Preview RTMP URL */}
-                  {(streamKey || customUrl) && (
-                    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs text-zinc-500 font-semibold">RTMP Endpoint</p>
-                        <button onClick={copyRtmpUrl} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
-                          {copied ? <><Check className="w-3 h-3 text-green-400" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
-                        </button>
-                      </div>
-                      <p className="text-xs font-mono text-zinc-400 break-all">
-                        {selected === 'custom' ? customUrl : `${platform.rtmpBase}${'•'.repeat(Math.min(streamKey.length, 12))}`}
-                      </p>
-                    </div>
-                  )}
-
-                  {error && (
-                    <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                      ⚠️ {error}
-                    </p>
-                  )}
-
-                  <button
-                    onClick={startRtmp}
-                    disabled={loading || (!streamKey.trim() && selected !== 'custom') || (selected === 'custom' && !customUrl.trim())}
-                    className="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+              <AnimatePresence mode="wait">
+                {platform && p && (
+                  <motion.div
+                    key={platform}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="space-y-4"
                   >
-                    {loading ? (
-                      <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Starting...</>
-                    ) : (
-                      <><Radio className="w-4 h-4" /> Go Live on {platform.name}</>
+                    {/* Steps */}
+                    {p.steps.length > 0 && (
+                      <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 space-y-1.5">
+                        <p className="text-xs font-semibold text-gray-500 mb-2">How to get your stream key</p>
+                        {p.steps.map((step, i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-gray-500">
+                            <span className="text-gray-300 font-semibold flex-shrink-0">{i + 1}.</span>
+                            <span>{step}</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
-                  </button>
-                </motion.div>
-              )}
+
+                    {/* Key input */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                        {platform === 'custom' ? 'Full RTMP URL' : 'Stream key'}
+                      </label>
+                      <input
+                        type={platform === 'custom' ? 'text' : 'password'}
+                        value={platform === 'custom' ? customUrl : key}
+                        onChange={e => platform === 'custom' ? setCustomUrl(e.target.value) : setKey(e.target.value)}
+                        placeholder={p.placeholder}
+                        className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 font-mono text-gray-900"
+                      />
+                    </div>
+
+                    <button
+                      onClick={startStream}
+                      disabled={!ffmpegOk || (platform !== 'custom' && !key.trim()) || (platform === 'custom' && !customUrl.trim())}
+                      className="w-full py-3 text-sm font-semibold bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Go live on {p.name}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </>
           )}
 
-          {/* Info note */}
-          <p className="text-xs text-zinc-600 text-center pt-1">
-            Your StreamVault stream is forwarded via RTMP · Works while you're live
-          </p>
+          <p className="text-xs text-gray-300 text-center">Stream key is never stored permanently</p>
         </div>
       </motion.div>
     </div>

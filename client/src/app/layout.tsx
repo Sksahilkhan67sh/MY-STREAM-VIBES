@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import IntroWrapper from '@/components/IntroWrapper';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-geist' });
 
@@ -10,12 +11,16 @@ export const metadata: Metadata = {
   icons: { icon: '/favicon.ico' },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+
+export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans bg-zinc-950 text-zinc-100 antialiased`}>
-        {children}
+    <html lang="en">
+      <body>
+        <IntroWrapper>
+          {children}
+        </IntroWrapper>
       </body>
     </html>
   );
 }
+

@@ -25,6 +25,7 @@ model Stream {
 
   reminders  Reminder[]
   recordings Recording[]
+  polls      Poll[]
 }
 
 model Reminder {
@@ -48,4 +49,29 @@ model Recording {
   startedAt   DateTime
   endedAt     DateTime?
   createdAt   DateTime  @default(now())
+}
+
+model Poll {
+  id        String     @id @default(cuid())
+  streamId  String
+  stream    Stream     @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  question  String
+  options   String
+  votes     String
+  status    String     @default("active")
+  endsAt    DateTime?
+  createdAt DateTime   @default(now())
+
+  pollVotes PollVote[]
+}
+
+model PollVote {
+  id          String   @id @default(cuid())
+  pollId      String
+  poll        Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  voterId     String
+  optionIndex Int
+  createdAt   DateTime @default(now())
+
+  @@unique([pollId, voterId])
 }
