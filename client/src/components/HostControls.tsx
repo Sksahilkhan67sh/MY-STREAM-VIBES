@@ -78,12 +78,12 @@ function Panel({ open, onClose, children }: {
 function VideoPreview({
   cameraRef, screenRef, cameraOn, screenOn, mainIsCam, colorSettings,
 }: {
-  cameraRef: React.RefObject<HTMLVideoElement>;
-  screenRef: React.RefObject<HTMLVideoElement>;
+  cameraRef: React.RefObject<HTMLVideoElement | null>;
+  screenRef: React.RefObject<HTMLVideoElement | null>;
   cameraOn: boolean; screenOn: boolean;
   mainIsCam: boolean; colorSettings: ColorSettings;
 }) {
-  const ref = useRef<HTMLVideoElement>(null);
+  const ref = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const dst = ref.current;
     if (!dst) return;
@@ -105,11 +105,11 @@ function VideoPreview({
 function PipVideo({
   cameraRef, screenRef, mainIsCam, colorSettings,
 }: {
-  cameraRef: React.RefObject<HTMLVideoElement>;
-  screenRef: React.RefObject<HTMLVideoElement>;
+  cameraRef: React.RefObject<HTMLVideoElement | null>;
+  screenRef: React.RefObject<HTMLVideoElement | null>;
   mainIsCam: boolean; colorSettings: ColorSettings;
 }) {
-  const ref = useRef<HTMLVideoElement>(null);
+  const ref = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const dst = ref.current;
     if (!dst) return;
@@ -151,8 +151,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const cameraTrackRef = useRef<LocalVideoTrack | null>(null);
   const screenTrackRef = useRef<LocalVideoTrack | null>(null);
   const audioTrackRef  = useRef<LocalAudioTrack  | null>(null);
-  const cameraVideoRef = useRef<HTMLVideoElement>(null);
-  const screenVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const viewerLink = `${appUrl}${stream.viewerUrl}`;
   const bothOn     = cameraOn && screenOn;
@@ -178,7 +178,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     room?.on('connectionStateChanged', h);
   });
 
-  const attach = (track: LocalVideoTrack, ref: React.RefObject<HTMLVideoElement>) => {
+  const attach = (track: LocalVideoTrack, ref: React.RefObject<HTMLVideoElement | null>) => {
     if (ref.current) { track.detach(); track.attach(ref.current); }
   };
 
