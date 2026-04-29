@@ -1,7 +1,6 @@
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
-import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
@@ -10,60 +9,53 @@ dotenv.config();
 
 import { initSocket } from './lib/socket';
 import { connectRedis } from './lib/redis';
+import prisma from './lib/prisma';
 import streamsRouter from './routes/streams';
 import tokenRouter from './routes/token';
 import egressRouter from './routes/egress';
 import remindersRouter from './routes/reminders';
+import pollsRouter from './routes/polls';
 import { startScheduler } from './jobs/scheduler';
+import { checkFFmpeg } from './lib/ffmpeg';
+
 
 const app = express();
 const httpServer = createServer(app);
 
-// ── Middleware ────────────────────────────────────────────────
-app.use(helmet({ crossOriginEmbedderPolicy: false }));
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: true,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-room-id', 'x-host-token'],
 }));
+app.options('*', cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
 app.use('/api', limiter);
 
-// ── Routes ────────────────────────────────────────────────────
 app.use('/api/streams', streamsRouter);
 app.use('/api/token', tokenRouter);
 app.use('/api/egress', egressRouter);
 app.use('/api/reminders', remindersRouter);
+app.use('/api/polls', pollsRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// ── Socket.io ─────────────────────────────────────────────────
 initSocket(httpServer);
 
-app.use(helmet({
-  crossOriginEmbedderPolicy: false,
-  contentSecurityPolicy: false,
-  crossOriginResourcePolicy: false,
-}));
-app.use(cors({
-  origin: true,
-  credentials: true,
-}));
-
-// ── Start ─────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '4000');
 
 async function main() {
   try {
+    // Test prisma connection and log available models
+    await prisma.$connect();
+    const modelNames = Object.keys(prisma).filter(k => !k.startsWith('$') && !k.startsWith('_'));
+    console.log('✅ Prisma connected. Models:', modelNames.join(', '));
+
     await connectRedis();
     startScheduler();
     httpServer.listen(PORT, () => {
@@ -76,5 +68,6 @@ async function main() {
     process.exit(1);
   }
 }
+
 
 main();

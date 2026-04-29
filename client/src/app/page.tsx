@@ -1,95 +1,175 @@
 'use client';
-import Link from 'next/link';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Zap, Lock, Link2, Video, Radio, Users } from 'lucide-react';
 
-const features = [
-  { icon: Lock,  title: 'E2E Encrypted',    desc: 'WebRTC DTLS-SRTP by default. Zero config.' },
-  { icon: Zap,   title: '<150ms Latency',   desc: 'LiveKit SFU with adaptive bitrate streaming.' },
-  { icon: Link2, title: 'Zero Friction',    desc: 'Share a link. No accounts. No downloads.' },
-  { icon: Video, title: 'Screen + Camera',  desc: 'Capture anything — game, webcam, or both.' },
-  { icon: Radio, title: 'Live Recording',   desc: 'Server-side MP4 capture to S3 with one click.' },
-  { icon: Users, title: '10,000+ Viewers',  desc: 'Auto-scaling via LiveKit Cloud.' },
+const FEATURES = [
+  { icon: '⚡', title: 'Instant streams', desc: 'One click to go live. Share a link. Done.' },
+  { icon: '🔒', title: 'Private by default', desc: 'Password-protect any stream. No accounts needed.' },
+  { icon: '🌐', title: 'Go social', desc: 'Restream to YouTube and Instagram simultaneously.' },
+  { icon: '💬', title: 'Live interaction', desc: 'Real-time chat, emoji reactions, and polls.' },
+  { icon: '⏺', title: 'Record everything', desc: 'Download your stream as a video file instantly.' },
+  { icon: '🎨', title: 'Color grading', desc: '10 presets or manual controls for your look.' },
 ];
 
+const fade = (delay = 0) => ({
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.5, delay, ease: [0.25, 0.1, 0.25, 1] },
+});
+
 export default function HomePage() {
+  const router = useRouter();
+  const [hovered, setHovered] = useState<number | null>(null);
+
   return (
-    <main className="min-h-screen flex flex-col relative overflow-hidden">
-      {/* Background glow */}
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-brand-600/10 blur-[120px]" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-brand-800/10 blur-[100px]" />
-      </div>
+    <div className="min-h-screen bg-white text-gray-900" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
 
       {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-5 max-w-6xl mx-auto w-full">
+      <nav className="flex items-center justify-between px-8 py-5 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center">
-            <Radio className="w-4 h-4 text-white" />
-          </div>
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
           <span className="font-bold text-lg tracking-tight">StreamVault</span>
         </div>
-        <Link href="/host">
-          <button className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors">
-            Go Live →
-          </button>
-        </Link>
+        <button
+          onClick={() => router.push('/host')}
+          className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
+        >
+          Start streaming →
+        </button>
       </nav>
 
       {/* Hero */}
-      <section className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6 py-24">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass text-xs font-medium text-zinc-400 mb-6">
-            <span className="live-dot" /> WebRTC · No signup · Instant
+      <section className="max-w-3xl mx-auto px-8 pt-24 pb-20 text-center">
+        <motion.div {...fade(0)}>
+          <span className="inline-flex items-center gap-2 text-xs font-semibold text-red-500 bg-red-50 px-3 py-1.5 rounded-full mb-8">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            Free to use · No account required
           </span>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 leading-[0.95]">
-            Stream privately.<br />
-            <span className="text-brand-500">Share instantly.</span>
-          </h1>
-          <p className="text-zinc-400 text-lg md:text-xl max-w-xl mx-auto mb-10 leading-relaxed">
-            Create a private live stream in seconds. Share a link. No accounts,
-            no friction — end-to-end encrypted by default.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/host">
-              <button className="px-8 py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-all hover:scale-105 active:scale-95 shadow-lg shadow-brand-500/20">
-                Create a Stream
-              </button>
-            </Link>
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer">
-              <button className="px-8 py-3.5 glass hover:bg-white/[0.07] text-zinc-300 font-semibold rounded-xl transition-all border border-white/10">
-                View on GitHub
-              </button>
-            </a>
-          </div>
         </motion.div>
 
-        {/* Feature grid */}
-        <motion.div
-          initial={{ opacity: 0, y: 32 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-24 max-w-4xl w-full"
+        <motion.h1
+          {...fade(0.1)}
+          className="text-5xl sm:text-6xl font-bold tracking-tight leading-tight text-gray-900 mb-6"
+          style={{ letterSpacing: '-0.03em' }}
         >
-          {features.map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="glass rounded-2xl p-5 text-left hover:bg-white/[0.06] transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-3">
-                <Icon className="w-4 h-4 text-brand-400" />
-              </div>
-              <h3 className="font-semibold text-sm text-zinc-100 mb-1">{title}</h3>
-              <p className="text-xs text-zinc-500 leading-relaxed">{desc}</p>
-            </div>
-          ))}
+          Stream privately.<br />
+          <span className="text-red-500">Share instantly.</span>
+        </motion.h1>
+
+        <motion.p
+          {...fade(0.2)}
+          className="text-lg text-gray-500 max-w-xl mx-auto mb-10 leading-relaxed"
+        >
+          Create a private live stream in seconds. Share a link. No accounts, no downloads, no friction.
+        </motion.p>
+
+        <motion.div {...fade(0.3)} className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => router.push('/host')}
+            className="px-6 py-3 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Start streaming
+          </button>
+          <button
+            onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+            className="px-6 py-3 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
+          >
+            See features
+          </button>
         </motion.div>
       </section>
 
-      <footer className="relative z-10 text-center py-6 text-zinc-600 text-xs">
-        Built with LiveKit · Socket.io · Next.js
+      {/* How it works */}
+      <section className="border-t border-gray-100 bg-gray-50 py-20">
+        <div className="max-w-3xl mx-auto px-8">
+          <motion.h2
+            initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
+            className="text-sm font-semibold text-gray-400 uppercase tracking-widest text-center mb-12"
+          >
+            How it works
+          </motion.h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+            {[
+              { step: '01', title: 'Create a stream', desc: 'Enter a title and optional password. Done in 3 seconds.' },
+              { step: '02', title: 'Go live', desc: 'Enable your camera or screen. Your stream starts immediately.' },
+              { step: '03', title: 'Share the link', desc: 'Send the viewer URL to anyone. They join instantly.' },
+            ].map((item, i) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1, duration: 0.5 }} viewport={{ once: true }}
+              >
+                <div className="text-xs font-bold text-red-400 mb-3">{item.step}</div>
+                <div className="font-semibold text-gray-900 mb-2">{item.title}</div>
+                <div className="text-sm text-gray-500 leading-relaxed">{item.desc}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" className="py-20">
+        <div className="max-w-3xl mx-auto px-8">
+          <motion.h2
+            initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
+            className="text-sm font-semibold text-gray-400 uppercase tracking-widest text-center mb-12"
+          >
+            Everything included
+          </motion.h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {FEATURES.map((f, i) => (
+              <motion.div
+                key={f.title}
+                initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05, duration: 0.4 }} viewport={{ once: true }}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+                className={`p-5 rounded-xl border transition-all cursor-default ${
+                  hovered === i ? 'border-gray-200 bg-gray-50' : 'border-gray-100 bg-white'
+                }`}
+              >
+                <div className="text-xl mb-3">{f.icon}</div>
+                <div className="font-semibold text-gray-900 text-sm mb-1">{f.title}</div>
+                <div className="text-sm text-gray-500 leading-relaxed">{f.desc}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="border-t border-gray-100 py-20">
+        <div className="max-w-3xl mx-auto px-8 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }} viewport={{ once: true }}
+          >
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900 mb-4" style={{ letterSpacing: '-0.02em' }}>
+              Ready to go live?
+            </h2>
+            <p className="text-gray-500 mb-8">No sign-up. No credit card. Just stream.</p>
+            <button
+              onClick={() => router.push('/host')}
+              className="px-8 py-3.5 bg-red-500 text-white text-sm font-semibold rounded-lg hover:bg-red-600 transition-colors"
+            >
+              Start your stream →
+            </button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-100 py-8 px-8">
+        <div className="max-w-3xl mx-auto flex items-center justify-between text-xs text-gray-400">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+            <span>StreamVault</span>
+          </div>
+          <span>Private live streaming · Free forever</span>
+        </div>
       </footer>
-    </main>
+    </div>
   );
 }

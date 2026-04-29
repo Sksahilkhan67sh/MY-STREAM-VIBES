@@ -1,66 +1,46 @@
 'use client';
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Circle, Square, Download, Trash2, Clock, HardDrive, RefreshCw, Film } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-const CHUNK_INTERVAL_MS = 2000; // send chunk every 2s
 
 interface Recording {
-  id: string;
-  fileName: string;
-  fileSize: number;
-  durationSec: number;
-  startedAt: string;
-  endedAt: string;
-  downloadUrl: string;
+  id: string; fileName: string; fileSize: number;
+  durationSec: number; startedAt: string; endedAt: string | null;
+  downloadUrl: string; exists: boolean;
 }
 
 interface RecordingPanelProps {
-  roomId: string;
-  hostToken: string;
-  /** Pass the MediaStream(s) you want to record */
-  streams: MediaStream[];
-  onRecordingChange?: (isRecording: boolean) => void;
+  roomId: string; hostToken: string; streams: MediaStream[];
 }
 
-function formatSize(bytes: number): string {
+function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDuration(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  return `${m}:${String(s).padStart(2, '0')}`;
+function formatDur(sec: number) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function RecordingPanel({
-  roomId,
-  hostToken,
-  streams,
-  onRecordingChange,
-}: RecordingPanelProps) {
-  const [isRecording, setIsRecording] = useState(false);
+export default function RecordingPanel({ roomId, hostToken, streams }: RecordingPanelProps) {
+  const [recording, setRecording]   = useState(false);
+  const [elapsed, setElapsed]       = useState(0);
   const [recordings, setRecordings] = useState<Recording[]>([]);
-  const [elapsed, setElapsed] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunkTimerRef    = useRef<NodeJS.Timeout | null>(null);
-  const elapsedTimerRef  = useRef<NodeJS.Timeout | null>(null);
-  const pendingChunks    = useRef<Blob[]>([]);
+  const mrRef         = useRef<MediaRecorder | null>(null);
+  const chunksRef     = useRef<Blob[]>([]);
+  const timerRef      = useRef<NodeJS.Timeout | null>(null);
+  const elapsedRef    = useRef<NodeJS.Timeout | null>(null);
 
-  // Load existing recordings on mount
   useEffect(() => {
-    loadRecordings();
+    fetchRecordings();
   }, []);
 
-  const loadRecordings = async () => {
+  const fetchRecordings = async () => {
     try {
       const res = await fetch(
         `${API}/api/egress/recordings/${roomId}?hostToken=${hostToken}`
@@ -69,12 +49,10 @@ export default function RecordingPanel({
     } catch {}
   };
 
-  // ── Send accumulated chunks to server ────────────────────────
-  const flushChunks = useCallback(async () => {
-    if (pendingChunks.current.length === 0) return;
-    const blob = new Blob(pendingChunks.current, { type: 'video/webm' });
-    pendingChunks.current = [];
-
+  const flushChunks = async () => {
+    if (chunksRef.current.length === 0) return;
+    const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+    chunksRef.current = [];
     try {
       await fetch(`${API}/api/egress/chunk`, {
         method: 'POST',
@@ -85,22 +63,17 @@ export default function RecordingPanel({
         },
         body: blob,
       });
-    } catch (e) {
-      console.warn('Chunk upload failed:', e);
-    }
-  }, [roomId, hostToken]);
+    } catch (e) { console.warn('Chunk upload failed:', e); }
+  };
 
-  // ── Start recording ──────────────────────────────────────────
   const startRecording = async () => {
-    setError('');
     if (streams.length === 0) {
-      setError('Start Camera or Screen first before recording.');
+      setError('Enable camera or screen first');
       return;
     }
-
+    setError('');
     setLoading(true);
     try {
-      // Tell server to start
       const res = await fetch(`${API}/api/egress/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,16 +81,12 @@ export default function RecordingPanel({
       });
       if (!res.ok) {
         const d = await res.json();
-        throw new Error(d.error || 'Failed to start recording');
+        setError(d.error || 'Failed to start'); setLoading(false); return;
       }
 
-      // Combine all active streams into one
       const combined = new MediaStream();
-      streams.forEach(s => {
-        s.getTracks().forEach(t => combined.addTrack(t));
-      });
+      streams.forEach(s => s.getTracks().forEach(t => combined.addTrack(t)));
 
-      // Pick best supported format
       const mimeType = [
         'video/webm;codecs=vp9,opus',
         'video/webm;codecs=vp8,opus',
@@ -125,217 +94,139 @@ export default function RecordingPanel({
       ].find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
 
       const mr = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 2_500_000 });
-      mediaRecorderRef.current = mr;
+      mrRef.current = mr;
 
       mr.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) pendingChunks.current.push(e.data);
+        if (e.data?.size > 0) chunksRef.current.push(e.data);
       };
-
-      // Collect chunks frequently so we don't lose data
       mr.start(500);
-
-      // Upload chunks every 2 seconds
-      chunkTimerRef.current = setInterval(flushChunks, CHUNK_INTERVAL_MS);
+      timerRef.current = setInterval(flushChunks, 2000);
 
       // Elapsed timer
       setElapsed(0);
-      elapsedTimerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+      elapsedRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
 
-      setIsRecording(true);
-      onRecordingChange?.(true);
+      setRecording(true);
     } catch (e: any) {
       setError(e.message || 'Failed to start recording');
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
-  // ── Stop recording ───────────────────────────────────────────
   const stopRecording = async () => {
     setLoading(true);
+    if (mrRef.current && mrRef.current.state !== 'inactive') {
+      mrRef.current.stop();
+    }
+    mrRef.current = null;
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (elapsedRef.current) { clearInterval(elapsedRef.current); elapsedRef.current = null; }
+
+    await flushChunks();
+
     try {
-      // Stop MediaRecorder
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-        await new Promise(r => setTimeout(r, 600)); // wait for last ondataavailable
-      }
-      mediaRecorderRef.current = null;
-
-      // Clear timers
-      if (chunkTimerRef.current) clearInterval(chunkTimerRef.current);
-      if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
-
-      // Flush remaining chunks
-      await flushChunks();
-
-      // Tell server to stop & finalize
-      const res = await fetch(`${API}/api/egress/stop`, {
+      await fetch(`${API}/api/egress/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomId, hostToken }),
       });
+    } catch {}
 
-      setIsRecording(false);
-      setElapsed(0);
-      onRecordingChange?.(false);
-
-      if (res.ok) {
-        const data = await res.json();
-        // Refresh list
-        await loadRecordings();
-        setError('');
-      }
-    } catch (e: any) {
-      setError(e.message || 'Failed to stop recording');
-    } finally {
-      setLoading(false);
-    }
+    setRecording(false);
+    setElapsed(0);
+    setLoading(false);
+    await fetchRecordings();
   };
 
-  // ── Download recording ───────────────────────────────────────
-  const downloadRecording = (rec: Recording) => {
-    const a = document.createElement('a');
-    a.href = `${API}${rec.downloadUrl}`;
-    a.download = rec.fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
-
-  // ── Delete recording ─────────────────────────────────────────
-  const deleteRecording = async (rec: Recording) => {
-    if (!confirm(`Delete ${rec.fileName}? This cannot be undone.`)) return;
-    setDeleting(rec.id);
+  const deleteRecording = async (id: string) => {
     try {
-      const res = await fetch(`${API}/api/egress/recordings/${rec.id}`, {
+      await fetch(`${API}/api/egress/recordings/${id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hostToken }),
       });
-      if (res.ok) setRecordings(rs => rs.filter(r => r.id !== rec.id));
+      setRecordings(prev => prev.filter(r => r.id !== id));
     } catch {}
-    setDeleting(null);
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (chunkTimerRef.current) clearInterval(chunkTimerRef.current);
-      if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
-    };
-  }, []);
-
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-        <div className="flex items-center gap-2">
-          <Film className="w-4 h-4 text-brand-500" />
-          <span className="font-bold text-sm">Recordings</span>
-          {isRecording && (
-            <span className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/30 px-2 py-0.5 rounded-full text-xs font-bold text-red-400">
-              <span className="live-dot" /> {formatDuration(elapsed)}
-            </span>
-          )}
-        </div>
-        <button onClick={loadRecordings} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors">
-          <RefreshCw className="w-3.5 h-3.5 text-zinc-500" />
+    <div className="space-y-4" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+
+      {/* Record button */}
+      {!recording ? (
+        <button
+          onClick={startRecording}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+          {loading ? 'Starting...' : 'Start recording'}
         </button>
-      </div>
-
-      <div className="p-4 space-y-4">
-        {/* Error */}
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">
-            ⚠️ {error}
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between bg-red-50 border border-red-100 rounded-lg px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-sm font-semibold text-red-600">Recording</span>
+            </div>
+            <span className="text-sm font-mono text-red-500">{formatDur(elapsed)}</span>
           </div>
-        )}
-
-        {/* Record / Stop button */}
-        {!isRecording ? (
-          <button
-            onClick={startRecording}
-            disabled={loading || streams.length === 0}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 font-semibold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {loading
-              ? <><div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" /> Starting...</>
-              : <><Circle className="w-4 h-4" /> Start Recording</>}
-          </button>
-        ) : (
           <button
             onClick={stopRecording}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-all disabled:opacity-60"
+            className="w-full py-2.5 text-sm font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-100 disabled:opacity-40 transition-colors"
           >
-            {loading
-              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving...</>
-              : <><Square className="w-4 h-4 fill-white" /> Stop & Save Recording</>}
+            {loading ? 'Stopping...' : 'Stop recording'}
           </button>
-        )}
+        </div>
+      )}
 
-        {streams.length === 0 && !isRecording && (
-          <p className="text-xs text-zinc-600 text-center">
-            Enable Camera or Screen first to record
+      {error && (
+        <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+      )}
+
+      {streams.length === 0 && !recording && (
+        <p className="text-xs text-gray-400 text-center">Enable camera or screen first</p>
+      )}
+
+      {/* Recordings list */}
+      {recordings.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Saved recordings
           </p>
-        )}
-
-        {/* Recordings list */}
-        {recordings.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-              Saved Recordings ({recordings.length})
-            </p>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {recordings.map(rec => (
-                <div key={rec.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <p className="text-xs font-mono text-zinc-300 truncate flex-1">
-                      {rec.fileName}
-                    </p>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => downloadRecording(rec)}
-                        title="Download"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-800 hover:bg-green-500/20 hover:text-green-400 text-zinc-400 transition-colors"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => deleteRecording(rec)}
-                        disabled={deleting === rec.id}
-                        title="Delete"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 text-zinc-400 transition-colors disabled:opacity-40"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-zinc-600">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatDuration(rec.durationSec)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <HardDrive className="w-3 h-3" />
-                      {formatSize(rec.fileSize)}
-                    </span>
-                    <span className="ml-auto">
-                      {new Date(rec.startedAt).toLocaleTimeString()}
-                    </span>
-                  </div>
+          {recordings.map(r => (
+            <div key={r.id} className="border border-gray-100 rounded-lg p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-mono text-gray-600 truncate">{r.fileName}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {formatDur(r.durationSec)} · {formatSize(r.fileSize)}
+                    {!r.exists && <span className="text-red-400 ml-1">· file missing</span>}
+                  </p>
                 </div>
-              ))}
+              </div>
+              <div className="flex items-center gap-2">
+                {r.exists && (
+                  <a
+                    href={`${API}${r.downloadUrl}`}
+                    download={r.fileName}
+                    className="flex-1 text-center py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-100 transition-colors"
+                  >
+                    Download
+                  </a>
+                )}
+                <button
+                  onClick={() => deleteRecording(r.id)}
+                  className="px-3 py-1.5 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-
-        {recordings.length === 0 && !isRecording && (
-          <p className="text-xs text-zinc-700 text-center py-2">
-            No recordings yet
-          </p>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

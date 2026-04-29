@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Lock, Radio, Clock } from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
 import StreamPlayer from '@/components/StreamPlayer';
 import ChatPanel from '@/components/ChatPanel';
+import PollWidget from '@/components/PollWidget';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -20,30 +21,55 @@ interface StreamInfo {
 
 export default function ViewerPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const [stream, setStream] = useState<StreamInfo | null>(null);
-  const [error, setError] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [password, setPassword] = useState('');
-  const [token, setToken] = useState('');
-  const [identity, setIdentity] = useState('');
-  const [step, setStep] = useState<'loading' | 'join' | 'watching' | 'error'>('loading');
+  const [stream, setStream]       = useState<StreamInfo | null>(null);
+  const [error, setError]         = useState('');
+  const [nickname, setNickname]   = useState('');
+  const [password, setPassword]   = useState('');
+  const [token, setToken]         = useState('');
+  const [identity, setIdentity]   = useState('');
+  const [step, setStep]           = useState<'loading' | 'join' | 'watching' | 'error'>('loading');
+  const [socket, setSocket]       = useState<Socket | null>(null);
+  const [socketReady, setSocketReady] = useState(false);
+  const nicknameRef = useRef(nickname);
+  nicknameRef.current = nickname;
 
   useEffect(() => {
     fetch(`${API}/api/streams/${roomId}`)
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: StreamInfo) => { setStream(data); setStep('join'); })
       .catch(code => {
-        setError(code === 404 ? 'Stream not found.' : code === 410 ? 'This stream link has expired.' : 'Failed to load stream.');
+        setError(
+          code === 404 ? 'Stream not found.' :
+          code === 410 ? 'This stream has expired.' :
+          'Failed to load stream.'
+        );
         setStep('error');
       });
   }, [roomId]);
 
+  useEffect(() => {
+    if (step !== 'watching') return;
+    const s = io(API, { transports: ['websocket', 'polling'] });
+    s.on('connect', () => {
+      s.emit('join-room', { roomId, nickname: nicknameRef.current || 'Anonymous' });
+      setSocketReady(true);
+    });
+    s.on('disconnect', () => setSocketReady(false));
+    setSocket(s);
+    return () => { s.disconnect(); setSocket(null); setSocketReady(false); };
+  }, [step, roomId]);
+
   const joinStream = async () => {
+    setError('');
     try {
       const res = await fetch(`${API}/api/token/viewer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId, nickname: nickname || undefined, password: password || undefined }),
+        body: JSON.stringify({
+          roomId,
+          nickname: nickname || undefined,
+          password: password || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to join'); return; }
@@ -51,112 +77,130 @@ export default function ViewerPage() {
       setIdentity(data.identity);
       setStep('watching');
     } catch {
-      setError('Failed to join stream. Please try again.');
+      setError('Failed to join. Please try again.');
     }
   };
 
-  if (step === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex items-center gap-3 text-zinc-500">
-          <div className="w-5 h-5 border-2 border-zinc-700 border-t-brand-500 rounded-full animate-spin" />
-          Loading stream...
-        </div>
+  if (step === 'loading') return (
+    <div className="min-h-screen bg-white flex items-center justify-center" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+      <div className="flex items-center gap-3 text-gray-400 text-sm">
+        <div className="w-4 h-4 border-2 border-gray-200 border-t-gray-500 rounded-full animate-spin" />
+        Loading stream...
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (step === 'error') {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="glass rounded-2xl p-8 max-w-sm text-center">
-          <div className="text-4xl mb-4">📭</div>
-          <h2 className="font-bold text-lg mb-2">Stream Unavailable</h2>
-          <p className="text-zinc-500 text-sm">{error}</p>
-        </div>
+  if (step === 'error') return (
+    <div className="min-h-screen bg-white flex items-center justify-center px-6" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+      <div className="text-center max-w-sm">
+        <div className="text-3xl mb-4">📭</div>
+        <h2 className="font-bold text-gray-900 mb-2">Stream unavailable</h2>
+        <p className="text-sm text-gray-400">{error}</p>
+        <a href="/" className="inline-block mt-6 text-sm text-gray-500 hover:text-gray-900 transition-colors underline underline-offset-4">
+          Back to home
+        </a>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (step === 'watching' && stream && token) {
-    return (
-      <div className="min-h-screen flex flex-col lg:flex-row bg-zinc-950">
-        <div className="flex-1 min-h-0">
-          <StreamPlayer
-            roomId={roomId}
-            token={token}
-            title={stream.title}
-            isHost={false}
-          />
-        </div>
-        <div className="w-full lg:w-80 h-64 lg:h-screen border-t lg:border-t-0 lg:border-l border-zinc-800/60">
-          <ChatPanel roomId={roomId} identity={identity} nickname={nickname || 'Anonymous'} />
-        </div>
+  if (step === 'watching' && stream && token) return (
+    <div className="min-h-screen flex flex-col lg:flex-row bg-gray-950" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+      {/* Video */}
+      <div className="flex-1 min-h-0 relative bg-black">
+        <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
+        {socketReady && <PollWidget roomId={roomId} socket={socket} />}
       </div>
-    );
-  }
+      {/* Chat */}
+      <div className="w-full lg:w-72 h-64 lg:h-screen border-t lg:border-t-0 lg:border-l border-gray-800">
+        <ChatPanel
+          roomId={roomId}
+          identity={identity}
+          nickname={nickname || 'Anonymous'}
+          socket={socket}
+        />
+      </div>
+    </div>
+  );
 
-  // Join screen
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass rounded-2xl p-8 w-full max-w-sm"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
-            <Radio className="w-5 h-5 text-brand-400" />
-          </div>
-          <div>
-            <h1 className="font-bold text-base leading-tight">{stream?.title}</h1>
+    <div className="min-h-screen bg-white flex flex-col" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+      <nav className="flex items-center px-8 py-5 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-red-500" />
+          <span className="font-bold text-base tracking-tight">StreamVault</span>
+        </div>
+      </nav>
+
+      <div className="flex-1 flex items-center justify-center px-6 py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="w-full max-w-sm"
+        >
+          {/* Stream info */}
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-2">
+              {stream?.isLive && (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-red-500 bg-red-50 px-2.5 py-1 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  LIVE
+                </span>
+              )}
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight mb-1" style={{ letterSpacing: '-0.02em' }}>
+              {stream?.title}
+            </h1>
             {stream?.scheduledAt && !stream.isLive && (
-              <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
-                <Clock className="w-3 h-3" />
-                Scheduled: {new Date(stream.scheduledAt).toLocaleString()}
+              <p className="text-sm text-gray-400">
+                Scheduled for {new Date(stream.scheduledAt).toLocaleString()}
               </p>
             )}
           </div>
-        </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Your Nickname</label>
-            <input
-              value={nickname}
-              onChange={e => setNickname(e.target.value)}
-              placeholder="Anonymous"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
-            />
-          </div>
-
-          {stream?.hasPassword && (
+          <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider flex items-center gap-1">
-                <Lock className="w-3 h-3" /> Stream Password
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Your name
               </label>
               <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter password"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
+                value={nickname}
+                onChange={e => setNickname(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && joinStream()}
+                placeholder="Anonymous"
+                autoFocus
+                className="w-full px-4 py-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 text-gray-900"
               />
             </div>
-          )}
 
-          {error && (
-            <p className="text-brand-400 text-sm bg-brand-500/10 border border-brand-500/20 rounded-lg px-4 py-2">{error}</p>
-          )}
+            {stream?.hasPassword && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Enter stream password"
+                  className="w-full px-4 py-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 text-gray-900"
+                />
+              </div>
+            )}
 
-          <button
-            onClick={joinStream}
-            className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-95"
-          >
-            Join Stream →
-          </button>
-        </div>
-      </motion.div>
-    </main>
+            {error && (
+              <p className="text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-lg">{error}</p>
+            )}
+
+            <button
+              onClick={joinStream}
+              className="w-full py-3 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Watch stream →
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </div>
   );
 }

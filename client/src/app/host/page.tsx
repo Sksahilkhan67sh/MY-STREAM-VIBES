@@ -1,13 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, Copy, Check, ExternalLink, Calendar, Video, Mic, MicOff, VideoOff, Square, Circle } from 'lucide-react';
-import Link from 'next/link';
+import { motion } from 'framer-motion';
 import HostControls from '@/components/HostControls';
-import ScheduleModal from '@/components/ScheduleModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-const APP = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 interface StreamData {
   roomId: string;
@@ -18,30 +15,28 @@ interface StreamData {
 }
 
 export default function HostPage() {
-  const [title, setTitle] = useState('');
+  const [title, setTitle]       = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [stream, setStream] = useState<StreamData | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [tab, setTab] = useState<'create' | 'schedule'>('create');
-  const [error, setError] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [stream, setStream]     = useState<StreamData | null>(null);
+  const [copied, setCopied]     = useState(false);
 
-  const createStream = async (scheduledAt?: string) => {
-    if (!title.trim()) { setError('Please enter a stream title'); return; }
+  const createStream = async () => {
+    if (!title.trim()) { setError('Enter a stream title'); return; }
     setError('');
     setLoading(true);
     try {
       const res = await fetch(`${API}/api/streams`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), password: password || undefined, scheduledAt }),
+        body: JSON.stringify({ title: title.trim(), password: password || undefined }),
       });
-      if (!res.ok) throw new Error('Failed to create stream');
       const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to create stream'); return; }
       setStream(data);
-    } catch (e) {
-      setError('Could not create stream. Is the server running?');
+    } catch {
+      setError('Cannot connect to server. Is it running?');
     } finally {
       setLoading(false);
     }
@@ -49,115 +44,100 @@ export default function HostPage() {
 
   const copyLink = () => {
     if (!stream) return;
-    navigator.clipboard.writeText(`${APP}${stream.viewerUrl}`);
+    navigator.clipboard.writeText(`${APP_URL}${stream.viewerUrl}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   if (stream) {
-    return <HostControls stream={stream} appUrl={APP} onCopy={copyLink} copied={copied} />;
+    return (
+      <HostControls
+        stream={stream}
+        appUrl={APP_URL}
+        onCopy={copyLink}
+        copied={copied}
+      />
+    );
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4 py-12 relative">
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-brand-600/8 blur-[100px]" />
-      </div>
+    <div className="min-h-screen bg-white flex flex-col" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md"
-      >
-        <Link href="/" className="flex items-center gap-2 mb-8 text-zinc-500 hover:text-zinc-300 transition-colors text-sm">
-          ← Back
-        </Link>
+      {/* Nav */}
+      <nav className="flex items-center justify-between px-8 py-5 border-b border-gray-100">
+        <a href="/" className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-red-500" />
+          <span className="font-bold text-base tracking-tight">StreamVault</span>
+        </a>
+      </nav>
 
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center">
-            <Radio className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="font-black text-2xl tracking-tight">New Stream</h1>
-            <p className="text-zinc-500 text-sm">Go live in seconds</p>
-          </div>
-        </div>
+      {/* Form */}
+      <div className="flex-1 flex items-center justify-center px-6 py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="w-full max-w-sm"
+        >
+          <h1 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+            Create a stream
+          </h1>
+          <p className="text-sm text-gray-400 mb-8">
+            You'll get a shareable link instantly.
+          </p>
 
-        {/* Tabs */}
-        <div className="flex glass rounded-xl p-1 mb-6">
-          {(['create', 'schedule'] as const).map(t => (
+          <div className="space-y-4">
+            {/* Title */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Stream title
+              </label>
+              <input
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && createStream()}
+                placeholder="My live stream"
+                autoFocus
+                className="w-full px-4 py-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 text-gray-900"
+              />
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Password <span className="text-gray-300 font-normal normal-case">(optional)</span>
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Leave blank for public"
+                className="w-full px-4 py-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 text-gray-900"
+              />
+            </div>
+
+            {/* Error */}
+            {error && (
+              <p className="text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-lg">
+                {error}
+              </p>
+            )}
+
+            {/* Submit */}
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all capitalize
-                ${tab === t ? 'bg-brand-500 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-              {t === 'create' ? '⚡ Go Live Now' : '📅 Schedule'}
-            </button>
-          ))}
-        </div>
-
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Stream Title</label>
-            <input
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && tab === 'create' && createStream()}
-              placeholder="My awesome stream..."
-              maxLength={100}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">
-              Password <span className="text-zinc-600 normal-case font-normal">(optional)</span>
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Leave blank for public stream"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
-            />
-          </div>
-
-          {error && (
-            <p className="text-brand-400 text-sm bg-brand-500/10 border border-brand-500/20 rounded-lg px-4 py-2">{error}</p>
-          )}
-
-          {tab === 'create' ? (
-            <button
-              onClick={() => createStream()}
+              onClick={createStream}
               disabled={loading}
-              className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-95"
+              className="w-full py-3 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Creating...' : '🔴 Create Stream'}
+              {loading ? 'Creating...' : 'Create stream →'}
             </button>
-          ) : (
-            <button
-              onClick={() => setShowSchedule(true)}
-              disabled={!title.trim()}
-              className="w-full py-3.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-white font-bold rounded-xl transition-all"
-            >
-              📅 Schedule Stream
-            </button>
-          )}
-        </div>
+          </div>
 
-        <p className="text-center text-zinc-600 text-xs mt-6">
-          All streams expire in 24h · End-to-end encrypted
-        </p>
-      </motion.div>
-
-      {showSchedule && (
-        <ScheduleModal
-          title={title}
-          onClose={() => setShowSchedule(false)}
-          onSchedule={(dt) => { setShowSchedule(false); createStream(dt); }}
-        />
-      )}
-    </main>
+          <p className="text-xs text-gray-300 text-center mt-6">
+            Stream link expires after 24 hours
+          </p>
+        </motion.div>
+      </div>
+    </div>
   );
 }

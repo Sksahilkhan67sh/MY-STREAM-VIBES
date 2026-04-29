@@ -2,7 +2,10 @@
   "name": "streamvault",
   "version": "1.0.0",
   "private": true,
-  "workspaces": ["client", "server"],
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "npm run dev --workspace=client",
@@ -15,6 +18,10 @@
     "test": "npm run test --workspace=client && npm run test --workspace=server"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^5.0.6",
+    "@types/morgan": "^1.9.10",
+    "@types/node-cron": "^3.0.11",
     "concurrently": "^8.2.2"
   }
 }
