@@ -70,9 +70,9 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
     if (!socket) return;
     const onCreate   = (d: PollData) => showPoll(d);
     const onUpdate   = ({ id, votes, totalVotes }: any) =>
-      setPoll(p => p?.id === id ? { ...p, votes, totalVotes } : p);
+      setPoll(p => p?.id === id ? { ...p, votes, totalVotes } as PollData : p);
     const onClose    = ({ id, votes, totalVotes }: any) => {
-      setPoll(p => p?.id === id ? { ...p, status: 'closed', votes, totalVotes } : p);
+      setPoll(p => p?.id === id ? { ...p, status: 'closed', votes, totalVotes } as PollData : p);
       if (timerRef.current) clearInterval(timerRef.current);
       setTimeLeft(0);
       hideTimerRef.current = setTimeout(() => setVisible(false), 8000);
@@ -98,7 +98,7 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
         body: JSON.stringify({ optionIndex: i, voterId: voterId.current, roomId }),
       });
       const d = await res.json();
-      if (res.ok) { setVoted(i); setPoll(p => p ? { ...p, votes: d.votes, totalVotes: d.totalVotes } : p); }
+      if (res.ok) { setVoted(i); setPoll(p => p ? { ...p, votes: d.votes, totalVotes: d.totalVotes } as PollData : p); }
       else if (d.error === 'Already voted') setVoted(i);
     } catch {}
     setLoading(false);
