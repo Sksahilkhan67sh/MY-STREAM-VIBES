@@ -120,11 +120,11 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
         className="absolute bottom-4 right-4 w-72 z-30"
         style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
       >
-        <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 {isClosed ? 'Poll ended' : 'Live poll'}
               </span>
               {!isClosed && (
@@ -136,11 +136,11 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
             </div>
             <div className="flex items-center gap-2">
               {!isClosed && timeLeft > 0 && (
-                <span className="text-xs text-gray-400">{timeLeft}s</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">{timeLeft}s</span>
               )}
               <button
                 onClick={() => setDismissed(true)}
-                className="text-gray-300 hover:text-gray-600 transition-colors text-lg leading-none"
+                className="text-gray-300 dark:text-gray-600 hover:text-gray-600 dark:text-gray-400 transition-colors text-lg leading-none"
               >
                 ×
               </button>
@@ -148,7 +148,7 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
           </div>
 
           <div className="p-4 space-y-3">
-            <p className="text-sm font-semibold text-gray-900">{poll.question}</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{poll.question}</p>
 
             <div className="space-y-2">
               {poll.options.map((opt, i) => {
@@ -163,7 +163,7 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
                     disabled={showResults || loading}
                     className={`w-full text-left rounded-lg border text-sm relative overflow-hidden transition-all
                       ${showResults ? 'cursor-default' : 'hover:border-gray-300 cursor-pointer'}
-                      ${myVote ? 'border-gray-900 bg-gray-50' : isWinner ? 'border-gray-300' : 'border-gray-100 bg-white'}`}
+                      ${myVote ? 'border-gray-900 bg-gray-50 dark:bg-gray-900' : isWinner ? 'border-gray-300' : 'border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950'}`}
                   >
                     {/* Progress fill */}
                     {showResults && (
@@ -175,12 +175,12 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
                       />
                     )}
                     <div className="relative flex items-center justify-between px-3 py-2.5 gap-2">
-                      <span className={`truncate ${myVote ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                      <span className={`truncate ${myVote ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300 dark:text-gray-600'}`}>
                         {opt}
                         {myVote && ' ✓'}
                       </span>
                       {showResults && (
-                        <span className={`text-xs font-semibold flex-shrink-0 ${myVote ? 'text-gray-900' : 'text-gray-400'}`}>
+                        <span className={`text-xs font-semibold flex-shrink-0 ${myVote ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>
                           {pct}%
                         </span>
                       )}
@@ -190,7 +190,7 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
               })}
             </div>
 
-            <div className="flex items-center justify-between text-xs text-gray-400">
+            <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
               <span>{poll.totalVotes} votes</span>
               {!showResults && <span>Tap to vote</span>}
               {isClosed && <span>Final results</span>}
