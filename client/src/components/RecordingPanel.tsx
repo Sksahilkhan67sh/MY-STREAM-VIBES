@@ -174,7 +174,7 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
           <button
             onClick={stopRecording}
             disabled={loading}
-            className="w-full py-2.5 text-sm font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-100 disabled:opacity-40 transition-colors"
+            className="w-full py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800 disabled:opacity-40 transition-colors"
           >
             {loading ? 'Stopping...' : 'Stop recording'}
           </button>
@@ -186,21 +186,21 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
       )}
 
       {streams.length === 0 && !recording && (
-        <p className="text-xs text-gray-400 text-center">Enable camera or screen first</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 text-center">Enable camera or screen first</p>
       )}
 
       {/* Recordings list */}
       {recordings.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             Saved recordings
           </p>
           {recordings.map(r => (
-            <div key={r.id} className="border border-gray-100 rounded-lg p-3 space-y-2">
+            <div key={r.id} className="border border-gray-100 dark:border-gray-800 rounded-lg p-3 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-mono text-gray-600 truncate">{r.fileName}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate">{r.fileName}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                     {formatDur(r.durationSec)} · {formatSize(r.fileSize)}
                     {!r.exists && <span className="text-red-400 ml-1">· file missing</span>}
                   </p>
@@ -211,7 +211,7 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
                   <a
                     href={`${API}${r.downloadUrl}`}
                     download={r.fileName}
-                    className="flex-1 text-center py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-100 transition-colors"
+                    className="flex-1 text-center py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800 transition-colors"
                   >
                     Download
                   </a>
