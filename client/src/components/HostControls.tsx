@@ -16,6 +16,7 @@ import RecordingPanel from './RecordingPanel';
 import PollCreator from './PollCreator';
 import ColorGrading, { ColorSettings, DEFAULT_SETTINGS, buildFilter, buildVignette } from './ColorGrading';
 import ResolutionPicker, { Resolution, DEFAULT_RESOLUTION } from './ResolutionPicker';
+import { ThemeToggle } from './ThemeContext';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -41,7 +42,7 @@ function Btn({ active, disabled, onClick, children, danger }: {
           ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100'
           : active
             ? 'bg-gray-900 text-white'
-            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-100'}`}
+            : 'bg-gray-50 dark:bg-gray-900 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-100'}`}
     >
       {children}
     </button>
@@ -64,7 +65,7 @@ function Panel({ open, onClose, children }: {
           <motion.div
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-            className="fixed right-0 top-0 bottom-0 w-80 bg-white border-l border-gray-100 z-50 flex flex-col shadow-xl"
+            className="fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800 z-50 flex flex-col shadow-xl"
           >
             {children}
           </motion.div>
@@ -312,14 +313,14 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
   return (
     <div
-      className="min-h-screen flex flex-col lg:flex-row bg-white"
+      className="min-h-screen flex flex-col lg:flex-row bg-white dark:bg-gray-950 transition-colors duration-200"
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
     >
       {/* Left: Studio */}
-      <div className="flex-1 flex flex-col min-h-0 border-r border-gray-100">
+      <div className="flex-1 flex flex-col min-h-0 border-r border-gray-100 dark:border-gray-800">
 
         {/* Top bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-500" />
@@ -333,22 +334,23 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
             )}
             {isConnecting && (
               <span className="text-xs text-gray-400 flex items-center gap-1.5">
-                <div className="w-3 h-3 border-2 border-gray-200 border-t-gray-500 rounded-full animate-spin" />
+                <div className="w-3 h-3 border-2 border-gray-200 dark:border-gray-700 border-t-gray-500 rounded-full animate-spin" />
                 Connecting...
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <button
               onClick={() => { setPanelTab('chat'); setPanelOpen(true); }}
-              className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+              className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800 rounded-lg transition-colors"
             >
               Chat
             </button>
             <button
               onClick={() => { setPanelTab('tools'); setPanelOpen(true); }}
-              className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+              className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800 rounded-lg transition-colors"
             >
               Tools
             </button>
@@ -388,12 +390,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           {!cameraOn && !screenOn && (
             <div className="text-center">
               <div className="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center mx-auto mb-3">
-                <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
                 </svg>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {isConnecting ? 'Connecting...' : isConnected ? 'Enable camera or screen below' : 'Cannot reach LiveKit'}
               </p>
             </div>
@@ -401,7 +403,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         </div>
 
         {/* Controls */}
-        <div className="px-5 py-4 space-y-3 border-t border-gray-100">
+        <div className="px-5 py-4 space-y-3 border-t border-gray-100 dark:border-gray-800">
           {error && (
             <div className="text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-lg">{error}</div>
           )}
@@ -436,7 +438,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
             {bothOn && (
               <button
                 onClick={() => setPipSwapped(s => !s)}
-                className="px-3 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100"
+                className="px-3 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-900 rounded-lg transition-colors border border-gray-100 dark:border-gray-800"
               >
                 Swap view
               </button>
@@ -453,7 +455,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           </div>
 
           {/* Viewer link row */}
-          <div className="flex items-center gap-2 bg-gray-50 px-4 py-2.5 rounded-lg border border-gray-100">
+          <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 px-4 py-2.5 rounded-lg border border-gray-100 dark:border-gray-800">
             <span className="text-xs text-gray-400 font-mono flex-1 truncate">{viewerLink}</span>
             <button
               onClick={onCopy}
@@ -485,7 +487,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           </div>
           <button
             onClick={() => setPanelOpen(false)}
-            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-colors"
+            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-900 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -515,7 +517,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                   <button
                     key={tool.id}
                     onClick={() => setActivePanel(tool.id)}
-                    className="w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-900 transition-colors text-left"
                   >
                     <span>{tool.label}</span>
                     <div className="flex items-center gap-2">
@@ -590,7 +592,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                       ) : (
                         <button
                           onClick={() => { setShowRtmp(true); setPanelOpen(false); }}
-                          className="w-full py-2.5 text-sm font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-100"
+                          className="w-full py-2.5 text-sm font-semibold text-gray-700 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors border border-gray-100 dark:border-gray-800"
                         >
                           Go live on YouTube / Instagram
                         </button>
@@ -600,7 +602,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                   {activePanel === 'link' && (
                     <div className="space-y-3">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Viewer link</p>
-                      <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
+                      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 rounded-lg px-4 py-3">
                         <p className="text-xs font-mono text-gray-600 break-all leading-relaxed">{viewerLink}</p>
                       </div>
                       <button
