@@ -128,13 +128,13 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
       <motion.div
         initial={{ opacity: 0, scale: 0.97, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-xl border border-gray-100 shadow-xl w-full max-w-sm max-h-[90vh] flex flex-col"
+        className="bg-white dark:bg-gray-950 rounded-xl border border-gray-100 dark:border-gray-800 shadow-xl w-full max-w-sm max-h-[90vh] flex flex-col"
         style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-          <h2 className="font-semibold text-sm text-gray-900">Stream to social media</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 transition-colors text-xl leading-none">×</button>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+          <h2 className="font-semibold text-sm text-gray-900 dark:text-gray-100">Stream to social media</h2>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 dark:text-gray-100 transition-colors text-xl leading-none">×</button>
         </div>
 
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
@@ -143,7 +143,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
           <div className={`text-xs px-3 py-2.5 rounded-lg border ${
             ffmpegOk === true  ? 'bg-green-50 border-green-100 text-green-600'
             : ffmpegOk === false ? 'bg-red-50 border-red-100 text-red-500'
-            : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+            : 'bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-400 dark:text-gray-500'}`}>
             {ffmpegOk === true  && '✓ FFmpeg ready — your stream will go live on social media'}
             {ffmpegOk === false && (
               <div className="space-y-1">
@@ -183,9 +183,9 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
           )}
 
           {status === 'connecting' && (
-            <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
-              <div className="w-4 h-4 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin flex-shrink-0" />
-              <p className="text-sm text-gray-600">Connecting to {p?.name}...</p>
+            <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg px-4 py-3">
+              <div className="w-4 h-4 border-2 border-gray-200 dark:border-gray-700 border-t-gray-600 rounded-full animate-spin flex-shrink-0" />
+              <p className="text-sm text-gray-600 dark:text-gray-400">Connecting to {p?.name}...</p>
             </div>
           )}
 
@@ -193,7 +193,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
             <div className="bg-red-50 border border-red-100 rounded-lg p-4 space-y-2">
               <p className="text-sm font-semibold text-red-600">Stream failed</p>
               <p className="text-xs text-red-500">{errorMsg}</p>
-              <button onClick={() => { setStatus('idle'); setErrorMsg(''); }} className="text-xs text-gray-500 underline">
+              <button onClick={() => { setStatus('idle'); setErrorMsg(''); }} className="text-xs text-gray-500 dark:text-gray-400 underline">
                 Try again
               </button>
             </div>
@@ -203,7 +203,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
           {(status === 'idle' || status === 'error') && (
             <>
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Platform</p>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Platform</p>
                 <div className="grid grid-cols-3 gap-2">
                   {PLATFORMS.map(pl => (
                     <button
@@ -212,7 +212,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
                       className={`py-2.5 rounded-lg text-xs font-semibold border transition-all ${
                         platform === pl.id
                           ? 'bg-gray-900 text-white border-gray-900'
-                          : 'bg-gray-50 text-gray-600 border-gray-100 hover:border-gray-300'}`}
+                          : 'bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-100 dark:border-gray-800 hover:border-gray-300'}`}
                     >
                       {pl.name}
                     </button>
@@ -231,11 +231,11 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
                   >
                     {/* Steps */}
                     {p.steps.length > 0 && (
-                      <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 space-y-1.5">
-                        <p className="text-xs font-semibold text-gray-500 mb-2">How to get your stream key</p>
+                      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-3 space-y-1.5">
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">How to get your stream key</p>
                         {p.steps.map((step, i) => (
-                          <div key={i} className="flex items-start gap-2 text-xs text-gray-500">
-                            <span className="text-gray-300 font-semibold flex-shrink-0">{i + 1}.</span>
+                          <div key={i} className="flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span className="text-gray-300 dark:text-gray-600 font-semibold flex-shrink-0">{i + 1}.</span>
                             <span>{step}</span>
                           </div>
                         ))}
@@ -244,7 +244,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
 
                     {/* Key input */}
                     <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                      <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
                         {platform === 'custom' ? 'Full RTMP URL' : 'Stream key'}
                       </label>
                       <input
@@ -252,7 +252,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
                         value={platform === 'custom' ? customUrl : key}
                         onChange={e => platform === 'custom' ? setCustomUrl(e.target.value) : setKey(e.target.value)}
                         placeholder={p.placeholder}
-                        className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 font-mono text-gray-900"
+                        className="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 dark:placeholder-gray-600 font-mono text-gray-900 dark:text-gray-100"
                       />
                     </div>
 
@@ -269,7 +269,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
             </>
           )}
 
-          <p className="text-xs text-gray-300 text-center">Stream key is never stored permanently</p>
+          <p className="text-xs text-gray-300 dark:text-gray-600 text-center">Stream key is never stored permanently</p>
         </div>
       </motion.div>
     </div>
