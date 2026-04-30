@@ -74,23 +74,23 @@ export default function PollCreator({
       <div className="space-y-3" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Poll active</span>
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Poll active</span>
         </div>
 
-        <p className="text-sm font-semibold text-gray-900">{activePoll.question}</p>
+        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{activePoll.question}</p>
 
         <div className="space-y-2">
           {activePoll.options.map((opt, i) => {
             const pct = total > 0 ? Math.round(activePoll.votes[i] / total * 100) : 0;
             return (
-              <div key={i} className="relative overflow-hidden rounded-lg border border-gray-100">
+              <div key={i} className="relative overflow-hidden rounded-lg border border-gray-100 dark:border-gray-800">
                 <div
-                  className="absolute inset-y-0 left-0 bg-gray-50 transition-all duration-500"
+                  className="absolute inset-y-0 left-0 bg-gray-50 dark:bg-gray-900 transition-all duration-500"
                   style={{ width: `${pct}%` }}
                 />
                 <div className="relative flex items-center justify-between px-3 py-2">
-                  <span className="text-sm text-gray-700 truncate">{opt}</span>
-                  <span className="text-xs font-semibold text-gray-400 ml-2 flex-shrink-0">
+                  <span className="text-sm text-gray-700 dark:text-gray-300 dark:text-gray-600 truncate">{opt}</span>
+                  <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 ml-2 flex-shrink-0">
                     {activePoll.votes[i]} · {pct}%
                   </span>
                 </div>
@@ -99,7 +99,7 @@ export default function PollCreator({
           })}
         </div>
 
-        <p className="text-xs text-gray-400">{total} total votes</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">{total} total votes</p>
 
         <button
           onClick={closePoll}
@@ -118,20 +118,20 @@ export default function PollCreator({
 
       {/* Question */}
       <div>
-        <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
           Question
         </label>
         <input
           value={question}
           onChange={e => setQuestion(e.target.value)}
           placeholder="What do you think?"
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 text-gray-900"
+          className="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-gray-100"
         />
       </div>
 
       {/* Options */}
       <div>
-        <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
           Options
         </label>
         <div className="space-y-2">
@@ -143,12 +143,12 @@ export default function PollCreator({
                   const n = [...options]; n[i] = e.target.value; setOptions(n);
                 }}
                 placeholder={`Option ${i + 1}`}
-                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 text-gray-900"
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-gray-100"
               />
               {options.length > 2 && (
                 <button
                   onClick={() => removeOption(i)}
-                  className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"
+                  className="w-7 h-7 flex items-center justify-center text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors flex-shrink-0"
                 >
                   ×
                 </button>
@@ -159,7 +159,7 @@ export default function PollCreator({
         {options.length < 6 && (
           <button
             onClick={addOption}
-            className="mt-2 text-xs text-gray-400 hover:text-gray-700 transition-colors"
+            className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:text-gray-600 transition-colors"
           >
             + Add option
           </button>
@@ -168,13 +168,13 @@ export default function PollCreator({
 
       {/* Duration */}
       <div>
-        <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
           Duration
         </label>
         <select
           value={duration}
           onChange={e => setDuration(Number(e.target.value))}
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors text-gray-700 bg-white"
+          className="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:border-gray-400 transition-colors text-gray-700 dark:text-gray-300 dark:text-gray-600 bg-white dark:bg-gray-950"
         >
           <option value={30}>30 seconds</option>
           <option value={60}>1 minute</option>
