@@ -16,7 +16,6 @@ import egressRouter from './routes/egress';
 import remindersRouter from './routes/reminders';
 import pollsRouter from './routes/polls';
 import { startScheduler } from './jobs/scheduler';
-import { checkFFmpeg } from './lib/ffmpeg';
 
 
 const app = express();
