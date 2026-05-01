@@ -1,14 +1,8 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import {
-  LiveKitRoom, useLocalParticipant, useRoomContext,
-} from '@livekit/components-react';
+import { LiveKitRoom, useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import '@livekit/components-styles';
-import {
-  Track, createLocalVideoTrack, createLocalScreenTracks,
-  createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack,
-  ConnectionState,
-} from 'livekit-client';
+import { Track, createLocalVideoTrack, createLocalScreenTracks, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack, ConnectionState } from 'livekit-client';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatPanel from './ChatPanel';
 import RtmpModal from './RtmpModal';
@@ -20,53 +14,29 @@ import { ThemeToggle } from './ThemeContext';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-interface StreamData {
-  roomId: string; hostToken: string; livekitToken: string;
-  viewerUrl: string; expiresAt: string;
-}
-interface HostControlsProps {
-  stream: StreamData; appUrl: string; onCopy: () => void; copied: boolean;
-}
+interface StreamData { roomId: string; hostToken: string; livekitToken: string; viewerUrl: string; expiresAt: string; }
+interface HostControlsProps { stream: StreamData; appUrl: string; onCopy: () => void; copied: boolean; }
 
-// ── Minimal icon buttons ───────────────────────────────────────
-function Btn({ active, disabled, onClick, children, danger }: {
-  active?: boolean; disabled?: boolean; onClick: () => void;
-  children: React.ReactNode; danger?: boolean;
-}) {
+function Btn({ active, disabled, onClick, children, danger }: { active?: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode; danger?: boolean; }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed
-        ${danger
-          ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100'
-          : active
-            ? 'bg-gray-900 text-white'
-            : 'bg-gray-50 dark:bg-gray-900 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-100'}`}
-    >
+    <button onClick={onClick} disabled={disabled}
+      className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed w-full
+        ${danger ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 border border-red-100 dark:border-red-500/20'
+          : active ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
+          : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700'}`}>
       {children}
     </button>
   );
 }
 
-// ── Side panel ─────────────────────────────────────────────────
-function Panel({ open, onClose, children }: {
-  open: boolean; onClose: () => void; children: React.ReactNode;
-}) {
+function Panel({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode; }) {
   return (
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/20 z-40"
-          />
-          <motion.div
-            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-            className="fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800 z-50 flex flex-col shadow-xl"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/20 z-40" />
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+            className="fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800 z-50 flex flex-col shadow-xl">
             {children}
           </motion.div>
         </>
@@ -75,41 +45,21 @@ function Panel({ open, onClose, children }: {
   );
 }
 
-// ── Main preview ───────────────────────────────────────────────
-function VideoPreview({
-  cameraRef, screenRef, cameraOn, screenOn, mainIsCam, colorSettings,
-}: {
-  cameraRef: React.RefObject<HTMLVideoElement | null>;
-  screenRef: React.RefObject<HTMLVideoElement | null>;
-  cameraOn: boolean; screenOn: boolean;
-  mainIsCam: boolean; colorSettings: ColorSettings;
-}) {
+function VideoPreview({ cameraRef, screenRef, cameraOn, screenOn, mainIsCam, colorSettings }: { cameraRef: React.RefObject<HTMLVideoElement | null>; screenRef: React.RefObject<HTMLVideoElement | null>; cameraOn: boolean; screenOn: boolean; mainIsCam: boolean; colorSettings: ColorSettings; }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const dst = ref.current;
     if (!dst) return;
-    const primary  = mainIsCam ? cameraRef.current : screenRef.current;
-    const fallback = mainIsCam ? screenRef.current  : cameraRef.current;
+    const primary = mainIsCam ? cameraRef.current : screenRef.current;
+    const fallback = mainIsCam ? screenRef.current : cameraRef.current;
     const s = (primary?.srcObject ?? fallback?.srcObject) as MediaStream | null;
     if (s !== dst.srcObject) dst.srcObject = s;
   });
   if (!cameraOn && !screenOn) return null;
-  return (
-    <video
-      ref={ref} autoPlay muted playsInline
-      className="w-full h-full object-contain"
-      style={{ filter: buildFilter(colorSettings) }}
-    />
-  );
+  return <video ref={ref} autoPlay muted playsInline className="w-full h-full object-contain" style={{ filter: buildFilter(colorSettings) }} />;
 }
 
-function PipVideo({
-  cameraRef, screenRef, mainIsCam, colorSettings,
-}: {
-  cameraRef: React.RefObject<HTMLVideoElement | null>;
-  screenRef: React.RefObject<HTMLVideoElement | null>;
-  mainIsCam: boolean; colorSettings: ColorSettings;
-}) {
+function PipVideo({ cameraRef, screenRef, mainIsCam, colorSettings }: { cameraRef: React.RefObject<HTMLVideoElement | null>; screenRef: React.RefObject<HTMLVideoElement | null>; mainIsCam: boolean; colorSettings: ColorSettings; }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const dst = ref.current;
@@ -118,20 +68,12 @@ function PipVideo({
     const s = src?.srcObject as MediaStream | null;
     if (s !== dst.srcObject) dst.srcObject = s;
   });
-  return (
-    <video
-      ref={ref} autoPlay muted playsInline
-      className="w-full h-full object-cover"
-      style={{ filter: buildFilter(colorSettings) }}
-    />
-  );
+  return <video ref={ref} autoPlay muted playsInline className="w-full h-full object-cover" style={{ filter: buildFilter(colorSettings) }} />;
 }
 
-// ── Host Studio ────────────────────────────────────────────────
 function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const { localParticipant } = useLocalParticipant();
   const room = useRoomContext();
-
   const [roomState, setRoomState]     = useState<ConnectionState>(ConnectionState.Disconnected);
   const [isLive, setIsLive]           = useState(false);
   const [cameraOn, setCameraOn]       = useState(false);
@@ -140,8 +82,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const [pipSwapped, setPipSwapped]   = useState(false);
   const [error, setError]             = useState('');
   const [panelOpen, setPanelOpen]     = useState(false);
-  const [panelTab, setPanelTab]       = useState<'tools' | 'chat'>('chat');
-  const [activePanel, setActivePanel] = useState<string | null>(null);
+  const [panelTab, setPanelTab]       = useState<'chat'|'tools'>('chat');
+  const [activePanel, setActivePanel] = useState<string|null>(null);
   const [showRtmp, setShowRtmp]       = useState(false);
   const [rtmpActive, setRtmpActive]   = useState(false);
   const [activePoll, setActivePoll]   = useState<any>(null);
@@ -149,14 +91,14 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const [colorSettings, setColorSettings] = useState<ColorSettings>(DEFAULT_SETTINGS);
   const [resolution, setResolution]   = useState<Resolution>(DEFAULT_RESOLUTION);
 
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const cameraTrackRef = useRef<LocalVideoTrack | null>(null);
   const screenTrackRef = useRef<LocalVideoTrack | null>(null);
   const audioTrackRef  = useRef<LocalAudioTrack  | null>(null);
-  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
-  const screenVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  const viewerLink = `${appUrl}${stream.viewerUrl}`;
-  const bothOn     = cameraOn && screenOn;
+  const viewerLink   = `${appUrl}${stream.viewerUrl}`;
+  const bothOn       = cameraOn && screenOn;
   const isConnected  = roomState === ConnectionState.Connected;
   const isConnecting = roomState === ConnectionState.Connecting || roomState === ConnectionState.Reconnecting;
 
@@ -170,18 +112,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
   const waitForConnection = () => new Promise<void>((resolve, reject) => {
     if (room?.state === ConnectionState.Connected) { resolve(); return; }
-    const t = setTimeout(() => reject(new Error('Connection timed out')), 15000);
-    const h = (s: ConnectionState) => {
-      if (s === ConnectionState.Connected) {
-        clearTimeout(t); room?.off('connectionStateChanged', h); resolve();
-      }
-    };
+    const t = setTimeout(() => reject(new Error('Timed out')), 15000);
+    const h = (s: ConnectionState) => { if (s === ConnectionState.Connected) { clearTimeout(t); room?.off('connectionStateChanged', h); resolve(); } };
     room?.on('connectionStateChanged', h);
   });
 
-  const attach = (track: LocalVideoTrack, ref: React.RefObject<HTMLVideoElement | null>) => {
-    if (ref.current) { track.detach(); track.attach(ref.current); }
-  };
+  const attach = (track: LocalVideoTrack, ref: React.RefObject<HTMLVideoElement | null>) => { if (ref.current) { track.detach(); track.attach(ref.current); } };
 
   const ensureMic = async () => {
     if (audioTrackRef.current) return;
@@ -201,22 +137,13 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   };
 
   const updateLive = async (live: boolean) => {
-    try {
-      await fetch(`${API}/api/streams/${stream.roomId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hostToken: stream.hostToken, isLive: live }),
-      });
-    } catch {}
+    try { await fetch(`${API}/api/streams/${stream.roomId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hostToken: stream.hostToken, isLive: live }) }); } catch {}
   };
 
   const toggleCamera = async () => {
     setError('');
     if (cameraOn) {
-      if (cameraTrackRef.current) {
-        try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {}
-        cameraTrackRef.current.stop(); cameraTrackRef.current = null;
-      }
+      if (cameraTrackRef.current) { try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {} cameraTrackRef.current.stop(); cameraTrackRef.current = null; }
       if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
       setCameraOn(false);
       if (!screenOn) { setIsLive(false); await updateLive(false); }
@@ -224,30 +151,20 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     } else {
       try {
         await waitForConnection();
-        const t = await createLocalVideoTrack({
-          resolution: { width: resolution.width, height: resolution.height, frameRate: resolution.frameRate },
-          facingMode: 'user',
-        });
-        cameraTrackRef.current = t;
-        attach(t, cameraVideoRef);
-        await localParticipant.publishTrack(t);
-        await ensureMic();
+        const t = await createLocalVideoTrack({ resolution: { width: resolution.width, height: resolution.height, frameRate: resolution.frameRate }, facingMode: 'user' });
+        cameraTrackRef.current = t; attach(t, cameraVideoRef);
+        await localParticipant.publishTrack(t); await ensureMic();
         setCameraOn(true);
         if (!isLive) { setIsLive(true); await updateLive(true); }
         setTimeout(syncStreams, 300);
-      } catch (e: any) {
-        setError(`Camera failed: ${e?.message || 'Permission denied'}`);
-      }
+      } catch (e: any) { setError(`Camera failed: ${e?.message || 'Permission denied'}`); }
     }
   };
 
   const toggleScreen = async () => {
     setError('');
     if (screenOn) {
-      if (screenTrackRef.current) {
-        try { await localParticipant.unpublishTrack(screenTrackRef.current); } catch {}
-        screenTrackRef.current.stop(); screenTrackRef.current = null;
-      }
+      if (screenTrackRef.current) { try { await localParticipant.unpublishTrack(screenTrackRef.current); } catch {} screenTrackRef.current.stop(); screenTrackRef.current = null; }
       if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
       setScreenOn(false);
       if (!cameraOn) { setIsLive(false); await updateLive(false); }
@@ -258,10 +175,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         const tracks = await createLocalScreenTracks({ audio: false });
         const t = tracks.find(t => t.kind === Track.Kind.Video) as LocalVideoTrack | undefined;
         if (!t) throw new Error('No screen track');
-        screenTrackRef.current = t;
-        attach(t, screenVideoRef);
-        await localParticipant.publishTrack(t);
-        await ensureMic();
+        screenTrackRef.current = t; attach(t, screenVideoRef);
+        await localParticipant.publishTrack(t); await ensureMic();
         setScreenOn(true);
         if (!isLive) { setIsLive(true); await updateLive(true); }
         setTimeout(syncStreams, 300);
@@ -271,9 +186,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           if (!cameraOn) { setIsLive(false); updateLive(false); }
           setTimeout(syncStreams, 100);
         });
-      } catch (e: any) {
-        setError(`Screen share failed: ${e?.message}`);
-      }
+      } catch (e: any) { setError(`Screen share failed: ${e?.message}`); }
     }
   };
 
@@ -285,39 +198,30 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
   const stopAll = async () => {
     for (const ref of [cameraTrackRef, screenTrackRef]) {
-      if (ref.current) {
-        try { await localParticipant.unpublishTrack(ref.current); } catch {}
-        ref.current.stop(); ref.current = null;
-      }
+      if (ref.current) { try { await localParticipant.unpublishTrack(ref.current); } catch {} ref.current.stop(); ref.current = null; }
     }
-    if (audioTrackRef.current) {
-      try { await localParticipant.unpublishTrack(audioTrackRef.current); } catch {}
-      audioTrackRef.current.stop(); audioTrackRef.current = null;
-    }
+    if (audioTrackRef.current) { try { await localParticipant.unpublishTrack(audioTrackRef.current); } catch {} audioTrackRef.current.stop(); audioTrackRef.current = null; }
     if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
     if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
     setCameraOn(false); setScreenOn(false); setMicOn(false);
-    setIsLive(false); setRtmpActive(false); setError('');
-    setPipSwapped(false); setActiveStreams([]);
+    setIsLive(false); setRtmpActive(false); setError(''); setPipSwapped(false); setActiveStreams([]);
     await updateLive(false);
   };
 
   const TOOLS = [
-    { id: 'resolution', label: 'Resolution', badge: resolution.tag },
-    { id: 'color',      label: 'Color grading', badge: null },
-    { id: 'recording',  label: 'Recording', badge: null },
-    { id: 'poll',       label: 'Live poll', badge: activePoll ? 'Active' : null },
-    { id: 'social',     label: 'Go social', badge: rtmpActive ? 'Live' : null },
-    { id: 'link',       label: 'Viewer link', badge: null },
+    { id: 'resolution', label: 'Resolution',          badge: resolution.tag },
+    { id: 'color',      label: 'Color grading',        badge: null },
+    { id: 'recording',  label: 'Recording',             badge: null },
+    { id: 'poll',       label: 'Live poll',             badge: activePoll ? 'Active' : null },
+    { id: 'social',     label: 'Go social',             badge: rtmpActive ? 'Live' : null },
+    { id: 'link',       label: 'Viewer link',           badge: null },
   ];
 
   return (
-    <div
-      className="min-h-screen bg-white dark:bg-gray-950 transition-colors duration-200 p-4"
-      style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
-    >
+    <div className="min-h-screen bg-white dark:bg-gray-950 transition-colors duration-200 p-4" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500" />
@@ -325,139 +229,81 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           </div>
           {isLive && (
             <span className="flex items-center gap-1.5 text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-500/10 px-2.5 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              LIVE
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />LIVE
             </span>
           )}
           {isConnecting && (
-            <span className="text-xs text-gray-400 flex items-center gap-1.5">
-              <div className="w-3 h-3 border-2 border-gray-200 dark:border-gray-700 border-t-gray-500 rounded-full animate-spin" />
-              Connecting...
+            <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+              <div className="w-3 h-3 border-2 border-gray-200 dark:border-gray-700 border-t-gray-500 rounded-full animate-spin" />Connecting...
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <button
-            onClick={() => { setPanelTab('chat'); setPanelOpen(true); }}
-            className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors border border-gray-100 dark:border-gray-800"
-          >
+          <button onClick={() => { setPanelTab('chat'); setPanelOpen(true); }}
+            className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors border border-gray-100 dark:border-gray-800">
             Chat
           </button>
-          <button
-            onClick={() => { setPanelTab('tools'); setPanelOpen(true); }}
-            className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors border border-gray-100 dark:border-gray-800"
-          >
+          <button onClick={() => { setPanelTab('tools'); setPanelOpen(true); }}
+            className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors border border-gray-100 dark:border-gray-800">
             Tools
           </button>
         </div>
       </div>
 
-      {/* Main layout: preview + controls side by side on desktop */}
+      {/* Main: preview left, controls right */}
       <div className="flex flex-col lg:flex-row gap-4">
 
-        {/* Left: preview */}
+        {/* Preview */}
         <div className="flex-1 min-w-0">
-          {/* Preview box — fixed aspect ratio 16:9 */}
           <div className="relative bg-gray-950 rounded-xl overflow-hidden" style={{ aspectRatio: '16/9', maxHeight: '360px' }}>
             <video ref={cameraVideoRef} autoPlay muted playsInline style={{ display: 'none' }} />
             <video ref={screenVideoRef} autoPlay muted playsInline style={{ display: 'none' }} />
-
-            <VideoPreview
-              cameraRef={cameraVideoRef} screenRef={screenVideoRef}
-              cameraOn={cameraOn} screenOn={screenOn}
-              mainIsCam={pipSwapped} colorSettings={colorSettings}
-            />
-
-            {/* PiP */}
+            <VideoPreview cameraRef={cameraVideoRef} screenRef={screenVideoRef} cameraOn={cameraOn} screenOn={screenOn} mainIsCam={pipSwapped} colorSettings={colorSettings} />
             {bothOn && (
-              <div
-                className="absolute bottom-3 right-3 w-28 h-16 rounded-lg overflow-hidden border border-gray-700 cursor-pointer hover:border-gray-400 transition-colors shadow-lg"
-                onClick={() => setPipSwapped(s => !s)}
-              >
-                <PipVideo
-                  cameraRef={cameraVideoRef} screenRef={screenVideoRef}
-                  mainIsCam={pipSwapped} colorSettings={colorSettings}
-                />
+              <div className="absolute bottom-3 right-3 w-28 h-16 rounded-lg overflow-hidden border border-gray-700 cursor-pointer hover:border-gray-400 transition-colors shadow-lg" onClick={() => setPipSwapped(s => !s)}>
+                <PipVideo cameraRef={cameraVideoRef} screenRef={screenVideoRef} mainIsCam={pipSwapped} colorSettings={colorSettings} />
               </div>
             )}
-
-            {/* Vignette */}
-            {(cameraOn || screenOn) && colorSettings.vignette > 0 && (
-              <div style={buildVignette(colorSettings.vignette)} />
-            )}
-
-            {/* Placeholder */}
+            {(cameraOn || screenOn) && colorSettings.vignette > 0 && <div style={buildVignette(colorSettings.vignette)} />}
             {!cameraOn && !screenOn && (
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center mb-2">
                   <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                      d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
                   </svg>
                 </div>
-                <p className="text-sm text-gray-500">
-                  {isConnecting ? 'Connecting...' : isConnected ? 'Enable camera or screen' : 'Cannot reach LiveKit'}
-                </p>
+                <p className="text-sm text-gray-500">{isConnecting ? 'Connecting...' : isConnected ? 'Enable camera or screen' : 'Cannot reach LiveKit'}</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Right: controls panel */}
-        <div className="lg:w-64 flex flex-col gap-3">
-
-          {/* Controls */}
-          <div className="bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 space-y-3">
-
-            {error && (
-              <div className="text-xs text-red-500 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg">{error}</div>
-            )}
-
+        {/* Controls */}
+        <div className="lg:w-60 flex flex-col gap-3">
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-3 space-y-2">
+            {error && <div className="text-xs text-red-500 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg">{error}</div>}
             <div className="grid grid-cols-2 gap-2">
               <Btn active={cameraOn} disabled={!isConnected} onClick={toggleCamera}>
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-                </svg>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" /></svg>
                 {cameraOn ? 'Cam on' : 'Camera'}
               </Btn>
-
               <Btn active={screenOn} disabled={!isConnected} onClick={toggleScreen}>
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                 {screenOn ? 'Screen on' : 'Screen'}
               </Btn>
-
               <Btn active={micOn} disabled={!audioTrackRef.current} onClick={toggleMic}>
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d={micOn
-                      ? "M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                      : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1m5.586 0H20a1 1 0 011 1v4a1 1 0 01-1 1h-1.586M9 11l3 3 3-3"} />
-                </svg>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={micOn ? "M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1m5.586 0H20a1 1 0 011 1v4a1 1 0 01-1 1h-1.586M9 11l3 3 3-3"} /></svg>
                 {micOn ? 'Mic on' : 'Mic'}
               </Btn>
-
-              {bothOn ? (
-                <button
-                  onClick={() => setPipSwapped(s => !s)}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-lg transition-colors"
-                >
-                  Swap
-                </button>
-              ) : (
-                <div />
-              )}
+              {bothOn
+                ? <button onClick={() => setPipSwapped(s => !s)} className="flex items-center justify-center text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg py-2 transition-colors">Swap</button>
+                : <div />
+              }
             </div>
-
             {isLive && (
               <Btn danger onClick={stopAll}>
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                  <rect x="6" y="6" width="12" height="12" rx="1" />
-                </svg>
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>
                 End stream
               </Btn>
             )}
@@ -467,169 +313,89 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           <div className="bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-3">
             <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Viewer link</p>
             <p className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate mb-2">{viewerLink}</p>
-            <button
-              onClick={onCopy}
-              className="w-full py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
+            <button onClick={onCopy} className="w-full py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
               {copied ? '✓ Copied!' : 'Copy link'}
             </button>
           </div>
 
-          {/* Status */}
           <p className="text-xs text-gray-400 dark:text-gray-600 text-center">
             {isConnected ? (isLive ? '🔴 You are live' : 'Ready to stream') : isConnecting ? 'Connecting...' : 'Disconnected'}
           </p>
         </div>
       </div>
-    </div>
 
       {/* Side panel */}
       <Panel open={panelOpen} onClose={() => setPanelOpen(false)}>
-        {/* Panel header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
           <div className="flex gap-1">
             {(['chat', 'tools'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setPanelTab(tab)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors capitalize ${
-                  panelTab === tab
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
-              >
+              <button key={tab} onClick={() => setPanelTab(tab)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors capitalize ${panelTab === tab ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                 {tab}
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setPanelOpen(false)}
-            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-900 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button onClick={() => setPanelOpen(false)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        {/* Chat tab */}
         {panelTab === 'chat' && (
           <div className="flex-1 min-h-0">
-            <ChatPanel
-              roomId={stream.roomId}
-              identity={`host-${stream.roomId}`}
-              nickname="Host"
-              isHost
-            />
+            <ChatPanel roomId={stream.roomId} identity={`host-${stream.roomId}`} nickname="Host" isHost />
           </div>
         )}
 
-        {/* Tools tab */}
         {panelTab === 'tools' && (
           <div className="flex-1 overflow-y-auto">
-            {/* Tool list */}
             {!activePanel && (
               <div className="p-3 space-y-1">
                 {TOOLS.map(tool => (
-                  <button
-                    key={tool.id}
-                    onClick={() => setActivePanel(tool.id)}
-                    className="w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-900 transition-colors text-left"
-                  >
+                  <button key={tool.id} onClick={() => setActivePanel(tool.id)}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                     <span>{tool.label}</span>
                     <div className="flex items-center gap-2">
-                      {tool.badge && (
-                        <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
-                          {tool.badge}
-                        </span>
-                      )}
-                      <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                      {tool.badge && <span className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-full">{tool.badge}</span>}
+                      <svg className="w-4 h-4 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </div>
                   </button>
                 ))}
               </div>
             )}
-
-            {/* Active tool */}
             {activePanel && (
               <div>
-                <button
-                  onClick={() => setActivePanel(null)}
-                  className="flex items-center gap-2 px-5 py-3.5 text-sm text-gray-500 hover:text-gray-900 transition-colors border-b border-gray-100 w-full"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
+                <button onClick={() => setActivePanel(null)} className="flex items-center gap-2 px-5 py-3.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors border-b border-gray-100 dark:border-gray-800 w-full">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   Back to tools
                 </button>
                 <div className="p-4">
-                  {activePanel === 'resolution' && (
-                    <ResolutionPicker value={resolution} onChange={setResolution} disabled={isLive} />
-                  )}
-                  {activePanel === 'color' && (
-                    <ColorGrading settings={colorSettings} onChange={setColorSettings} />
-                  )}
-                  {activePanel === 'recording' && (
-                    <RecordingPanel roomId={stream.roomId} hostToken={stream.hostToken} streams={activeStreams} />
-                  )}
-                  {activePanel === 'poll' && (
-                    <PollCreator
-                      roomId={stream.roomId} hostToken={stream.hostToken}
-                      activePoll={activePoll}
-                      onPollCreated={setActivePoll}
-                      onPollClosed={() => setActivePoll(null)}
-                    />
-                  )}
+                  {activePanel === 'resolution' && <ResolutionPicker value={resolution} onChange={setResolution} disabled={isLive} />}
+                  {activePanel === 'color' && <ColorGrading settings={colorSettings} onChange={setColorSettings} />}
+                  {activePanel === 'recording' && <RecordingPanel roomId={stream.roomId} hostToken={stream.hostToken} streams={activeStreams} />}
+                  {activePanel === 'poll' && <PollCreator roomId={stream.roomId} hostToken={stream.hostToken} activePoll={activePoll} onPollCreated={setActivePoll} onPollClosed={() => setActivePoll(null)} />}
                   {activePanel === 'social' && (
                     <div className="space-y-3">
-                      {!isLive ? (
-                        <p className="text-sm text-gray-400 text-center py-6">Go live first to enable social streaming.</p>
-                      ) : rtmpActive ? (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2 text-sm font-medium text-red-500">
-                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                            Social stream active
-                          </div>
-                          <button
-                            onClick={async () => {
-                              await fetch(`${API}/api/egress/rtmp/stop`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ roomId: stream.roomId, hostToken: stream.hostToken }),
-                              });
-                              setRtmpActive(false);
-                            }}
-                            className="w-full py-2.5 text-sm font-medium text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                          >
-                            Stop social stream
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setShowRtmp(true); setPanelOpen(false); }}
-                          className="w-full py-2.5 text-sm font-semibold text-gray-700 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors border border-gray-100 dark:border-gray-800"
-                        >
-                          Go live on YouTube / Instagram
-                        </button>
-                      )}
+                      {!isLive
+                        ? <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-6">Go live first to enable social streaming.</p>
+                        : rtmpActive
+                          ? <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-sm font-medium text-red-500"><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />Social stream active</div>
+                              <button onClick={async () => { await fetch(`${API}/api/egress/rtmp/stop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId: stream.roomId, hostToken: stream.hostToken }) }); setRtmpActive(false); }} className="w-full py-2.5 text-sm font-medium text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition-colors">Stop social stream</button>
+                            </div>
+                          : <button onClick={() => { setShowRtmp(true); setPanelOpen(false); }} className="w-full py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-100 dark:border-gray-700">Go live on YouTube / Instagram</button>
+                      }
                     </div>
                   )}
                   {activePanel === 'link' && (
                     <div className="space-y-3">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Viewer link</p>
-                      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 rounded-lg px-4 py-3">
-                        <p className="text-xs font-mono text-gray-600 break-all leading-relaxed">{viewerLink}</p>
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Viewer link</p>
+                      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg px-4 py-3">
+                        <p className="text-xs font-mono text-gray-600 dark:text-gray-400 break-all leading-relaxed">{viewerLink}</p>
                       </div>
-                      <button
-                        onClick={onCopy}
-                        className="w-full py-2.5 text-sm font-semibold text-white bg-gray-900 hover:bg-gray-700 rounded-lg transition-colors"
-                      >
+                      <button onClick={onCopy} className="w-full py-2.5 text-sm font-semibold text-white bg-gray-900 dark:bg-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 rounded-lg transition-colors">
                         {copied ? '✓ Copied!' : 'Copy link'}
                       </button>
-                      <p className="text-xs text-gray-400 text-center">
-                        Expires {new Date(stream.expiresAt).toLocaleString()}
-                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Expires {new Date(stream.expiresAt).toLocaleString()}</p>
                     </div>
                   )}
                 </div>
@@ -640,13 +406,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       </Panel>
 
       {showRtmp && (
-        <RtmpModal
-          roomId={stream.roomId} hostToken={stream.hostToken}
-          onClose={() => setShowRtmp(false)}
-          onActivate={() => { setRtmpActive(true); setShowRtmp(false); }}
-          onDeactivate={() => setRtmpActive(false)}
-          streams={activeStreams}
-        />
+        <RtmpModal roomId={stream.roomId} hostToken={stream.hostToken} onClose={() => setShowRtmp(false)} onActivate={() => { setRtmpActive(true); setShowRtmp(false); }} onDeactivate={() => setRtmpActive(false)} streams={activeStreams} />
       )}
     </div>
   );
