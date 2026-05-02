@@ -7,26 +7,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Auto-install FFmpeg on Linux if missing
-try {
-  const { execSync } = require('child_process');
-  execSync('ffmpeg -version', { stdio: 'ignore' });
-  console.log('✅ FFmpeg available');
-} catch {
-  if (process.platform === 'linux') {
-    console.log('📦 Installing FFmpeg...');
-    try {
-      const { execSync } = require('child_process');
-      execSync('apt-get update -qq && apt-get install -y -qq ffmpeg', { stdio: 'inherit' });
-      console.log('✅ FFmpeg installed');
-    } catch (e) {
-      console.warn('⚠️ FFmpeg install failed - social streaming unavailable');
-    }
-  } else {
-    console.warn('⚠️ FFmpeg not found - social streaming unavailable');
-  }
-}
-
 import { initSocket } from './lib/socket';
 import { connectRedis } from './lib/redis';
 import prisma from './lib/prisma';
@@ -36,6 +16,7 @@ import egressRouter from './routes/egress';
 import remindersRouter from './routes/reminders';
 import pollsRouter from './routes/polls';
 import { startScheduler } from './jobs/scheduler';
+
 
 const app = express();
 const httpServer = createServer(app);
@@ -86,5 +67,6 @@ async function main() {
     process.exit(1);
   }
 }
+
 
 main();
