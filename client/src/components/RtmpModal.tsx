@@ -56,7 +56,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
   const p = PLATFORMS.find(x => x.id === platform);
   const rtmpUrl = platform === 'custom' ? customUrl : `${p?.base || ''}${key}`;
 
-  const flushChunks = async (port: number) => {
+  const flushChunks = async () => {
     if (chunksRef.current.length === 0) return;
     const blob = new Blob(chunksRef.current, { type: 'video/webm' });
     chunksRef.current = [];
@@ -94,7 +94,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
       mrRef.current = mr;
       mr.ondataavailable = (e) => { if (e.data?.size > 0) chunksRef.current.push(e.data); };
       mr.start(500);
-      timerRef.current = setInterval(() => flushChunks(data.inputPort), 1000);
+      timerRef.current = setInterval(() => flushChunks(), 1000);
 
       setStatus('live');
       onActivate();
