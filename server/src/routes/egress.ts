@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import prisma from '../lib/prisma';
 
-// Use ffmpeg-static binary if system ffmpeg not available
 function getFFmpegPath(): string {
   try {
     require('child_process').execSync('ffmpeg -version', { stdio: 'ignore' });
@@ -12,7 +11,7 @@ function getFFmpegPath(): string {
   } catch {
     try {
       const p = require('ffmpeg-static');
-      if (p) { console.log('Using ffmpeg-static:', p); return p; }
+      if (p) { console.log('Using ffmpeg-static:', p); return String(p); }
     } catch {}
     return 'ffmpeg';
   }
@@ -37,6 +36,7 @@ async function verifyHost(roomId: string, hostToken: string) {
   return stream;
 }
 
+// POST /api/egress/start
 router.post('/start', async (req: Request, res: Response) => {
   try {
     const { roomId, hostToken } = req.body;
@@ -52,6 +52,7 @@ router.post('/start', async (req: Request, res: Response) => {
   } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
+// POST /api/egress/chunk
 router.post('/chunk', async (req: Request, res: Response) => {
   try {
     const roomId    = req.headers['x-room-id'] as string;
@@ -74,6 +75,7 @@ router.post('/chunk', async (req: Request, res: Response) => {
   } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
+// POST /api/egress/stop
 router.post('/stop', async (req: Request, res: Response) => {
   try {
     const { roomId, hostToken } = req.body;
@@ -90,6 +92,7 @@ router.post('/stop', async (req: Request, res: Response) => {
   } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
+// GET /api/egress/recordings/:roomId
 router.get('/recordings/:roomId', async (req: Request, res: Response) => {
   try {
     const { hostToken } = req.query as { hostToken: string };
@@ -105,6 +108,7 @@ router.get('/recordings/:roomId', async (req: Request, res: Response) => {
   } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
+// GET /api/egress/download/:fileName
 router.get('/download/:fileName', (req: Request, res: Response) => {
   try {
     const safe = path.basename(req.params.fileName);
@@ -119,6 +123,7 @@ router.get('/download/:fileName', (req: Request, res: Response) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// DELETE /api/egress/recordings/:id
 router.delete('/recordings/:id', async (req: Request, res: Response) => {
   try {
     const { hostToken } = req.body;
@@ -131,24 +136,31 @@ router.delete('/recordings/:id', async (req: Request, res: Response) => {
   } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
+// GET /api/egress/ffmpeg-check
 router.get('/ffmpeg-check', (_req: Request, res: Response) => {
-  try { execSync(`${FFMPEG} -version`, { stdio: 'ignore' }); res.json({ available: true }); }
-  catch { res.json({ available: false }); }
+  try {
+    execSync(`"${FFMPEG}" -version`, { stdio: 'ignore' });
+    res.json({ available: true });
+  } catch {
+    res.json({ available: false });
+  }
 });
 
+// POST /api/egress/rtmp/start
 router.post('/rtmp/start', async (req: Request, res: Response) => {
   try {
     const { roomId, hostToken, rtmpUrl, platform } = req.body;
     if (!rtmpUrl) return res.status(400).json({ error: 'rtmpUrl required' });
     await verifyHost(roomId, hostToken);
-    try { execSync(`${FFMPEG} -version`, { stdio: 'ignore' }); }
+    try { execSync(`"${FFMPEG}" -version`, { stdio: 'ignore' }); }
     catch { return res.status(500).json({ error: 'FFmpeg not available on server' }); }
     if (rtmpSessions.has(roomId)) {
       try { rtmpSessions.get(roomId)!.process.kill('SIGTERM'); } catch {}
       rtmpSessions.delete(roomId);
     }
     const args = [
-      '-loglevel', 'warning', '-re', '-i', 'pipe:0',
+      '-loglevel', 'warning',
+      '-re', '-i', 'pipe:0',
       '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency',
       '-b:v', '2500k', '-maxrate', '2500k', '-bufsize', '5000k',
       '-pix_fmt', 'yuv420p', '-g', '60', '-keyint_min', '60',
@@ -157,14 +169,15 @@ router.post('/rtmp/start', async (req: Request, res: Response) => {
     ];
     const proc = spawn(FFMPEG, args, { stdio: ['pipe', 'pipe', 'pipe'] });
     proc.stderr?.on('data', (d: Buffer) => console.log(`[ffmpeg:${roomId}]`, d.toString().trim()));
-    proc.on('close', (code) => { rtmpSessions.delete(roomId); });
-    proc.on('error', (e) => { rtmpSessions.delete(roomId); });
+    proc.on('close', () => { rtmpSessions.delete(roomId); });
+    proc.on('error', (e: Error) => { console.error(`[ffmpeg:${roomId}]`, e.message); rtmpSessions.delete(roomId); });
     rtmpSessions.set(roomId, { process: proc, platform, rtmpUrl });
     await prisma.stream.update({ where: { roomId }, data: { rtmpUrl } });
     res.json({ success: true });
   } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
+// POST /api/egress/rtmp/chunk
 router.post('/rtmp/chunk', async (req: Request, res: Response) => {
   try {
     const roomId    = req.headers['x-room-id'] as string;
@@ -177,14 +190,14 @@ router.post('/rtmp/chunk', async (req: Request, res: Response) => {
     req.on('data', (c: Buffer) => chunks.push(c));
     req.on('end', () => {
       const buf = Buffer.concat(chunks);
-      if (buf.length > 0) {
-        try { session.process.stdin!.write(buf); } catch {}
-      }
+      if (buf.length > 0) { try { session.process.stdin!.write(buf); } catch {} }
       res.json({ success: true, bytes: buf.length });
     });
+    req.on('error', () => res.status(500).json({ error: 'Read failed' }));
   } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
+// POST /api/egress/rtmp/stop
 router.post('/rtmp/stop', async (req: Request, res: Response) => {
   try {
     const { roomId, hostToken } = req.body;
@@ -199,6 +212,7 @@ router.post('/rtmp/stop', async (req: Request, res: Response) => {
   } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
+// GET /api/egress/rtmp/status/:roomId
 router.get('/rtmp/status/:roomId', async (req: Request, res: Response) => {
   try {
     const { hostToken } = req.query as { hostToken: string };
