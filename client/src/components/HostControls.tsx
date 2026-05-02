@@ -144,6 +144,10 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const cameraTrackRef = useRef<LocalVideoTrack | null>(null);
   const screenTrackRef = useRef<LocalVideoTrack | null>(null);
   const audioTrackRef  = useRef<LocalAudioTrack  | null>(null);
+  // Canvas for color-graded output
+  const gradedCanvasRef  = useRef<HTMLCanvasElement | null>(null);
+  const gradedRafRef     = useRef<number>(0);
+  const gradedTrackRef   = useRef<LocalVideoTrack | null>(null);
 
   const viewerLink   = `${appUrl}${stream.viewerUrl}`;
   const bothOn       = cameraOn && screenOn;
@@ -157,6 +161,93 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     room.on('connectionStateChanged', update);
     return () => { room.off('connectionStateChanged', update); };
   }, [room]);
+
+  // ── Canvas-based color grading publisher ────────────────────
+  // When camera is on AND color settings change, capture graded canvas
+  // and publish it instead of the raw track
+  useEffect(() => {
+    const isDefault = Object.entries(colorSettings).every(
+      ([k, v]) => v === DEFAULT_SETTINGS[k as keyof ColorSettings]
+    );
+
+    // Stop any existing graded canvas track
+    const stopGraded = async () => {
+      cancelAnimationFrame(gradedRafRef.current);
+      if (gradedTrackRef.current) {
+        try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
+        gradedTrackRef.current = null;
+      }
+    };
+
+    if (!cameraOn || isDefault) {
+      // No grading needed — raw track is already published, stop graded if exists
+      stopGraded();
+      return;
+    }
+
+    const srcVideo = cameraVideoRef.current;
+    if (!srcVideo || !srcVideo.srcObject) return;
+
+    // Create hidden canvas
+    const canvas = document.createElement('canvas');
+    gradedCanvasRef.current = canvas;
+    canvas.width  = srcVideo.videoWidth  || 1280;
+    canvas.height = srcVideo.videoHeight || 720;
+    const ctx = canvas.getContext('2d')!;
+    const filter = buildFilter(colorSettings);
+
+    // Draw loop
+    const draw = () => {
+      if (!srcVideo.paused && srcVideo.readyState >= 2) {
+        if (canvas.width  !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
+        if (canvas.height !== srcVideo.videoHeight) canvas.height = srcVideo.videoHeight;
+        ctx.filter = filter;
+        ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
+        // Vignette
+        if (colorSettings.vignette > 0) {
+          const alpha = colorSettings.vignette / 100 * 0.75;
+          const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width*0.3, canvas.width/2, canvas.height/2, canvas.width*0.8);
+          grad.addColorStop(0, 'rgba(0,0,0,0)');
+          grad.addColorStop(1, `rgba(0,0,0,${alpha.toFixed(3)})`);
+          ctx.filter = 'none';
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+      gradedRafRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+
+    // Capture canvas stream and publish as video track
+    const publishGraded = async () => {
+      try {
+        // First unpublish raw camera track
+        if (cameraTrackRef.current) {
+          try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {}
+        }
+        // Stop existing graded track
+        if (gradedTrackRef.current) {
+          try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
+          gradedTrackRef.current = null;
+        }
+        // Capture canvas at 30fps
+        const stream = (canvas as any).captureStream(30) as MediaStream;
+        const videoTrack = stream.getVideoTracks()[0];
+        const { LocalVideoTrack: LVT } = await import('livekit-client');
+        const lvTrack = new LVT(videoTrack, undefined, false);
+        gradedTrackRef.current = lvTrack;
+        await localParticipant.publishTrack(lvTrack);
+      } catch (e) {
+        console.warn('Graded canvas publish failed:', e);
+      }
+    };
+
+    publishGraded();
+
+    return () => {
+      cancelAnimationFrame(gradedRafRef.current);
+    };
+  }, [colorSettings, cameraOn]);
 
   const waitForConnection = () => new Promise<void>((resolve, reject) => {
     if (room?.state === ConnectionState.Connected) { resolve(); return; }
@@ -222,6 +313,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {}
         cameraTrackRef.current.stop(); cameraTrackRef.current = null;
       }
+      // Also stop graded canvas track
+      cancelAnimationFrame(gradedRafRef.current);
+      if (gradedTrackRef.current) {
+        try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
+        gradedTrackRef.current = null;
+      }
       if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
       setCameraOn(false);
       if (!screenOn) { setIsLive(false); await updateLive(false); }
@@ -266,12 +363,17 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     } else {
       try {
         await waitForConnection();
-        const tracks = await createLocalScreenTracks({ audio: false });
+        const tracks = await createLocalScreenTracks({ audio: true });
         const t = tracks.find(t => t.kind === Track.Kind.Video) as LocalVideoTrack | undefined;
+        const audioTrack = tracks.find(t => t.kind === Track.Kind.Audio);
         if (!t) throw new Error('No screen track');
         screenTrackRef.current = t;
         attach(t, screenVideoRef);
         await localParticipant.publishTrack(t);
+        // Publish screen audio (game/system audio) if captured
+        if (audioTrack) {
+          await localParticipant.publishTrack(audioTrack);
+        }
         await ensureMic();
         setScreenOn(true);
         if (!isLive) { setIsLive(true); await updateLive(true); }
