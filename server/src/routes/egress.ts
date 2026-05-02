@@ -152,7 +152,7 @@ router.post('/rtmp/start', async (req: Request, res: Response) => {
     await verifyHost(roomId, hostToken);
 
     try { execSync('ffmpeg -version', { stdio: 'ignore' }); }
-    catch { return res.status(500).json({ error: 'FFmpeg not found. Install: winget install ffmpeg' }); }
+    catch { return res.status(500).json({ error: 'FFmpeg not installed on server. Add "apt-get install -y ffmpeg &&" to your Render build command.' }); }
 
     // Stop existing session
     if (rtmpSessions.has(roomId)) {
