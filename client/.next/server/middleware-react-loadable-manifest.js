@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}";
+self.__REACT_LOADABLE_MANIFEST='{"components/HostControls.tsx -> livekit-client":{"id":3040,"files":[]}}';
