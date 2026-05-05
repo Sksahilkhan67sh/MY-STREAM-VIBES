@@ -5,6 +5,7 @@ import '@livekit/components-styles';
 import { Track, createLocalVideoTrack, createLocalScreenTracks, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack, ConnectionState } from 'livekit-client';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatPanel from './ChatPanel';
+import CoHostManager from './CoHostManager';
 import RtmpModal from './RtmpModal';
 import RecordingPanel from './RecordingPanel';
 import PollCreator from './PollCreator';
@@ -424,6 +425,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     { id: 'poll',       label: 'Live poll',     badge: activePoll ? 'Active' : null },
     { id: 'social',     label: 'Go social',     badge: rtmpActive ? 'Live' : null },
     { id: 'link',       label: 'Viewer link',   badge: null },
+    { id: 'cohost',     label: 'Co-Hosts',      badge: null },
   ];
 
   return (
@@ -720,6 +722,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                         Expires {new Date(stream.expiresAt).toLocaleString()}
                       </p>
                     </div>
+                  )}
+                  {activePanel === 'cohost' && (
+                    <CoHostManager
+                      roomId={stream.roomId}
+                      hostToken={stream.hostToken}
+                    />
                   )}
                 </div>
               </div>
