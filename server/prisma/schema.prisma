@@ -26,6 +26,18 @@ model Stream {
   reminders  Reminder[]
   recordings Recording[]
   polls      Poll[]
+  coHosts    CoHost[]
+}
+
+model CoHost {
+  id          String   @id @default(cuid())
+  streamId    String
+  stream      Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  name        String
+  coHostToken String   @unique
+  joinUrl     String
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }
 
 model Reminder {
