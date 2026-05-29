@@ -19,6 +19,17 @@ body {
   color: #f4f4f5;
 }
 
+/* Mobile: prevent horizontal overflow */
+html, body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Better tap targets on mobile */
+button, a, input, select {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Glassmorphism card */
 .glass {
   background: var(--glass-bg);
@@ -75,4 +86,20 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
   pointer-events: none;
   border-radius: inherit;
+}
+
+/* Mobile: fix 100vh issues on mobile browsers */
+.min-h-screen {
+  min-height: 100dvh;
+}
+
+/* Slide-up panel for mobile */
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Mobile safe area insets */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
