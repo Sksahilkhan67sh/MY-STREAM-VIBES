@@ -53,7 +53,7 @@ export default function HostPage() {
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
 
       {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-5 border-b border-gray-100 dark:border-gray-800">
+      <nav className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 border-b border-gray-100 dark:border-gray-800">
         <a href="/" className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-red-500" />
           <span className="font-bold text-base tracking-tight text-gray-900 dark:text-gray-100">StreamVault</span>
@@ -62,18 +62,18 @@ export default function HostPage() {
       </nav>
 
       {/* Form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-16">
+      <div className="flex-1 flex items-start sm:items-center justify-center px-4 sm:px-6 pt-8 sm:pt-0 pb-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           className="w-full max-w-sm"
         >
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1 tracking-tight"
+          <h1 className="text-2xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1 tracking-tight"
             style={{ letterSpacing: '-0.02em' }}>
             Create a stream
           </h1>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mb-8">
+          <p className="text-sm text-gray-400 dark:text-gray-500 mb-6 sm:mb-8">
             You'll get a shareable link instantly.
           </p>
 
@@ -88,10 +88,11 @@ export default function HostPage() {
                 onKeyDown={e => e.key === 'Enter' && createStream()}
                 placeholder="My live stream"
                 autoFocus
-                className="w-full px-4 py-3 text-sm border border-gray-200 dark:border-gray-700 rounded-lg
+                className="w-full px-4 py-3.5 sm:py-3 text-sm border border-gray-200 dark:border-gray-700 rounded-xl sm:rounded-lg
                   focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 transition-colors
                   placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-gray-100
-                  bg-white dark:bg-gray-900"
+                  bg-white dark:bg-gray-900 text-base sm:text-sm"
+                style={{ fontSize: '16px' }}
               />
             </div>
 
@@ -104,10 +105,11 @@ export default function HostPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Leave blank for public"
-                className="w-full px-4 py-3 text-sm border border-gray-200 dark:border-gray-700 rounded-lg
+                className="w-full px-4 py-3.5 sm:py-3 text-sm border border-gray-200 dark:border-gray-700 rounded-xl sm:rounded-lg
                   focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 transition-colors
                   placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-gray-100
                   bg-white dark:bg-gray-900"
+                style={{ fontSize: '16px' }}
               />
             </div>
 
@@ -118,14 +120,14 @@ export default function HostPage() {
             <button
               onClick={createStream}
               disabled={loading}
-              className="w-full py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold
-                rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              className="w-full py-3.5 sm:py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold
+                rounded-xl sm:rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Creating...' : 'Create stream →'}
             </button>
           </div>
 
-          <p className="text-xs text-gray-300 dark:text-gray-600 text-center mt-6">
+          <p className="text-xs text-gray-300 dark:text-gray-600 text-center mt-5 sm:mt-6">
             Stream link expires after 24 hours
           </p>
         </motion.div>
