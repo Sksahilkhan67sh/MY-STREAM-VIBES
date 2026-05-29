@@ -33,6 +33,8 @@ const Icons = {
   link:   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
   copy:   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>,
   check:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>,
+  tools:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  chat:   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
 };
 
 // ── Control button ─────────────────────────────────────────────
@@ -54,7 +56,7 @@ function CtrlBtn({ active, disabled, onClick, children, danger, full }: {
   );
 }
 
-// ── Slide panel ────────────────────────────────────────────────
+// ── Slide panel (from right on desktop, from bottom on mobile) ─
 function Panel({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   return (
     <AnimatePresence>
@@ -62,9 +64,22 @@ function Panel({ open, onClose, children }: { open: boolean; onClose: () => void
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose} className="fixed inset-0 bg-black/30 z-40" />
-          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+          {/* Desktop: slide from right */}
+          <motion.div
+            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-            className="fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800 z-50 flex flex-col shadow-2xl">
+            className="hidden sm:flex fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800 z-50 flex-col shadow-2xl">
+            {children}
+          </motion.div>
+          {/* Mobile: slide from bottom */}
+          <motion.div
+            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+            className="sm:hidden fixed left-0 right-0 bottom-0 max-h-[85vh] bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800 z-50 flex flex-col shadow-2xl rounded-t-2xl">
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 bg-gray-200 dark:bg-gray-700 rounded-full" />
+            </div>
             {children}
           </motion.div>
         </>
@@ -73,7 +88,7 @@ function Panel({ open, onClose, children }: { open: boolean; onClose: () => void
   );
 }
 
-// ── Video preview with optional horizontal flip ────────────────
+// ── Video preview ──────────────────────────────────────────────
 function VideoPreview({ cameraRef, screenRef, cameraOn, screenOn, mainIsCam, colorSettings, flipped }: {
   cameraRef: React.RefObject<HTMLVideoElement | null>;
   screenRef: React.RefObject<HTMLVideoElement | null>;
@@ -109,7 +124,6 @@ function PipVideo({ cameraRef, screenRef, mainIsCam, colorSettings, flipped }: {
     const s = src?.srcObject as MediaStream | null;
     if (s !== dst.srcObject) dst.srcObject = s;
   });
-  // pip shows the opposite source — if main is cam, pip is screen (no flip needed for screen)
   const isShowingCam = !mainIsCam;
   const transform = (isShowingCam && flipped) ? 'scaleX(-1)' : undefined;
   return <video ref={ref} autoPlay muted playsInline className="w-full h-full object-cover"
@@ -145,7 +159,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const cameraTrackRef = useRef<LocalVideoTrack | null>(null);
   const screenTrackRef = useRef<LocalVideoTrack | null>(null);
   const audioTrackRef  = useRef<LocalAudioTrack  | null>(null);
-  // Canvas for color-graded output
   const gradedCanvasRef  = useRef<HTMLCanvasElement | null>(null);
   const gradedRafRef     = useRef<number>(0);
   const gradedTrackRef   = useRef<LocalVideoTrack | null>(null);
@@ -163,30 +176,21 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     return () => { room.off('connectionStateChanged', update); };
   }, [room]);
 
-  // ── Canvas-based color grading ─────────────────────────────
-  // Draws camera video through CSS filter onto canvas → captureStream → publish
-  // This runs whenever colorSettings changes while camera is on
   const startGradedCanvas = async () => {
     const srcVideo = cameraVideoRef.current;
     if (!srcVideo) return;
-
-    // Wait for video to have dimensions
     await new Promise<void>(resolve => {
       if (srcVideo.videoWidth > 0) { resolve(); return; }
       const h = () => { resolve(); srcVideo.removeEventListener('loadedmetadata', h); };
       srcVideo.addEventListener('loadedmetadata', h);
-      setTimeout(resolve, 2000); // fallback
+      setTimeout(resolve, 2000);
     });
-
-    // Stop any existing graded canvas loop
     cancelAnimationFrame(gradedRafRef.current);
-
     const canvas = document.createElement('canvas');
     canvas.width  = srcVideo.videoWidth  || 1280;
     canvas.height = srcVideo.videoHeight || 720;
     gradedCanvasRef.current = canvas;
     const ctx = canvas.getContext('2d')!;
-
     const draw = () => {
       if (srcVideo.readyState >= 2 && srcVideo.videoWidth > 0) {
         if (canvas.width !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
@@ -205,14 +209,10 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       gradedRafRef.current = requestAnimationFrame(draw);
     };
     draw();
-
-    // Unpublish old graded track
     if (gradedTrackRef.current) {
       try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
       gradedTrackRef.current = null;
     }
-
-    // Publish canvas stream as the camera track viewers see
     const ms = (canvas as any).captureStream(30) as MediaStream;
     const vt = ms.getVideoTracks()[0];
     if (!vt) return;
@@ -222,12 +222,10 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     try { await localParticipant.publishTrack(lvt); } catch (e) { console.warn('graded publish failed', e); }
   };
 
-  // Re-apply grading when settings change while live
   useEffect(() => {
     if (!cameraOn) return;
     const isDefault = Object.entries(colorSettings).every(([k,v]) => v === DEFAULT_SETTINGS[k as keyof ColorSettings]);
     if (isDefault) {
-      // Stop canvas, re-publish raw track
       cancelAnimationFrame(gradedRafRef.current);
       if (gradedTrackRef.current) {
         localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {});
@@ -237,7 +235,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
       }
     } else {
-      // First unpublish raw, then start graded canvas
       if (cameraTrackRef.current) {
         localParticipant.unpublishTrack(cameraTrackRef.current).catch(() => {});
       }
@@ -285,7 +282,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     } catch {}
   };
 
-  // ── Camera ──────────────────────────────────────────────────
   const startCamera = async (facing: 'user' | 'environment') => {
     if (cameraTrackRef.current) {
       try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {}
@@ -298,15 +294,10 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     });
     cameraTrackRef.current = t;
     attach(t, cameraVideoRef);
-
     const isDefault = Object.entries(colorSettings).every(([k,v]) => v === DEFAULT_SETTINGS[k as keyof ColorSettings]);
     if (isDefault) {
-      // No grading — publish raw track directly
       await localParticipant.publishTrack(t);
     }
-    // If grading is active, the useEffect will handle publishing the canvas track
-    // after it detects cameraOn becomes true
-
     setTimeout(syncStreams, 300);
   };
 
@@ -337,21 +328,18 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     }
   };
 
-  // ── Flip camera (front ↔ back) ──────────────────────────────
   const flipCamera = async () => {
     const newFacing = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newFacing);
-    setCameraFlipped(false); // reset mirror when switching physical camera
+    setCameraFlipped(false);
     if (cameraOn) {
       try { await startCamera(newFacing); }
-      catch { setFacingMode(facingMode); } // revert on error
+      catch { setFacingMode(facingMode); }
     }
   };
 
-  // Mirror flip (CSS transform only — no track restart)
   const mirrorCamera = () => setCameraFlipped(f => !f);
 
-  // ── Screen ──────────────────────────────────────────────────
   const toggleScreen = async () => {
     setError('');
     if (screenOn) {
@@ -372,7 +360,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         screenTrackRef.current = t;
         attach(t, screenVideoRef);
         await localParticipant.publishTrack(t);
-        // Publish screen audio (captures game/tab/system audio)
         const screenAudioTrack = tracks.find(t => t.kind === Track.Kind.Audio);
         if (screenAudioTrack) {
           try { await localParticipant.publishTrack(screenAudioTrack); } catch {}
@@ -391,14 +378,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     }
   };
 
-  // ── Mic ─────────────────────────────────────────────────────
   const toggleMic = () => {
     if (!audioTrackRef.current) return;
     micOn ? audioTrackRef.current.mute() : audioTrackRef.current.unmute();
     setMicOn(!micOn);
   };
 
-  // ── End all ─────────────────────────────────────────────────
   const stopAll = async () => {
     for (const ref of [cameraTrackRef, screenTrackRef]) {
       if (ref.current) {
@@ -433,42 +418,44 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500" />
             <span className="font-bold text-sm text-gray-900 dark:text-gray-100">StreamVault</span>
           </div>
           {isLive && (
-            <span className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-2.5 py-1 rounded-full border border-red-100 dark:border-red-500/20">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-2 sm:px-2.5 py-1 rounded-full border border-red-100 dark:border-red-500/20">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />LIVE
             </span>
           )}
           {isConnecting && (
-            <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+            <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:flex items-center gap-1.5">
               <div className="w-3 h-3 border-2 border-gray-200 dark:border-gray-700 border-t-gray-500 rounded-full animate-spin" />
               Connecting...
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <ThemeToggle />
           <button onClick={() => { setPanelTab('chat'); setPanelOpen(true); }}
-            className="px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
-            Chat
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
+            {Icons.chat}
+            <span className="hidden xs:inline sm:inline">Chat</span>
           </button>
           <button onClick={() => { setPanelTab('tools'); setPanelOpen(true); }}
-            className="px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
-            Tools
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
+            {Icons.tools}
+            <span className="hidden xs:inline sm:inline">Tools</span>
           </button>
         </div>
       </div>
 
-      {/* ── Body ── */}
-      <div className="flex flex-1 min-h-0 gap-0">
+      {/* ── Body: on mobile stack vertically, on desktop side by side ── */}
+      <div className="flex flex-col sm:flex-row flex-1 min-h-0 gap-0">
 
         {/* ── Preview area ── */}
-        <div className="flex-1 flex flex-col min-w-0 bg-black relative">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-black relative" style={{ minHeight: '40vw' }}>
           <video ref={cameraVideoRef} autoPlay muted playsInline style={{ display: 'none' }} />
           <video ref={screenVideoRef} autoPlay muted playsInline style={{ display: 'none' }} />
 
@@ -483,7 +470,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
             {/* PiP */}
             {bothOn && (
-              <div className="absolute bottom-3 right-3 w-36 h-24 rounded-xl overflow-hidden border-2 border-white/20 cursor-pointer hover:border-white/50 transition-all shadow-xl group"
+              <div className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 w-24 h-16 sm:w-36 sm:h-24 rounded-xl overflow-hidden border-2 border-white/20 cursor-pointer hover:border-white/50 transition-all shadow-xl group"
                 onClick={() => setPipSwapped(s => !s)}>
                 <PipVideo cameraRef={cameraVideoRef} screenRef={screenVideoRef}
                   mainIsCam={pipSwapped} colorSettings={colorSettings} flipped={cameraFlipped} />
@@ -498,8 +485,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
             {/* Placeholder */}
             {!cameraOn && !screenOn && (
-              <div className="text-center">
-                <div className="w-14 h-14 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-3">
+              <div className="text-center px-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-3">
                   {Icons.camera}
                 </div>
                 <p className="text-sm text-gray-500">
@@ -516,118 +503,193 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
             {/* Camera overlay badges */}
             {cameraOn && (
-              <div className="absolute top-3 left-3 flex items-center gap-2">
+              <div className="absolute top-2 sm:top-3 left-2 sm:left-3 flex items-center gap-1.5 sm:gap-2">
                 <span className="text-xs bg-black/50 text-white px-2 py-1 rounded-full">
                   {facingMode === 'user' ? '📷 Front' : '🔄 Rear'}
                 </span>
                 {cameraFlipped && (
-                  <span className="text-xs bg-black/50 text-white px-2 py-1 rounded-full">⟺ Mirrored</span>
+                  <span className="text-xs bg-black/50 text-white px-2 py-1 rounded-full hidden sm:inline">⟺ Mirrored</span>
                 )}
               </div>
             )}
           </div>
         </div>
 
-        {/* ── Controls sidebar ── */}
-        <div className="w-56 flex-shrink-0 bg-white dark:bg-gray-900 border-l border-gray-100 dark:border-gray-800 flex flex-col overflow-y-auto">
+        {/* ── Controls: horizontal bar on mobile, sidebar on desktop ── */}
+        <div className="sm:w-56 sm:flex-shrink-0 bg-white dark:bg-gray-900 border-t sm:border-t-0 sm:border-l border-gray-100 dark:border-gray-800 flex flex-row sm:flex-col overflow-x-auto sm:overflow-y-auto sm:overflow-x-hidden">
 
-          {/* Error */}
+          {/* Error — full width on mobile */}
           {error && (
-            <div className="mx-3 mt-3 text-xs text-red-500 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg border border-red-100 dark:border-red-500/20">
+            <div className="sm:mx-3 mx-2 my-2 sm:mt-3 text-xs text-red-500 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg border border-red-100 dark:border-red-500/20 flex-shrink-0 sm:w-auto">
               {error}
             </div>
           )}
 
-          {/* Camera controls group */}
-          <div className="p-3 border-b border-gray-50 dark:border-gray-800">
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Camera</p>
-            <div className="space-y-2">
-              <CtrlBtn active={cameraOn} disabled={!isConnected} onClick={toggleCamera} full>
-                {Icons.camera}
-                {cameraOn ? 'Camera on' : 'Camera off'}
-              </CtrlBtn>
+          {/* Mobile: horizontal button strip */}
+          <div className="flex sm:hidden items-center gap-2 px-3 py-2.5 w-full overflow-x-auto">
+            {/* Camera toggle */}
+            <button
+              disabled={!isConnected}
+              onClick={toggleCamera}
+              className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all min-w-[60px] disabled:opacity-30
+                ${cameraOn ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-transparent' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
+              {Icons.camera}
+              {cameraOn ? 'On' : 'Cam'}
+            </button>
 
-              {/* Flip + Mirror buttons — only when camera is on */}
-              {cameraOn && (
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={flipCamera}
-                    title="Switch front/rear camera"
-                    className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-100 dark:border-blue-500/20 transition-colors">
-                    {Icons.flip}
-                    Flip
-                  </button>
-                  <button onClick={mirrorCamera}
-                    title="Mirror camera horizontally"
-                    className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold border transition-colors
-                      ${cameraFlipped
-                        ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20'
-                        : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-                    ⟺ Mirror
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+            {/* Flip camera (mobile only — front/rear) */}
+            {cameraOn && (
+              <button onClick={flipCamera}
+                className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 transition-colors min-w-[60px]">
+                {Icons.flip}
+                Flip
+              </button>
+            )}
 
-          {/* Screen + Mic group */}
-          <div className="p-3 border-b border-gray-50 dark:border-gray-800 space-y-2">
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Sources</p>
-            <CtrlBtn active={screenOn} disabled={!isConnected} onClick={toggleScreen} full>
+            {/* Mirror */}
+            {cameraOn && (
+              <button onClick={mirrorCamera}
+                className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors min-w-[60px]
+                  ${cameraFlipped ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20' : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'}`}>
+                <span className="text-sm">⟺</span>
+                Mirror
+              </button>
+            )}
+
+            {/* Screen */}
+            <button
+              disabled={!isConnected}
+              onClick={toggleScreen}
+              className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all min-w-[60px] disabled:opacity-30
+                ${screenOn ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-transparent' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
               {Icons.screen}
-              {screenOn ? 'Screen on' : 'Screen off'}
-            </CtrlBtn>
-            <CtrlBtn active={micOn} disabled={!audioTrackRef.current} onClick={toggleMic} full>
+              {screenOn ? 'On' : 'Screen'}
+            </button>
+
+            {/* Mic */}
+            <button
+              disabled={!audioTrackRef.current}
+              onClick={toggleMic}
+              className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all min-w-[60px] disabled:opacity-30
+                ${micOn ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-transparent' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
               {micOn ? Icons.micOn : Icons.micOff}
-              {micOn ? 'Mic on' : 'Mic off'}
-            </CtrlBtn>
+              {micOn ? 'Mic' : 'Mute'}
+            </button>
+
+            {/* Swap PiP */}
             {bothOn && (
-              <CtrlBtn onClick={() => setPipSwapped(s => !s)} full>
+              <button onClick={() => setPipSwapped(s => !s)}
+                className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 transition-colors min-w-[60px]">
                 {Icons.swap}
-                Swap view
-              </CtrlBtn>
+                Swap
+              </button>
+            )}
+
+            {/* Copy link */}
+            <button onClick={onCopy}
+              className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all min-w-[60px]
+                ${copied ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-100 dark:border-green-500/20' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
+              {copied ? Icons.check : Icons.copy}
+              {copied ? 'Copied' : 'Link'}
+            </button>
+
+            {/* End stream */}
+            {isLive && (
+              <button onClick={stopAll}
+                className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 transition-colors min-w-[60px]">
+                {Icons.stop}
+                End
+              </button>
             )}
           </div>
 
-          {/* End stream */}
-          {isLive && (
+          {/* Desktop: vertical sidebar layout (unchanged from original) */}
+          <div className="hidden sm:flex sm:flex-col sm:flex-1">
+            {/* Camera controls group */}
             <div className="p-3 border-b border-gray-50 dark:border-gray-800">
-              <CtrlBtn danger onClick={stopAll} full>
-                {Icons.stop}
-                End stream
-              </CtrlBtn>
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Camera</p>
+              <div className="space-y-2">
+                <CtrlBtn active={cameraOn} disabled={!isConnected} onClick={toggleCamera} full>
+                  {Icons.camera}
+                  {cameraOn ? 'Camera on' : 'Camera off'}
+                </CtrlBtn>
+
+                {cameraOn && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={flipCamera}
+                      title="Switch front/rear camera"
+                      className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-100 dark:border-blue-500/20 transition-colors">
+                      {Icons.flip}
+                      Flip
+                    </button>
+                    <button onClick={mirrorCamera}
+                      title="Mirror camera horizontally"
+                      className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold border transition-colors
+                        ${cameraFlipped
+                          ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20'
+                          : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                      ⟺ Mirror
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          {/* Viewer link */}
-          <div className="p-3 border-b border-gray-50 dark:border-gray-800">
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Viewer link</p>
-            <p className="text-xs font-mono text-gray-500 dark:text-gray-400 truncate mb-2 bg-gray-50 dark:bg-gray-800 px-2 py-1.5 rounded-lg">
-              {viewerLink}
-            </p>
-            <button onClick={onCopy}
-              className={`w-full flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-xl border transition-all
-                ${copied
-                  ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-100 dark:border-green-500/20'
-                  : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-              {copied ? <>{Icons.check} Copied!</> : <>{Icons.copy} Copy link</>}
-            </button>
-          </div>
+            <div className="p-3 border-b border-gray-50 dark:border-gray-800 space-y-2">
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Sources</p>
+              <CtrlBtn active={screenOn} disabled={!isConnected} onClick={toggleScreen} full>
+                {Icons.screen}
+                {screenOn ? 'Screen on' : 'Screen off'}
+              </CtrlBtn>
+              <CtrlBtn active={micOn} disabled={!audioTrackRef.current} onClick={toggleMic} full>
+                {micOn ? Icons.micOn : Icons.micOff}
+                {micOn ? 'Mic on' : 'Mic off'}
+              </CtrlBtn>
+              {bothOn && (
+                <CtrlBtn onClick={() => setPipSwapped(s => !s)} full>
+                  {Icons.swap}
+                  Swap view
+                </CtrlBtn>
+              )}
+            </div>
 
-          {/* Status */}
-          <div className="p-3">
-            <div className={`flex items-center justify-center gap-2 text-xs font-medium rounded-lg py-2
-              ${isLive ? 'text-red-500' : isConnected ? 'text-green-500' : 'text-gray-400 dark:text-gray-500'}`}>
-              <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : isConnected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
-              {isLive ? 'You are live' : isConnected ? 'Ready to stream' : isConnecting ? 'Connecting...' : 'Disconnected'}
+            {isLive && (
+              <div className="p-3 border-b border-gray-50 dark:border-gray-800">
+                <CtrlBtn danger onClick={stopAll} full>
+                  {Icons.stop}
+                  End stream
+                </CtrlBtn>
+              </div>
+            )}
+
+            <div className="p-3 border-b border-gray-50 dark:border-gray-800">
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Viewer link</p>
+              <p className="text-xs font-mono text-gray-500 dark:text-gray-400 truncate mb-2 bg-gray-50 dark:bg-gray-800 px-2 py-1.5 rounded-lg">
+                {viewerLink}
+              </p>
+              <button onClick={onCopy}
+                className={`w-full flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-xl border transition-all
+                  ${copied
+                    ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-100 dark:border-green-500/20'
+                    : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                {copied ? <>{Icons.check} Copied!</> : <>{Icons.copy} Copy link</>}
+              </button>
+            </div>
+
+            <div className="p-3">
+              <div className={`flex items-center justify-center gap-2 text-xs font-medium rounded-lg py-2
+                ${isLive ? 'text-red-500' : isConnected ? 'text-green-500' : 'text-gray-400 dark:text-gray-500'}`}>
+                <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : isConnected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                {isLive ? 'You are live' : isConnected ? 'Ready to stream' : isConnecting ? 'Connecting...' : 'Disconnected'}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Slide panel ── */}
+      {/* ── Slide panel (chat + tools) ── */}
       <Panel open={panelOpen} onClose={() => setPanelOpen(false)}>
-        {/* Panel header */}
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 sm:py-3.5 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
           <div className="flex gap-1">
             {(['chat', 'tools'] as const).map(tab => (
               <button key={tab} onClick={() => setPanelTab(tab)}
@@ -643,17 +705,14 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           </button>
         </div>
 
-        {/* Chat tab */}
         {panelTab === 'chat' && (
           <div className="flex-1 min-h-0">
             <ChatPanel roomId={stream.roomId} identity={`host-${stream.roomId}`} nickname="Host" isHost />
           </div>
         )}
 
-        {/* Tools tab */}
         {panelTab === 'tools' && (
           <div className="flex-1 overflow-y-auto">
-            {/* Tool list */}
             {!activePanel && (
               <div className="p-3 space-y-1">
                 {TOOLS.map(tool => (
@@ -673,7 +732,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
               </div>
             )}
 
-            {/* Active tool */}
             {activePanel && (
               <div>
                 <button onClick={() => setActivePanel(null)}
