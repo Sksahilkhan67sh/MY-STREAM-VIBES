@@ -31,10 +31,10 @@ export default function ViewerPage() {
   const [step, setStep]           = useState<'loading' | 'join' | 'watching' | 'error'>('loading');
   const [socket, setSocket]       = useState<Socket | null>(null);
   const [socketReady, setSocketReady] = useState(false);
+  const [chatOpen, setChatOpen]   = useState(false);
   const nicknameRef               = useRef(nickname);
   nicknameRef.current             = nickname;
 
-  // Load stream info
   useEffect(() => {
     fetch(`${API}/api/streams/${roomId}`)
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
@@ -49,7 +49,6 @@ export default function ViewerPage() {
       });
   }, [roomId]);
 
-  // Create shared socket when watching starts
   useEffect(() => {
     if (step !== 'watching') return;
 
@@ -60,7 +59,6 @@ export default function ViewerPage() {
     });
 
     s.on('connect', () => {
-      // Join room immediately on connect — critical for poll events
       s.emit('join-room', {
         roomId,
         nickname: nicknameRef.current || 'Anonymous',
@@ -125,39 +123,61 @@ export default function ViewerPage() {
   );
 
   if (step === 'watching' && stream && token) return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-zinc-950">
-      <div className="flex-1 min-h-0 relative">
-        <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
-        {/* Poll widget — only mount after socket is ready and joined room */}
+    <div className="min-h-screen flex flex-col bg-zinc-950 relative">
+      {/* Video takes full width, fixed height on mobile */}
+      <div className="w-full relative bg-black" style={{ aspectRatio: '16/9' }}>
+        <div className="absolute inset-0">
+          <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
+        </div>
         {socketReady && <PollWidget roomId={roomId} socket={socket} />}
       </div>
-      <div className="w-full lg:w-80 h-64 lg:h-screen border-t lg:border-t-0 lg:border-l border-zinc-800/60">
-        <ChatPanel
-          roomId={roomId}
-          identity={identity}
-          nickname={nickname || 'Anonymous'}
-          socket={socket}
-        />
+
+      {/* On mobile: chat below video. On desktop: sidebar */}
+      <div className="flex flex-col lg:flex-row flex-1 min-h-0">
+        {/* Mobile: chat toggle button */}
+        <div className="lg:hidden flex items-center justify-between px-4 py-2 border-b border-zinc-800">
+          <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            {stream.title}
+          </div>
+          <button
+            onClick={() => setChatOpen(o => !o)}
+            className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors"
+          >
+            {chatOpen ? 'Hide chat' : 'Show chat'}
+          </button>
+        </div>
+
+        {/* Chat panel: collapsible on mobile, always visible on desktop */}
+        <div className={`${chatOpen ? 'flex' : 'hidden'} lg:flex flex-col w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-zinc-800/60`}
+          style={{ height: chatOpen ? '320px' : undefined }}>
+          <ChatPanel
+            roomId={roomId}
+            identity={identity}
+            nickname={nickname || 'Anonymous'}
+            socket={socket}
+          />
+        </div>
       </div>
     </div>
   );
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
+    <main className="min-h-screen flex items-start sm:items-center justify-center px-4 pt-8 sm:pt-0">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass rounded-2xl p-8 w-full max-w-sm"
+        className="glass rounded-2xl p-6 sm:p-8 w-full max-w-sm"
       >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
+        <div className="flex items-center gap-3 mb-5 sm:mb-6">
+          <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center flex-shrink-0">
             <Radio className="w-5 h-5 text-brand-400" />
           </div>
-          <div>
-            <h1 className="font-bold text-base leading-tight">{stream?.title}</h1>
+          <div className="min-w-0">
+            <h1 className="font-bold text-base leading-tight truncate">{stream?.title}</h1>
             {stream?.scheduledAt && !stream.isLive && (
               <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
-                <Clock className="w-3 h-3" />
+                <Clock className="w-3 h-3 flex-shrink-0" />
                 Scheduled: {new Date(stream.scheduledAt).toLocaleString()}
               </p>
             )}
@@ -174,7 +194,8 @@ export default function ViewerPage() {
               onChange={e => setNickname(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && joinStream()}
               placeholder="Anonymous"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 sm:py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
+              style={{ fontSize: '16px' }}
             />
           </div>
 
@@ -188,7 +209,8 @@ export default function ViewerPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Enter password"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 sm:py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-brand-500 transition-colors"
+                style={{ fontSize: '16px' }}
               />
             </div>
           )}
@@ -201,7 +223,7 @@ export default function ViewerPage() {
 
           <button
             onClick={joinStream}
-            className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-95"
+            className="w-full py-3.5 sm:py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-95"
           >
             Join Stream →
           </button>
