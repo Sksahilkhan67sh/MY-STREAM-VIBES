@@ -115,7 +115,7 @@ export default function ChatPanel({ roomId, identity, nickname, isHost, socket: 
       `}</style>
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Chat</span>
         <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
           <span>{viewerCount} watching</span>
@@ -125,13 +125,13 @@ export default function ChatPanel({ roomId, identity, nickname, isHost, socket: 
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
+      <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-2 sm:py-3 space-y-2 min-h-0">
         {messages.length === 0 && (
-          <p className="text-xs text-gray-300 dark:text-gray-600 text-center py-8">No messages yet</p>
+          <p className="text-xs text-gray-300 dark:text-gray-600 text-center py-6">No messages yet</p>
         )}
         {messages.map(msg => (
           <div key={msg.id} className="text-sm">
-            <span className={`font-semibold mr-1 ${msg.nickname === 'Host' ? 'text-red-500' : 'text-gray-700 dark:text-gray-300 dark:text-gray-600'}`}>
+            <span className={`font-semibold mr-1 ${msg.nickname === 'Host' ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
               {msg.nickname}
             </span>
             <span className="text-gray-500 dark:text-gray-400">{msg.message}</span>
@@ -141,12 +141,12 @@ export default function ChatPanel({ roomId, identity, nickname, isHost, socket: 
       </div>
 
       {/* Reactions */}
-      <div className="flex items-center gap-2 px-4 py-2 border-t border-gray-50 flex-shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 border-t border-gray-50 dark:border-gray-800 flex-shrink-0">
         {REACTIONS.map(emoji => (
           <button
             key={emoji}
             onClick={() => sendReaction(emoji)}
-            className="text-base hover:scale-125 transition-transform"
+            className="text-lg sm:text-base hover:scale-125 transition-transform min-w-[32px] min-h-[32px] flex items-center justify-center"
           >
             {emoji}
           </button>
@@ -154,19 +154,20 @@ export default function ChatPanel({ roomId, identity, nickname, isHost, socket: 
       </div>
 
       {/* Input */}
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
+      <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && sendMessage()}
           placeholder="Say something..."
           maxLength={500}
-          className="flex-1 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-300 transition-colors placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-gray-100"
+          className="flex-1 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl px-3 py-2.5 sm:py-2 focus:outline-none focus:border-gray-300 transition-colors placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-gray-100"
+          style={{ fontSize: '16px' }}
         />
         <button
           onClick={sendMessage}
           disabled={!input.trim()}
-          className="w-8 h-8 flex items-center justify-center bg-gray-900 rounded-lg text-white disabled:opacity-30 transition-opacity flex-shrink-0"
+          className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-900 dark:bg-white rounded-xl text-white dark:text-gray-900 disabled:opacity-30 transition-opacity flex-shrink-0"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
