@@ -1,40 +1,34 @@
-import type { Metadata, Viewport } from 'next';
-import './globals.css';
-import { ThemeProvider } from '@/components/ThemeContext';
-import IntroWrapper from '@/components/IntroWrapper';
+// client/src/app/layout.tsx
+import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'StreamVault — Private Live Streaming',
-  description: 'Stream privately. Share instantly. No account required.',
-};
+  title: 'StreamVault — Free Private Live Streaming, No Account Needed',
+  description: 'Create a private live stream in seconds. Share a link instantly. No sign-up, no downloads. Stream to YouTube & Instagram simultaneously. Free forever.',
+  keywords: 'free live streaming, private live stream, stream without account, stream share link, browser live stream',
+  
+  openGraph: {
+    title: 'StreamVault — Free Private Live Streaming',
+    description: 'Go live in one click. Share a link. No account needed.',
+    url: 'https://my-stream-vibes.vercel.app',
+    siteName: 'StreamVault',
+    type: 'website',
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+  },
 
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  viewportFit: 'cover',
-};
+  twitter: {
+    card: 'summary_large_image',
+    title: 'StreamVault — Free Private Live Streaming',
+    description: 'Go live in one click. Share a link. No account needed.',
+    images: ['/og-image.png'],
+  },
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-      </head>
-      <body className="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
-        <ThemeProvider>
-          <IntroWrapper>
-            {children}
-          </IntroWrapper>
-        </ThemeProvider>
-      </body>
-    </html>
-  );
-}
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
+
+  alternates: {
+    canonical: 'https://my-stream-vibes.vercel.app',
+  },
+};
