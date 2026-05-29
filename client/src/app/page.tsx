@@ -23,9 +23,43 @@ export default function HomePage() {
   const router = useRouter();
   const [hovered, setHovered] = useState<number | null>(null);
 
+  // ── JSON-LD Structured Data for Google ──────────────────────
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'StreamVault',
+    url: 'https://my-stream-vibes.vercel.app',
+    description: 'Free private live streaming. No account needed. Go live in one click and share a link instantly.',
+    applicationCategory: 'MultimediaApplication',
+    operatingSystem: 'Any',
+    browserRequirements: 'Requires a modern browser with WebRTC support',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+    },
+    featureList: [
+      'Private live streaming',
+      'No account required',
+      'Restream to YouTube and Instagram',
+      'Live chat and emoji reactions',
+      'Live polls',
+      'Stream recording and download',
+      'Color grading with 10 presets',
+      'Password-protected streams',
+      'Co-host support',
+    ],
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200"
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+
+      {/* ── JSON-LD injected into page for Google SEO ── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       {/* Nav */}
       <nav className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 border-b border-gray-100 dark:border-gray-800">
