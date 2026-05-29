@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'StreamVault — Free Private Live Streaming',
     description: 'Go live in one click. Share a link. No account needed.',
-    url: 'https://my-stream-vibes.vercel.app',
+    url: 'https://my-stream-vibes-client.vercel.app/',
     siteName: 'StreamVault',
     type: 'website',
     images: [{ url: '/og-image.png', width: 1200, height: 630 }],
@@ -29,6 +29,6 @@ export const metadata: Metadata = {
   },
 
   alternates: {
-    canonical: 'https://my-stream-vibes.vercel.app',
+    canonical: 'https://my-stream-vibes-client.vercel.app/',
   },
 };
