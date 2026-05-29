@@ -1,9 +1,3 @@
-export const metadata = {
-  // ...existing metadata
-  verification: {
-    google: 'google9de438ce7f8eb2ef.html',
-  },
-};
 // client/src/app/layout.tsx
 import type { Metadata } from 'next';
 
