@@ -1,7 +1,14 @@
+export const metadata = {
+  // ...existing metadata
+  verification: {
+    google: 'google9de438ce7f8eb2ef.html',
+  },
+};
 // client/src/app/layout.tsx
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
+  
   title: 'StreamVault — Free Private Live Streaming, No Account Needed',
   description: 'Create a private live stream in seconds. Share a link instantly. No sign-up, no downloads. Stream to YouTube & Instagram simultaneously. Free forever.',
   keywords: 'free live streaming, private live stream, stream without account, stream share link, browser live stream',
