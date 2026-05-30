@@ -242,25 +242,39 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
     const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
 
-    // Draw at least one frame BEFORE capturing stream so the track is never blank
+    // KEY FIX: apply color filter as CSS on the canvas element itself.
+    // canvas.captureStream() captures the composited output INCLUDING the element's
+    // CSS filter — this is the only reliable cross-browser way to get color grading
+    // into the published LiveKit track. ctx.filter with SVG data-URLs is blocked
+    // on captureStream in most browsers (tainted canvas / security restriction).
+    const applyCanvasFilter = () => {
+      const cs = colorSettingsRef.current;
+      const bright = 1 + cs.brightness / 100;
+      const cont   = 1 + cs.contrast   / 100;
+      const sat    = Math.max(0, 1 + cs.saturation / 100);
+      const hueRot = cs.hue + cs.warmth * 0.08;
+      const sharp  = cs.sharpness > 0
+        ? `blur(${Math.max(0, 0.5 - cs.sharpness * 0.005).toFixed(3)}px)`
+        : '';
+      canvas.style.filter = [
+        `brightness(${bright.toFixed(3)})`,
+        `contrast(${cont.toFixed(3)})`,
+        `saturate(${sat.toFixed(3)})`,
+        `hue-rotate(${hueRot.toFixed(1)}deg)`,
+        sharp,
+      ].filter(Boolean).join(' ');
+    };
+
     const drawFrame = () => {
       if (srcVideo.readyState >= 2 && srcVideo.videoWidth > 0) {
         if (canvas.width !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
         if (canvas.height !== srcVideo.videoHeight) canvas.height = srcVideo.videoHeight;
 
-        const cs = colorSettingsRef.current;
-        const bright = 1 + cs.brightness / 100;
-        const cont   = 1 + cs.contrast   / 100;
-        const sat    = Math.max(0, 1 + cs.saturation / 100);
-        const hueRot = cs.hue + cs.warmth * 0.08;
-        ctx.filter = [
-          `brightness(${bright.toFixed(3)})`,
-          `contrast(${cont.toFixed(3)})`,
-          `saturate(${sat.toFixed(3)})`,
-          `hue-rotate(${hueRot.toFixed(1)}deg)`,
-          cs.sharpness > 0 ? `blur(${(0.3 - cs.sharpness * 0.003).toFixed(3)}px)` : '',
-        ].filter(Boolean).join(' ');
+        // Update CSS filter every frame (reads latest ref value)
+        applyCanvasFilter();
 
+        // Draw raw video frame — CSS filter on canvas element handles the color grading
+        ctx.filter = 'none';
         if ((window as any).__cameraFlipped) {
           ctx.save();
           ctx.translate(canvas.width, 0);
@@ -271,6 +285,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
         }
 
+        // Vignette drawn on top (no filter needed, just overlay)
+        const cs = colorSettingsRef.current;
         if (cs.vignette > 0) {
           const a = cs.vignette / 100 * 0.75;
           const g = ctx.createRadialGradient(
@@ -279,7 +295,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           );
           g.addColorStop(0, 'rgba(0,0,0,0)');
           g.addColorStop(1, `rgba(0,0,0,${a.toFixed(3)})`);
-          ctx.filter = 'none';
           ctx.fillStyle = g;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
