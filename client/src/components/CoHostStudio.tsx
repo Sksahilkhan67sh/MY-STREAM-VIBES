@@ -145,24 +145,34 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
     canvas.height = src.videoHeight || 720;
     gradedCanvasRef.current = canvas;
     const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
-    const draw = () => {
+
+    // KEY FIX: apply CSS filter on the canvas element — captureStream captures
+    // the composited output including element CSS filter cross-browser.
+    const applyCanvasFilter = () => {
+      const cs = colorSettingsRef.current;
+      const bright = 1 + cs.brightness / 100;
+      const cont   = 1 + cs.contrast   / 100;
+      const sat    = Math.max(0, 1 + cs.saturation / 100);
+      const hueRot = cs.hue + cs.warmth * 0.08;
+      const sharp  = cs.sharpness > 0
+        ? `blur(${Math.max(0, 0.5 - cs.sharpness * 0.005).toFixed(3)}px)`
+        : '';
+      canvas.style.filter = [
+        `brightness(${bright.toFixed(3)})`,
+        `contrast(${cont.toFixed(3)})`,
+        `saturate(${sat.toFixed(3)})`,
+        `hue-rotate(${hueRot.toFixed(1)}deg)`,
+        sharp,
+      ].filter(Boolean).join(' ');
+    };
+
+    const drawFrame = () => {
       if (src.readyState >= 2 && src.videoWidth > 0) {
         if (canvas.width !== src.videoWidth)  canvas.width  = src.videoWidth;
         if (canvas.height !== src.videoHeight) canvas.height = src.videoHeight;
 
-        // FIX: read from ref so we always have the latest slider values
-        const cs = colorSettingsRef.current;
-        const bright = 1 + cs.brightness / 100;
-        const cont   = 1 + cs.contrast   / 100;
-        const sat    = Math.max(0, 1 + cs.saturation / 100);
-        const hueRot = cs.hue + cs.warmth * 0.08;
-        ctx.filter = [
-          `brightness(${bright.toFixed(3)})`,
-          `contrast(${cont.toFixed(3)})`,
-          `saturate(${sat.toFixed(3)})`,
-          `hue-rotate(${hueRot.toFixed(1)}deg)`,
-          cs.sharpness > 0 ? `blur(${(0.3 - cs.sharpness * 0.003).toFixed(3)}px)` : '',
-        ].filter(Boolean).join(' ');
+        applyCanvasFilter();
+        ctx.filter = 'none';
 
         if (flipped) {
           ctx.save();
@@ -174,6 +184,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
           ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
         }
 
+        const cs = colorSettingsRef.current;
         if (cs.vignette > 0) {
           const a = cs.vignette / 100 * 0.75;
           const g = ctx.createRadialGradient(
@@ -182,26 +193,30 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
           );
           g.addColorStop(0, 'rgba(0,0,0,0)');
           g.addColorStop(1, `rgba(0,0,0,${a.toFixed(3)})`);
-          ctx.filter = 'none';
           ctx.fillStyle = g;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
       }
-      gradedRafRef.current = requestAnimationFrame(draw);
+      gradedRafRef.current = requestAnimationFrame(drawFrame);
     };
-    draw();
 
-    if (gradedTrackRef.current) {
-      try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
-      gradedTrackRef.current = null;
-    }
+    // Draw one frame first so captureStream never gets a blank track
+    drawFrame();
+
     const ms = (canvas as any).captureStream(30) as MediaStream;
     const vt = ms.getVideoTracks()[0];
     if (!vt) return;
+
     const { LocalVideoTrack: LVT } = await import('livekit-client');
     const lvt = new LVT(vt, undefined, false);
-    gradedTrackRef.current = lvt;
+
+    // Publish new track BEFORE unpublishing old — no blank gap for viewers
     try { await localParticipant.publishTrack(lvt); } catch {}
+
+    if (gradedTrackRef.current) {
+      try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
+    }
+    gradedTrackRef.current = lvt;
   };
 
   // FIX: use gradedActiveRef to only transition at the default ↔ non-default boundary,
