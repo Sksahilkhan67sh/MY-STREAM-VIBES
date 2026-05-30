@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-streamvault}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB: streamvault
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-streamvault}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    ports: ["4000:4000"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-streamvault}:${POSTGRES_PASSWORD}@postgres:5432/streamvault
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?required}
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+  client:
+    build: ./client
+    restart: unless-stopped
+    ports: ["3000:3000"]
+    environment:
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:4000}
+      NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost:3000}
+    depends_on: [server]
+
+volumes:
+  pg_data:

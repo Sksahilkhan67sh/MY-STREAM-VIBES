@@ -7,6 +7,71 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Auth & Users ────────────────────────────────────────────────
+model User {
+  id           String    @id @default(cuid())
+  email        String?   @unique
+  passwordHash String?
+  displayName  String
+  avatarUrl    String?
+  bio          String?   @db.VarChar(160)
+  role         Role      @default(VIEWER)
+  provider     Provider  @default(LOCAL)
+  oauthId      String?
+  bannedAt     DateTime?
+  twitterHandle String?
+  githubHandle  String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  streams      Stream[]
+  pollVotes    PollVote[]
+  followers    Follow[]  @relation("following")
+  following    Follow[]  @relation("follower")
+  notifications Notification[]
+  reports      Report[]  @relation("reporter")
+  refreshTokens RefreshToken[]
+
+  @@index([email])
+  @@index([oauthId])
+}
+
+enum Role {
+  ADMIN
+  HOST
+  VIEWER
+}
+
+enum Provider {
+  LOCAL
+  GOOGLE
+  GITHUB
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+// ─── Streams ─────────────────────────────────────────────────────
 model Stream {
   id           String    @id @default(cuid())
   roomId       String    @unique
@@ -18,17 +83,76 @@ model Stream {
   scheduledAt  DateTime?
   expiresAt    DateTime
   viewerCount  Int       @default(0)
+  peakViewers  Int       @default(0)
   recordingUrl String?
   rtmpUrl      String?
+  category     String?
+  tags         String[]  @default([])
+  thumbnailUrl String?
+  deletedAt    DateTime?
+
+  hostId       String?
+  host         User?     @relation(fields: [hostId], references: [id])
+
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  reminders  Reminder[]
-  recordings Recording[]
-  polls      Poll[]
-  coHosts    CoHost[]
+  reminders    Reminder[]
+  recordings   Recording[]
+  polls        Poll[]
+  coHosts      CoHost[]
+  events       StreamEvent[]
+  reports      Report[]  @relation("streamReports")
+
+  @@index([isLive])
+  @@index([category])
+  @@index([hostId])
 }
 
+// ─── Analytics ───────────────────────────────────────────────────
+model StreamEvent {
+  id        String   @id @default(cuid())
+  streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  type      String   // viewer_join, viewer_leave, chat_message, reaction, poll_vote
+  value     Int      @default(1)
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([streamId, createdAt])
+  @@index([streamId, type])
+}
+
+// ─── Notifications ───────────────────────────────────────────────
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // stream_started, new_follower, poll_created, recording_ready
+  title     String
+  body      String
+  data      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+// ─── Reports ─────────────────────────────────────────────────────
+model Report {
+  id         String   @id @default(cuid())
+  streamId   String?
+  stream     Stream?  @relation("streamReports", fields: [streamId], references: [id])
+  reporterId String
+  reporter   User     @relation("reporter", fields: [reporterId], references: [id])
+  reason     String
+  details    String?
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+// ─── CoHosts ─────────────────────────────────────────────────────
 model CoHost {
   id          String   @id @default(cuid())
   streamId    String
@@ -58,6 +182,8 @@ model Recording {
   filePath    String
   fileSize    Int       @default(0)
   durationSec Int       @default(0)
+  summary     String?
+  captionUrl  String?
   startedAt   DateTime
   endedAt     DateTime?
   createdAt   DateTime  @default(now())
@@ -82,6 +208,8 @@ model PollVote {
   pollId      String
   poll        Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
   voterId     String
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
   optionIndex Int
   createdAt   DateTime @default(now())
 

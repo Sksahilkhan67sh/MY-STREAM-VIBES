@@ -4,35 +4,31 @@ let client: ReturnType<typeof createClient> | null = null;
 let available = false;
 
 export async function connectRedis() {
-  const url = process.env.REDIS_URL;
-
-  // If no REDIS_URL is set at all, skip silently
-  if (!url || url.includes('localhost') && process.env.NODE_ENV === 'production') {
-    console.log('⚠️  Redis not configured — viewer counts disabled (non-fatal)');
-    return;
-  }
+  const url = process.env.REDIS_URL || 'redis://localhost:6379';
 
   client = createClient({
     url,
     socket: {
       reconnectStrategy: (retries) => {
-        if (retries >= 5) {
+        if (retries >= 3) {
+          // Stop retrying after 3 attempts — Redis is not available
           available = false;
           return false;
         }
-        return Math.min(retries * 500, 3000);
+        return Math.min(retries * 500, 2000);
       },
-      connectTimeout: 5000,
-      tls: url.startsWith('rediss://'), // support Upstash TLS URLs
+      connectTimeout: 3000,
     },
   });
 
+  // Completely silent error handler — no console spam
   client.on('error', () => { available = false; });
-  client.on('ready', () => { available = true; console.log('✅ Redis connected'); });
+  client.on('ready', () => { available = true; });
 
   try {
     await client.connect();
     available = true;
+    console.log('✅ Redis connected');
   } catch {
     available = false;
     console.log('⚠️  Redis unavailable — viewer counts disabled (non-fatal)');

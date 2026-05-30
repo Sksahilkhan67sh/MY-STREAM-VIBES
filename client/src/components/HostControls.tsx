@@ -151,13 +151,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const [rtmpActive, setRtmpActive]     = useState(false);
   const [activePoll, setActivePoll]     = useState<any>(null);
   const [activeStreams, setActiveStreams] = useState<MediaStream[]>([]);
-  const [colorSettings, setColorSettingsState] = useState<ColorSettings>(DEFAULT_SETTINGS);
-  // Always keep ref in sync so the canvas draw loop reads the latest values
-  // without needing to restart the loop on every slider change
-  const setColorSettings = (s: ColorSettings) => {
-    colorSettingsRef.current = s;
-    setColorSettingsState(s);
-  };
+  const [colorSettings, setColorSettings] = useState<ColorSettings>(DEFAULT_SETTINGS);
   const [resolution, setResolution]     = useState<Resolution>(DEFAULT_RESOLUTION);
 
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -168,9 +162,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const gradedCanvasRef  = useRef<HTMLCanvasElement | null>(null);
   const gradedRafRef     = useRef<number>(0);
   const gradedTrackRef   = useRef<LocalVideoTrack | null>(null);
-  // Keep a ref so the canvas draw loop always reads the LATEST settings
-  // without needing to restart the RAF loop on every slider change
-  const colorSettingsRef = useRef<ColorSettings>(DEFAULT_SETTINGS);
 
   const viewerLink   = `${appUrl}${stream.viewerUrl}`;
   const bothOn       = cameraOn && screenOn;
@@ -204,12 +195,10 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       if (srcVideo.readyState >= 2 && srcVideo.videoWidth > 0) {
         if (canvas.width !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
         if (canvas.height !== srcVideo.videoHeight) canvas.height = srcVideo.videoHeight;
-        // Use ref here — always reads the latest color settings without restarting the loop
-        const cs = colorSettingsRef.current;
-        ctx.filter = buildFilter(cs);
+        ctx.filter = buildFilter(colorSettings);
         ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
-        if (cs.vignette > 0) {
-          const a = cs.vignette / 100 * 0.75;
+        if (colorSettings.vignette > 0) {
+          const a = colorSettings.vignette / 100 * 0.75;
           const g = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width*0.3, canvas.width/2, canvas.height/2, canvas.width*0.8);
           g.addColorStop(0, 'rgba(0,0,0,0)');
           g.addColorStop(1, `rgba(0,0,0,${a})`);
@@ -233,37 +222,23 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     try { await localParticipant.publishTrack(lvt); } catch (e) { console.warn('graded publish failed', e); }
   };
 
-  // Track whether graded canvas is currently active so we only start/stop it
-  // when crossing the default ↔ non-default boundary, not on every slider move
-  const gradedActiveRef = useRef(false);
-
   useEffect(() => {
     if (!cameraOn) return;
     const isDefault = Object.entries(colorSettings).every(([k,v]) => v === DEFAULT_SETTINGS[k as keyof ColorSettings]);
     if (isDefault) {
-      // Switching back to no grading — stop canvas, republish raw track
-      if (gradedActiveRef.current) {
-        gradedActiveRef.current = false;
-        cancelAnimationFrame(gradedRafRef.current);
-        if (gradedTrackRef.current) {
-          localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {});
-          gradedTrackRef.current = null;
-        }
-        if (cameraTrackRef.current) {
-          localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
-        }
+      cancelAnimationFrame(gradedRafRef.current);
+      if (gradedTrackRef.current) {
+        localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {});
+        gradedTrackRef.current = null;
       }
-      // If already not graded, do nothing — sliders at default, raw track already published
+      if (cameraTrackRef.current) {
+        localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
+      }
     } else {
-      // Non-default settings — start canvas only if not already running
-      if (!gradedActiveRef.current) {
-        gradedActiveRef.current = true;
-        if (cameraTrackRef.current) {
-          localParticipant.unpublishTrack(cameraTrackRef.current).catch(() => {});
-        }
-        startGradedCanvas();
+      if (cameraTrackRef.current) {
+        localParticipant.unpublishTrack(cameraTrackRef.current).catch(() => {});
       }
-      // If canvas already running, the draw loop reads colorSettingsRef automatically — no restart needed
+      startGradedCanvas();
     }
   }, [colorSettings, cameraOn]);
 
@@ -338,7 +313,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
         gradedTrackRef.current = null;
       }
-      gradedActiveRef.current = false;
       if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
       setCameraOn(false);
       if (!screenOn) { setIsLive(false); await updateLive(false); }
