@@ -28,12 +28,18 @@ function VideoStage({ title }: { title: string }) {
   const [mainIdx, setMainIdx] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Prefer screen share tracks first, then camera tracks
-  const screenTracks = tracks.filter(t => t.source === Track.Source.ScreenShare);
-  const cameraTracks = tracks.filter(t => t.source === Track.Source.Camera);
+  // Identify host participant (identity starts with "host-")
+  const hostTracks = tracks.filter(t => t.participant.identity.startsWith('host-'));
+  const coHostTracks = tracks.filter(t => !t.participant.identity.startsWith('host-'));
 
-  // Build ordered list: screens first, then cameras
-  const allTracks = [...screenTracks, ...cameraTracks];
+  // Order: host camera first, then host screen, then co-host screens, then co-host cameras
+  const hostCamera = hostTracks.filter(t => t.source === Track.Source.Camera);
+  const hostScreen = hostTracks.filter(t => t.source === Track.Source.ScreenShare);
+  const coHostScreen = coHostTracks.filter(t => t.source === Track.Source.ScreenShare);
+  const coHostCamera = coHostTracks.filter(t => t.source === Track.Source.Camera);
+
+  // Host is ALWAYS the main/primary view; co-host screen goes to PiP
+  const allTracks = [...hostCamera, ...hostScreen, ...coHostScreen, ...coHostCamera];
 
   const safeIdx = Math.min(mainIdx, Math.max(0, allTracks.length - 1));
   const mainTrack = allTracks[safeIdx] ?? null;
@@ -52,7 +58,7 @@ function VideoStage({ title }: { title: string }) {
   return (
     <div ref={containerRef} className="relative w-full h-full bg-zinc-950 flex items-center justify-center group min-h-[280px] overflow-hidden">
 
-      {/* Main video */}
+      {/* Main video — always host by default */}
       {mainTrack ? (
         <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
       ) : (
@@ -75,7 +81,7 @@ function VideoStage({ title }: { title: string }) {
             return (
               <div
                 key={`${t.participant.identity}-${t.source}`}
-                className="w-40 h-24 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl cursor-pointer hover:border-blue-400 transition-all group/pip"
+                className="w-40 h-24 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl cursor-pointer hover:border-blue-400 transition-all group/pip relative"
                 onClick={() => setMainIdx(realIdx)}
                 title="Click to make main view"
               >
