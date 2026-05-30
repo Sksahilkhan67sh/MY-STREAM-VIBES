@@ -242,39 +242,36 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
     const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
 
-    // KEY FIX: apply color filter as CSS on the canvas element itself.
-    // canvas.captureStream() captures the composited output INCLUDING the element's
-    // CSS filter — this is the only reliable cross-browser way to get color grading
-    // into the published LiveKit track. ctx.filter with SVG data-URLs is blocked
-    // on captureStream in most browsers (tainted canvas / security restriction).
-    const applyCanvasFilter = () => {
+    // CORRECT APPROACH: use ctx.filter (baked into canvas pixels, captured by captureStream).
+    // canvas.style.filter is NOT captured — it's a compositor effect applied after pixel read.
+    // CRITICAL: canvas.width = x resets the entire canvas state including ctx.filter.
+    //           So we MUST reapply ctx.filter after every resize, before every drawImage.
+    const buildCtxFilter = () => {
       const cs = colorSettingsRef.current;
       const bright = 1 + cs.brightness / 100;
       const cont   = 1 + cs.contrast   / 100;
       const sat    = Math.max(0, 1 + cs.saturation / 100);
       const hueRot = cs.hue + cs.warmth * 0.08;
-      const sharp  = cs.sharpness > 0
-        ? `blur(${Math.max(0, 0.5 - cs.sharpness * 0.005).toFixed(3)}px)`
-        : '';
-      canvas.style.filter = [
+      // Use only primitive CSS filter functions — no SVG url() which taints the canvas
+      // Sharpness approximated with contrast boost instead of convolution
+      const sharpContrast = cs.sharpness > 0 ? cont * (1 + cs.sharpness * 0.003) : cont;
+      return [
         `brightness(${bright.toFixed(3)})`,
-        `contrast(${cont.toFixed(3)})`,
+        `contrast(${sharpContrast.toFixed(3)})`,
         `saturate(${sat.toFixed(3)})`,
         `hue-rotate(${hueRot.toFixed(1)}deg)`,
-        sharp,
-      ].filter(Boolean).join(' ');
+      ].join(' ');
     };
 
     const drawFrame = () => {
       if (srcVideo.readyState >= 2 && srcVideo.videoWidth > 0) {
+        // Resize if needed — this CLEARS canvas state, so filter must be reapplied below
         if (canvas.width !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
         if (canvas.height !== srcVideo.videoHeight) canvas.height = srcVideo.videoHeight;
 
-        // Update CSS filter every frame (reads latest ref value)
-        applyCanvasFilter();
+        // Apply color filter — MUST be set after any canvas resize (resize resets ctx state)
+        ctx.filter = buildCtxFilter();
 
-        // Draw raw video frame — CSS filter on canvas element handles the color grading
-        ctx.filter = 'none';
         if ((window as any).__cameraFlipped) {
           ctx.save();
           ctx.translate(canvas.width, 0);
@@ -285,9 +282,10 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
         }
 
-        // Vignette drawn on top (no filter needed, just overlay)
+        // Vignette overlay — drawn WITHOUT filter so it doesn't get double-filtered
         const cs = colorSettingsRef.current;
         if (cs.vignette > 0) {
+          ctx.filter = 'none';
           const a = cs.vignette / 100 * 0.75;
           const g = ctx.createRadialGradient(
             canvas.width/2, canvas.height/2, canvas.width * 0.3,
@@ -301,7 +299,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       }
     };
 
-    // Draw first frame immediately so captureStream gets a real frame
+    // Draw first frame immediately so captureStream gets a real coloured frame
     drawFrame();
 
     // Start the RAF loop
