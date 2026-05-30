@@ -18,26 +18,26 @@ interface StreamPlayerProps {
 }
 
 function VideoStage({ title }: { title: string }) {
+  // Subscribe to camera + screen tracks from ALL participants (host + co-hosts)
   const tracks = useTracks(
     [Track.Source.Camera, Track.Source.ScreenShare],
     { onlySubscribed: true }
   );
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [mainSource, setMainSource] = useState<Track.Source>(Track.Source.ScreenShare);
+  const [mainIdx, setMainIdx] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const screenTrack = tracks.find(t => t.source === Track.Source.ScreenShare);
-  const cameraTrack = tracks.find(t => t.source === Track.Source.Camera);
-  const bothActive = !!screenTrack && !!cameraTrack;
+  // Prefer screen share tracks first, then camera tracks
+  const screenTracks = tracks.filter(t => t.source === Track.Source.ScreenShare);
+  const cameraTracks = tracks.filter(t => t.source === Track.Source.Camera);
 
-  // Main track: prefer screen, fall back to camera
-  const mainTrack = bothActive
-    ? (mainSource === Track.Source.ScreenShare ? screenTrack : cameraTrack)
-    : (screenTrack || cameraTrack);
-  const pipTrack = bothActive
-    ? (mainSource === Track.Source.ScreenShare ? cameraTrack : screenTrack)
-    : null;
+  // Build ordered list: screens first, then cameras
+  const allTracks = [...screenTracks, ...cameraTracks];
+
+  const safeIdx = Math.min(mainIdx, Math.max(0, allTracks.length - 1));
+  const mainTrack = allTracks[safeIdx] ?? null;
+  const pipTracks = allTracks.filter((_, i) => i !== safeIdx);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -47,12 +47,6 @@ function VideoStage({ title }: { title: string }) {
       document.exitFullscreen();
       setFullscreen(false);
     }
-  };
-
-  const swapMain = () => {
-    setMainSource(s =>
-      s === Track.Source.ScreenShare ? Track.Source.Camera : Track.Source.ScreenShare
-    );
   };
 
   return (
@@ -73,20 +67,28 @@ function VideoStage({ title }: { title: string }) {
         </div>
       )}
 
-      {/* PiP overlay — shown when both camera and screen are active */}
-      {pipTrack && (
-        <div
-          className="absolute bottom-14 right-3 w-40 h-24 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl cursor-pointer hover:border-brand-500 transition-all group/pip"
-          onClick={swapMain}
-          title="Click to swap main/PiP view"
-        >
-          <VideoTrack trackRef={pipTrack} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/0 group-hover/pip:bg-black/30 transition-colors flex items-center justify-center">
-            <PictureInPicture2 className="w-5 h-5 text-white opacity-0 group-hover/pip:opacity-100 transition-opacity" />
-          </div>
-          <div className="absolute bottom-1 left-1.5 text-[10px] text-white/60 font-medium">
-            {mainSource === Track.Source.ScreenShare ? 'Camera' : 'Screen'} · tap to swap
-          </div>
+      {/* PiP strip — show up to 3 extra tracks (co-hosts / screen) */}
+      {pipTracks.length > 0 && (
+        <div className="absolute bottom-14 right-3 flex flex-col gap-2">
+          {pipTracks.slice(0, 3).map((t, i) => {
+            const realIdx = allTracks.indexOf(t);
+            return (
+              <div
+                key={`${t.participant.identity}-${t.source}`}
+                className="w-40 h-24 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl cursor-pointer hover:border-blue-400 transition-all group/pip"
+                onClick={() => setMainIdx(realIdx)}
+                title="Click to make main view"
+              >
+                <VideoTrack trackRef={t} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/0 group-hover/pip:bg-black/30 transition-colors flex items-center justify-center">
+                  <PictureInPicture2 className="w-5 h-5 text-white opacity-0 group-hover/pip:opacity-100 transition-opacity" />
+                </div>
+                <div className="absolute bottom-1 left-1.5 text-[10px] text-white/60 font-medium truncate max-w-[120px]">
+                  {t.source === Track.Source.ScreenShare ? '🖥 Screen' : `📷 ${t.participant.identity}`}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -97,9 +99,9 @@ function VideoStage({ title }: { title: string }) {
             <span className="live-dot" /> LIVE
           </span>
         )}
-        {bothActive && (
+        {allTracks.length > 1 && (
           <span className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-semibold text-zinc-300">
-            <PictureInPicture2 className="w-3 h-3" /> Camera + Screen
+            <PictureInPicture2 className="w-3 h-3" /> {allTracks.length} streams
           </span>
         )}
       </div>
