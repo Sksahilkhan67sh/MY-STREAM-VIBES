@@ -204,18 +204,15 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     canvas.height = srcVideo.videoHeight || 720;
     gradedCanvasRef.current = canvas;
 
-    // Use willReadFrequently=false for captureStream — we only write, never read pixels
     const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
 
-    const draw = () => {
+    // Draw at least one frame BEFORE capturing stream so the track is never blank
+    const drawFrame = () => {
       if (srcVideo.readyState >= 2 && srcVideo.videoWidth > 0) {
         if (canvas.width !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
         if (canvas.height !== srcVideo.videoHeight) canvas.height = srcVideo.videoHeight;
 
         const cs = colorSettingsRef.current;
-
-        // Apply CSS filter via canvas filter API (supported in all modern browsers)
-        // Build filter string without the SVG sharpness url() — use only CSS primitives
         const bright = 1 + cs.brightness / 100;
         const cont   = 1 + cs.contrast   / 100;
         const sat    = Math.max(0, 1 + cs.saturation / 100);
@@ -228,8 +225,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           cs.sharpness > 0 ? `blur(${(0.3 - cs.sharpness * 0.003).toFixed(3)}px)` : '',
         ].filter(Boolean).join(' ');
 
-        // Apply mirror if enabled — flips the canvas so viewers also see mirrored output
-        if (colorSettingsRef.current && (window as any).__cameraFlipped) {
+        if ((window as any).__cameraFlipped) {
           ctx.save();
           ctx.translate(canvas.width, 0);
           ctx.scale(-1, 1);
@@ -239,7 +235,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
         }
 
-        // Vignette overlay
         if (cs.vignette > 0) {
           const a = cs.vignette / 100 * 0.75;
           const g = ctx.createRadialGradient(
@@ -253,30 +248,38 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
       }
-      gradedRafRef.current = requestAnimationFrame(draw);
     };
-    draw();
 
-    // Capture a stable reference to localParticipant at call time
-    const lp = localParticipant;
+    // Draw first frame immediately so captureStream gets a real frame
+    drawFrame();
 
-    if (gradedTrackRef.current) {
-      try { await lp.unpublishTrack(gradedTrackRef.current); } catch {}
-      gradedTrackRef.current = null;
-    }
+    // Start the RAF loop
+    const loop = () => { drawFrame(); gradedRafRef.current = requestAnimationFrame(loop); };
+    gradedRafRef.current = requestAnimationFrame(loop);
 
+    // Capture stream AFTER first frame is drawn
     const ms = (canvas as any).captureStream(30) as MediaStream;
     const vt = ms.getVideoTracks()[0];
     if (!vt) return;
 
+    const lp = localParticipant;
     const { LocalVideoTrack: LVT } = await import('livekit-client');
     const lvt = new LVT(vt, undefined, false);
-    gradedTrackRef.current = lvt;
+
+    // FIX: publish new canvas track BEFORE unpublishing old track
+    // This ensures viewers always have at least one active track — no blank gap
     try {
       await lp.publishTrack(lvt);
     } catch (e) {
       console.warn('graded publish failed', e);
+      return;
     }
+
+    // Now safely remove the old graded track (new one is already live)
+    if (gradedTrackRef.current) {
+      try { await lp.unpublishTrack(gradedTrackRef.current); } catch {}
+    }
+    gradedTrackRef.current = lvt;
   };
 
   // Track whether graded canvas is currently active so we only start/stop it
@@ -304,9 +307,9 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       // Non-default settings — start canvas only if not already running
       if (!gradedActiveRef.current) {
         gradedActiveRef.current = true;
-        if (cameraTrackRef.current) {
-          localParticipant.unpublishTrack(cameraTrackRef.current).catch(() => {});
-        }
+        // NOTE: we do NOT unpublish cameraTrack here — startGradedCanvas publishes
+        // the new canvas track first, then unpublishes the raw track inside itself,
+        // so viewers never see a blank frame gap.
         startGradedCanvas();
       }
       // If canvas already running, the draw loop reads colorSettingsRef automatically — no restart needed
