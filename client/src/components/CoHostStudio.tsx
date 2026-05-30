@@ -75,7 +75,13 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
   const [error, setError]               = useState('');
   const [showColor, setShowColor]       = useState(false);
   const [showChat, setShowChat]         = useState(false);
-  const [colorSettings, setColorSettings] = useState<ColorSettings>(DEFAULT_SETTINGS);
+  // FIX: keep both state (for rendering) and ref (for canvas draw loop)
+  const [colorSettings, setColorSettingsState] = useState<ColorSettings>(DEFAULT_SETTINGS);
+  const colorSettingsRef = useRef<ColorSettings>(DEFAULT_SETTINGS);
+  const setColorSettings = (s: ColorSettings) => {
+    colorSettingsRef.current = s;
+    setColorSettingsState(s);
+  };
 
   const cameraTrackRef = useRef<LocalVideoTrack | null>(null);
   const screenTrackRef = useRef<LocalVideoTrack | null>(null);
@@ -85,6 +91,8 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
   const gradedRafRef   = useRef<number>(0);
   const gradedTrackRef = useRef<LocalVideoTrack | null>(null);
   const gradedCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // FIX: track whether graded canvas is active to avoid repeated publish/unpublish
+  const gradedActiveRef = useRef(false);
 
   const isConnected  = roomState === ConnectionState.Connected;
   const isConnecting = roomState === ConnectionState.Connecting || roomState === ConnectionState.Reconnecting;
@@ -121,6 +129,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
   };
 
   // ── Color grading canvas publisher ───────────────────────────
+  // FIX: draw loop reads colorSettingsRef (always current) instead of stale closure value
   const startGradedCanvas = async () => {
     const src = cameraVideoRef.current;
     if (!src) return;
@@ -135,17 +144,53 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
     canvas.width  = src.videoWidth  || 1280;
     canvas.height = src.videoHeight || 720;
     gradedCanvasRef.current = canvas;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
     const draw = () => {
       if (src.readyState >= 2 && src.videoWidth > 0) {
         if (canvas.width !== src.videoWidth)  canvas.width  = src.videoWidth;
         if (canvas.height !== src.videoHeight) canvas.height = src.videoHeight;
-        ctx.filter = buildFilter(colorSettings);
-        ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+
+        // FIX: read from ref so we always have the latest slider values
+        const cs = colorSettingsRef.current;
+        const bright = 1 + cs.brightness / 100;
+        const cont   = 1 + cs.contrast   / 100;
+        const sat    = Math.max(0, 1 + cs.saturation / 100);
+        const hueRot = cs.hue + cs.warmth * 0.08;
+        ctx.filter = [
+          `brightness(${bright.toFixed(3)})`,
+          `contrast(${cont.toFixed(3)})`,
+          `saturate(${sat.toFixed(3)})`,
+          `hue-rotate(${hueRot.toFixed(1)}deg)`,
+          cs.sharpness > 0 ? `blur(${(0.3 - cs.sharpness * 0.003).toFixed(3)}px)` : '',
+        ].filter(Boolean).join(' ');
+
+        if (flipped) {
+          ctx.save();
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        } else {
+          ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+        }
+
+        if (cs.vignette > 0) {
+          const a = cs.vignette / 100 * 0.75;
+          const g = ctx.createRadialGradient(
+            canvas.width/2, canvas.height/2, canvas.width * 0.3,
+            canvas.width/2, canvas.height/2, canvas.width * 0.8,
+          );
+          g.addColorStop(0, 'rgba(0,0,0,0)');
+          g.addColorStop(1, `rgba(0,0,0,${a.toFixed(3)})`);
+          ctx.filter = 'none';
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
       }
       gradedRafRef.current = requestAnimationFrame(draw);
     };
     draw();
+
     if (gradedTrackRef.current) {
       try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
       gradedTrackRef.current = null;
@@ -159,16 +204,32 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
     try { await localParticipant.publishTrack(lvt); } catch {}
   };
 
+  // FIX: use gradedActiveRef to only transition at the default ↔ non-default boundary,
+  // not on every single slider move (which was killing the published track repeatedly)
   useEffect(() => {
     if (!cameraOn) return;
     const isDefault = Object.entries(colorSettings).every(([k,v]) => v === DEFAULT_SETTINGS[k as keyof ColorSettings]);
     if (isDefault) {
-      cancelAnimationFrame(gradedRafRef.current);
-      if (gradedTrackRef.current) { localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {}); gradedTrackRef.current = null; }
-      if (cameraTrackRef.current) localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
+      if (gradedActiveRef.current) {
+        gradedActiveRef.current = false;
+        cancelAnimationFrame(gradedRafRef.current);
+        if (gradedTrackRef.current) {
+          localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {});
+          gradedTrackRef.current = null;
+        }
+        if (cameraTrackRef.current) {
+          localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
+        }
+      }
     } else {
-      if (cameraTrackRef.current) localParticipant.unpublishTrack(cameraTrackRef.current).catch(() => {});
-      startGradedCanvas();
+      if (!gradedActiveRef.current) {
+        gradedActiveRef.current = true;
+        if (cameraTrackRef.current) {
+          localParticipant.unpublishTrack(cameraTrackRef.current).catch(() => {});
+        }
+        startGradedCanvas();
+      }
+      // If canvas already running, the draw loop reads colorSettingsRef automatically — no restart needed
     }
   }, [colorSettings, cameraOn]);
 
@@ -185,6 +246,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
         try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
         gradedTrackRef.current = null;
       }
+      gradedActiveRef.current = false;
       if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
       setCameraOn(false);
     } else {
@@ -246,6 +308,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
     }
     if (audioTrackRef.current) { try { await localParticipant.unpublishTrack(audioTrackRef.current); } catch {} audioTrackRef.current.stop(); audioTrackRef.current = null; }
     cancelAnimationFrame(gradedRafRef.current);
+    gradedActiveRef.current = false;
     window.location.href = '/';
   };
 
@@ -260,7 +323,6 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
             <span className="w-2 h-2 rounded-full bg-blue-500" />
             <span className="font-bold text-sm text-gray-900 dark:text-gray-100">StreamVault</span>
           </div>
-          {/* Co-host badge */}
           <span className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-100 dark:border-blue-500/20">
             🎙 Co-Host
           </span>
