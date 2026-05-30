@@ -1,6 +1,7 @@
 // client/src/app/layout.tsx
 import type { Metadata } from 'next';
 import './globals.css';
+import { ThemeProvider } from '@/components/ThemeContext';
 
 export const metadata: Metadata = {
   title: 'StreamVault — Free Private Live Streaming, No Account Needed',
@@ -40,8 +41,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
