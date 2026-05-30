@@ -3,16 +3,18 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import HostControls from '@/components/HostControls';
 import { ThemeToggle } from '@/components/ThemeContext';
+import { AuthGuard, useAuth } from '@/components/AuthGuard';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const API     = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:4000';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL  || 'http://localhost:3000';
 
 interface StreamData {
   roomId: string; hostToken: string; livekitToken: string;
   viewerUrl: string; expiresAt: string;
 }
 
-export default function HostPage() {
+function HostPageInner() {
+  const { logout } = useAuth();
   const [title, setTitle]       = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
@@ -58,7 +60,15 @@ export default function HostPage() {
           <span className="w-2 h-2 rounded-full bg-red-500" />
           <span className="font-bold text-base tracking-tight text-gray-900 dark:text-gray-100">StreamVault</span>
         </a>
-        <ThemeToggle />
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <button
+            onClick={logout}
+            className="text-xs font-semibold text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
       </nav>
 
       {/* Form */}
@@ -133,5 +143,13 @@ export default function HostPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function HostPage() {
+  return (
+    <AuthGuard>
+      <HostPageInner />
+    </AuthGuard>
   );
 }
