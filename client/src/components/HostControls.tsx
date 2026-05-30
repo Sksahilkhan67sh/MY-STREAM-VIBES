@@ -315,10 +315,11 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     const { LocalVideoTrack: LVT } = await import('livekit-client');
     const lvt = new LVT(vt, undefined, false);
 
-    // FIX: publish new canvas track BEFORE unpublishing old track
-    // This ensures viewers always have at least one active track — no blank gap
+    // Publish canvas track as Camera source so viewer's useTracks picks it up.
+    // Without this, the canvas track is published as Track.Source.Unknown
+    // which is filtered out by useTracks([Camera, ScreenShare]) on the viewer side.
     try {
-      await lp.publishTrack(lvt);
+      await lp.publishTrack(lvt, { source: Track.Source.Camera });
     } catch (e) {
       console.warn('graded publish failed', e);
       return;
