@@ -364,8 +364,8 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
 
         {/* Preview */}
         <div className="flex-1 bg-black relative flex items-center justify-center">
-          <video ref={cameraVideoRef} autoPlay muted playsInline style={{ display: 'none' }} />
-          <video ref={screenVideoRef} autoPlay muted playsInline style={{ display: 'none' }} />
+          <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />
+          <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />
 
           {/* Main preview — show screen if active, else camera */}
           {screenOn && (
