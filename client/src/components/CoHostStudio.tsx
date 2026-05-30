@@ -146,24 +146,23 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
     gradedCanvasRef.current = canvas;
     const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
 
-    // KEY FIX: apply CSS filter on the canvas element — captureStream captures
-    // the composited output including element CSS filter cross-browser.
-    const applyCanvasFilter = () => {
+    // CORRECT APPROACH: ctx.filter is baked into canvas pixels and IS captured by captureStream.
+    // canvas.style.filter is NOT captured — compositor-only effect.
+    // CRITICAL: canvas.width = x resets canvas state including ctx.filter.
+    //           Reapply ctx.filter after every resize, before every drawImage.
+    const buildCtxFilter = () => {
       const cs = colorSettingsRef.current;
       const bright = 1 + cs.brightness / 100;
       const cont   = 1 + cs.contrast   / 100;
       const sat    = Math.max(0, 1 + cs.saturation / 100);
       const hueRot = cs.hue + cs.warmth * 0.08;
-      const sharp  = cs.sharpness > 0
-        ? `blur(${Math.max(0, 0.5 - cs.sharpness * 0.005).toFixed(3)}px)`
-        : '';
-      canvas.style.filter = [
+      const sharpContrast = cs.sharpness > 0 ? cont * (1 + cs.sharpness * 0.003) : cont;
+      return [
         `brightness(${bright.toFixed(3)})`,
-        `contrast(${cont.toFixed(3)})`,
+        `contrast(${sharpContrast.toFixed(3)})`,
         `saturate(${sat.toFixed(3)})`,
         `hue-rotate(${hueRot.toFixed(1)}deg)`,
-        sharp,
-      ].filter(Boolean).join(' ');
+      ].join(' ');
     };
 
     const drawFrame = () => {
@@ -171,8 +170,8 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
         if (canvas.width !== src.videoWidth)  canvas.width  = src.videoWidth;
         if (canvas.height !== src.videoHeight) canvas.height = src.videoHeight;
 
-        applyCanvasFilter();
-        ctx.filter = 'none';
+        // Reapply filter after every resize (resize clears ctx state)
+        ctx.filter = buildCtxFilter();
 
         if (flipped) {
           ctx.save();
@@ -186,6 +185,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
 
         const cs = colorSettingsRef.current;
         if (cs.vignette > 0) {
+          ctx.filter = 'none';
           const a = cs.vignette / 100 * 0.75;
           const g = ctx.createRadialGradient(
             canvas.width/2, canvas.height/2, canvas.width * 0.3,
@@ -200,7 +200,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
       gradedRafRef.current = requestAnimationFrame(drawFrame);
     };
 
-    // Draw one frame first so captureStream never gets a blank track
+    // Draw one frame first so captureStream never gets a blank/unfiltered track
     drawFrame();
 
     const ms = (canvas as any).captureStream(30) as MediaStream;
