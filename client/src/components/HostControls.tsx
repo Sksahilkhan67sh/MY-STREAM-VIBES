@@ -188,49 +188,95 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const startGradedCanvas = async () => {
     const srcVideo = cameraVideoRef.current;
     if (!srcVideo) return;
+
+    // Wait for video dimensions to be available
     await new Promise<void>(resolve => {
       if (srcVideo.videoWidth > 0) { resolve(); return; }
       const h = () => { resolve(); srcVideo.removeEventListener('loadedmetadata', h); };
       srcVideo.addEventListener('loadedmetadata', h);
       setTimeout(resolve, 2000);
     });
+
     cancelAnimationFrame(gradedRafRef.current);
+
     const canvas = document.createElement('canvas');
     canvas.width  = srcVideo.videoWidth  || 1280;
     canvas.height = srcVideo.videoHeight || 720;
     gradedCanvasRef.current = canvas;
-    const ctx = canvas.getContext('2d')!;
+
+    // Use willReadFrequently=false for captureStream — we only write, never read pixels
+    const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
+
     const draw = () => {
       if (srcVideo.readyState >= 2 && srcVideo.videoWidth > 0) {
         if (canvas.width !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
         if (canvas.height !== srcVideo.videoHeight) canvas.height = srcVideo.videoHeight;
-        // Use ref here — always reads the latest color settings without restarting the loop
+
         const cs = colorSettingsRef.current;
-        ctx.filter = buildFilter(cs);
-        ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
+
+        // Apply CSS filter via canvas filter API (supported in all modern browsers)
+        // Build filter string without the SVG sharpness url() — use only CSS primitives
+        const bright = 1 + cs.brightness / 100;
+        const cont   = 1 + cs.contrast   / 100;
+        const sat    = Math.max(0, 1 + cs.saturation / 100);
+        const hueRot = cs.hue + cs.warmth * 0.08;
+        ctx.filter = [
+          `brightness(${bright.toFixed(3)})`,
+          `contrast(${cont.toFixed(3)})`,
+          `saturate(${sat.toFixed(3)})`,
+          `hue-rotate(${hueRot.toFixed(1)}deg)`,
+          cs.sharpness > 0 ? `blur(${(0.3 - cs.sharpness * 0.003).toFixed(3)}px)` : '',
+        ].filter(Boolean).join(' ');
+
+        // Apply mirror if enabled — flips the canvas so viewers also see mirrored output
+        if (colorSettingsRef.current && (window as any).__cameraFlipped) {
+          ctx.save();
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        } else {
+          ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
+        }
+
+        // Vignette overlay
         if (cs.vignette > 0) {
           const a = cs.vignette / 100 * 0.75;
-          const g = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width*0.3, canvas.width/2, canvas.height/2, canvas.width*0.8);
+          const g = ctx.createRadialGradient(
+            canvas.width/2, canvas.height/2, canvas.width * 0.3,
+            canvas.width/2, canvas.height/2, canvas.width * 0.8,
+          );
           g.addColorStop(0, 'rgba(0,0,0,0)');
-          g.addColorStop(1, `rgba(0,0,0,${a})`);
-          ctx.filter = 'none'; ctx.fillStyle = g;
+          g.addColorStop(1, `rgba(0,0,0,${a.toFixed(3)})`);
+          ctx.filter = 'none';
+          ctx.fillStyle = g;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
       }
       gradedRafRef.current = requestAnimationFrame(draw);
     };
     draw();
+
+    // Capture a stable reference to localParticipant at call time
+    const lp = localParticipant;
+
     if (gradedTrackRef.current) {
-      try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
+      try { await lp.unpublishTrack(gradedTrackRef.current); } catch {}
       gradedTrackRef.current = null;
     }
+
     const ms = (canvas as any).captureStream(30) as MediaStream;
     const vt = ms.getVideoTracks()[0];
     if (!vt) return;
+
     const { LocalVideoTrack: LVT } = await import('livekit-client');
     const lvt = new LVT(vt, undefined, false);
     gradedTrackRef.current = lvt;
-    try { await localParticipant.publishTrack(lvt); } catch (e) { console.warn('graded publish failed', e); }
+    try {
+      await lp.publishTrack(lvt);
+    } catch (e) {
+      console.warn('graded publish failed', e);
+    }
   };
 
   // Track whether graded canvas is currently active so we only start/stop it
@@ -364,7 +410,10 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     }
   };
 
-  const mirrorCamera = () => setCameraFlipped(f => !f);
+  const mirrorCamera = () => setCameraFlipped(f => {
+    (window as any).__cameraFlipped = !f;
+    return !f;
+  });
 
   const toggleScreen = async () => {
     setError('');
