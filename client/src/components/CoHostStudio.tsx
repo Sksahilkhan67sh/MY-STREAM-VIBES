@@ -210,8 +210,9 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
     const { LocalVideoTrack: LVT } = await import('livekit-client');
     const lvt = new LVT(vt, undefined, false);
 
-    // Publish new track BEFORE unpublishing old — no blank gap for viewers
-    try { await localParticipant.publishTrack(lvt); } catch {}
+    // Publish as Camera source — without this the canvas track is Track.Source.Unknown
+    // and viewer's useTracks([Camera, ScreenShare]) ignores it entirely.
+    try { await localParticipant.publishTrack(lvt, { source: Track.Source.Camera }); } catch {}
 
     if (gradedTrackRef.current) {
       try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
