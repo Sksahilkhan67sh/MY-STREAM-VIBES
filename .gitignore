@@ -1,20 +1,48 @@
-﻿node_modules/
-.next/
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
 dist/
+.next/
+out/
 build/
+
+# Environment files — NEVER commit these
 .env
 .env.local
+.env.production
+.env.development
 server/.env
 client/.env.local
-server/dev.db
-server/dev.db-journal
+
+# Database
+*.db
+*.sqlite
+prisma/dev.db
+prisma/*.db-journal
+
+# Recordings (large binary files)
 server/recordings/
+recordings/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
 .DS_Store
 Thumbs.db
-*.pdf
-*.webm
-*.mp4
-client/.next/
-client/.next/
-client/.next/
-client/.next/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+
+# Vercel / Render
+.vercel
