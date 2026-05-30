@@ -54,7 +54,6 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders:   false,
   // Required when behind Render's proxy
-  trustProxy: true,
 });
 app.set('trust proxy', 1);
 app.use('/api', limiter);
@@ -98,3 +97,4 @@ async function main() {
 }
 
 main();
+
