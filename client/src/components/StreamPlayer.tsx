@@ -93,11 +93,12 @@ function VideoStage({ title }: { title: string }) {
             return (
               <div
                 key={`${t.participant.identity}-${t.source}`}
-                className="w-40 h-24 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl cursor-pointer hover:border-blue-400 transition-all group/pip relative"
+                className="w-40 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl cursor-pointer hover:border-blue-400 transition-all group/pip relative bg-black"
+                style={{ aspectRatio: '16/9' }}
                 onClick={() => setMainIdx(realIdx)}
                 title="Click to make main view"
               >
-                <VideoTrack trackRef={t} className="w-full h-full object-cover" />
+                <VideoTrack trackRef={t} className="w-full h-full object-contain" />
                 <div className="absolute inset-0 bg-black/0 group-hover/pip:bg-black/30 transition-colors flex items-center justify-center">
                   <PictureInPicture2 className="w-5 h-5 text-white opacity-0 group-hover/pip:opacity-100 transition-opacity" />
                 </div>
