@@ -8,7 +8,7 @@ import {
 } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { Track } from 'livekit-client';
-import { Maximize2, Minimize2, Volume2, VolumeX, Radio, PictureInPicture2 } from 'lucide-react';
+import { Maximize2, Minimize2, Volume2, VolumeX, Radio } from 'lucide-react';
 
 interface StreamPlayerProps {
   roomId: string;
@@ -17,45 +17,81 @@ interface StreamPlayerProps {
   isHost: boolean;
 }
 
+function StreamSection({
+  label, icon, tracks, mainKey, setMainKey, controls
+}: {
+  label: string;
+  icon: string;
+  tracks: ReturnType<typeof useTracks>;
+  mainKey: string | null;
+  setMainKey: (k: string) => void;
+  controls?: React.ReactNode;
+}) {
+  const dedupe = (arr: typeof tracks) => {
+    const seen = new Map<string, typeof tracks[0]>();
+    arr.forEach(t => seen.set(`${t.participant.identity}:${t.source}`, t));
+    return Array.from(seen.values());
+  };
+  const deduped = dedupe(tracks);
+  if (deduped.length === 0) return null;
+
+  const keyExists = mainKey ? deduped.some(t => `${t.participant.identity}:${t.source}` === mainKey) : false;
+  const defaultTrack = deduped.find(t => t.source === Track.Source.ScreenShare) ?? deduped[0];
+  const activeKey = (mainKey && keyExists) ? mainKey : `${defaultTrack.participant.identity}:${defaultTrack.source}`;
+  const mainTrack = deduped.find(t => `${t.participant.identity}:${t.source}` === activeKey) ?? deduped[0];
+  const pipTrack = deduped.find(t => `${t.participant.identity}:${t.source}` !== `${mainTrack.participant.identity}:${mainTrack.source}`);
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* Label bar */}
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 bg-zinc-900 border-b border-zinc-800">
+        <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
+          <span>{icon}</span> {label}
+        </span>
+        {controls}
+      </div>
+      {/* Video area */}
+      <div className="flex-1 min-h-0 bg-black relative overflow-hidden">
+        <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
+        {/* Name badge */}
+        <div className="absolute bottom-2 left-2 z-10">
+          <span className="text-[10px] bg-black/70 text-white px-2 py-0.5 rounded-full font-semibold">
+            {mainTrack.source === Track.Source.ScreenShare ? '🖥' : '📷'} {mainTrack.participant.identity.replace('host-','Host ').replace('cohost-','').replace(/-[a-z0-9]{4,}$/,'')}
+          </span>
+        </div>
+        {/* PiP corner */}
+        {pipTrack && (
+          <div
+            className="absolute bottom-2 right-2 z-10 w-28 h-16 sm:w-36 sm:h-20 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl cursor-pointer hover:border-white/50 transition-all group/pip"
+            onClick={() => setMainKey(`${pipTrack.participant.identity}:${pipTrack.source}`)}
+            title="Click to swap"
+          >
+            <VideoTrack trackRef={pipTrack} className="w-full h-full object-contain bg-black" />
+            <div className="absolute inset-0 bg-black/0 group-hover/pip:bg-black/30 transition-colors flex items-center justify-center">
+              <span className="text-white text-[10px] opacity-0 group-hover/pip:opacity-100 font-medium">Swap</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function VideoStage({ title }: { title: string }) {
-  // Subscribe to camera + screen tracks from ALL participants (host + co-hosts)
   const tracks = useTracks(
     [Track.Source.Camera, Track.Source.ScreenShare],
     { onlySubscribed: true }
   );
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [mainIdx, setMainIdx] = useState(0);
+  const [hostMainKey, setHostMainKey] = useState<string | null>(null);
+  const [coHostMainKey, setCoHostMainKey] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Identify host participant (identity starts with "host-")
   const hostTracks = tracks.filter(t => t.participant.identity.startsWith('host-'));
-  const coHostTracks = tracks.filter(t => !t.participant.identity.startsWith('host-'));
-
-  // Deduplicate: keep only ONE track per participant per source.
-  // If colour grading is active, host publishes raw + canvas both as Camera briefly.
-  // We keep only the LAST published track (highest index) per participant+source pair.
-  const dedupe = (arr: typeof tracks) => {
-    const seen = new Map<string, typeof tracks[0]>();
-    arr.forEach(t => {
-      const key = `${t.participant.identity}:${t.source}`;
-      seen.set(key, t); // later entries overwrite earlier — keeps most recent
-    });
-    return Array.from(seen.values());
-  };
-
-  // Order: host camera first, then host screen, then co-host screens, then co-host cameras
-  const hostCamera = dedupe(hostTracks.filter(t => t.source === Track.Source.Camera));
-  const hostScreen = dedupe(hostTracks.filter(t => t.source === Track.Source.ScreenShare));
-  const coHostScreen = dedupe(coHostTracks.filter(t => t.source === Track.Source.ScreenShare));
-  const coHostCamera = dedupe(coHostTracks.filter(t => t.source === Track.Source.Camera));
-
-  // Host is ALWAYS the main/primary view; co-host screen goes to PiP
-  const allTracks = [...hostCamera, ...hostScreen, ...coHostScreen, ...coHostCamera];
-
-  const safeIdx = Math.min(mainIdx, Math.max(0, allTracks.length - 1));
-  const mainTrack = allTracks[safeIdx] ?? null;
-  const pipTracks = allTracks.filter((_, i) => i !== safeIdx);
+  const coHostTracks = tracks.filter(t => t.participant.identity.startsWith('cohost-'));
+  const hasHost = hostTracks.length > 0;
+  const hasCoHost = coHostTracks.length > 0;
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -68,13 +104,11 @@ function VideoStage({ title }: { title: string }) {
   };
 
   return (
-    <div ref={containerRef} className="relative w-full h-full bg-zinc-950 flex items-center justify-center group overflow-hidden">
+    <div ref={containerRef} className="relative w-full h-full bg-zinc-950 flex flex-col overflow-hidden group">
 
-      {/* Main video — always host by default */}
-      {mainTrack ? (
-        <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
-      ) : (
-        <div className="flex flex-col items-center gap-4 text-zinc-600">
+      {/* Waiting state */}
+      {!hasHost && !hasCoHost && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-zinc-600">
           <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
             <Radio className="w-8 h-8 text-zinc-700" />
           </div>
@@ -85,48 +119,30 @@ function VideoStage({ title }: { title: string }) {
         </div>
       )}
 
-      {/* PiP strip — show up to 3 extra tracks (co-hosts / screen) */}
-      {pipTracks.length > 0 && (
-        <div className="absolute bottom-14 right-3 flex flex-col gap-2">
-          {pipTracks.slice(0, 3).map((t, i) => {
-            const realIdx = allTracks.indexOf(t);
-            return (
-              <div
-                key={`${t.participant.identity}-${t.source}`}
-                className="w-40 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl cursor-pointer hover:border-blue-400 transition-all group/pip relative bg-black"
-                style={{ aspectRatio: '16/9' }}
-                onClick={() => setMainIdx(realIdx)}
-                title="Click to make main view"
-              >
-                <VideoTrack trackRef={t} className="w-full h-full object-contain" />
-                <div className="absolute inset-0 bg-black/0 group-hover/pip:bg-black/30 transition-colors flex items-center justify-center">
-                  <PictureInPicture2 className="w-5 h-5 text-white opacity-0 group-hover/pip:opacity-100 transition-opacity" />
-                </div>
-                <div className="absolute bottom-1 left-1.5 text-[10px] text-white/60 font-medium truncate max-w-[120px]">
-                  {t.source === Track.Source.ScreenShare ? '🖥 Screen' : `📷 ${t.participant.identity}`}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* Host section — full height when alone, top 50% with co-host */}
+      {hasHost && (
+        <StreamSection
+          label="Host Stream"
+          icon="👤"
+          tracks={hostTracks}
+          mainKey={hostMainKey}
+          setMainKey={setHostMainKey}
+        />
       )}
 
-      {/* HUD */}
-      <div className="absolute top-4 left-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        {mainTrack && (
-          <span className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-white">
-            <span className="live-dot" /> LIVE
-          </span>
-        )}
-        {allTracks.length > 1 && (
-          <span className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-semibold text-zinc-300">
-            <PictureInPicture2 className="w-3 h-3" /> {allTracks.length} streams
-          </span>
-        )}
-      </div>
+      {/* Co-host section — only shown when co-host is streaming */}
+      {hasCoHost && (
+        <StreamSection
+          label="Co-Host Stream"
+          icon="👥"
+          tracks={coHostTracks}
+          mainKey={coHostMainKey}
+          setMainKey={setCoHostMainKey}
+        />
+      )}
 
       {/* Bottom controls */}
-      <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
         <button
           onClick={() => setMuted(!muted)}
           className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors"
