@@ -4,8 +4,8 @@
  * Click any tile to swap it into the main preview area.
  * Used by both HostControls (to see co-hosts) and CoHostStudio (to see host).
  */
-import { useState } from 'react';
-import { useTracks, VideoTrack } from '@livekit/components-react';
+import { useState, useEffect } from 'react';
+import { useTracks, VideoTrack, useLocalParticipant } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 
 interface RemoteMonitorProps {
@@ -17,18 +17,21 @@ interface RemoteMonitorProps {
 
 export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: RemoteMonitorProps) {
   const [mainKey, setMainKey] = useState<string | null>(null);
+  const { localParticipant } = useLocalParticipant();
 
   const tracks = useTracks(
     [Track.Source.Camera, Track.Source.ScreenShare],
     { onlySubscribed: true }
   );
 
-  // Filter by prefix if given (e.g. "cohost-" or "host-")
-  const remoteTracks = filterPrefix
-    ? tracks.filter(t => t.participant.identity.startsWith(filterPrefix))
-    : tracks;
+  // Filter by prefix AND exclude own local participant tracks
+  const remoteTracks = tracks.filter(t => {
+    if (t.participant.identity === localParticipant.identity) return false;
+    if (filterPrefix) return t.participant.identity.startsWith(filterPrefix);
+    return true;
+  });
 
-  // Deduplicate — one track per participant per source
+  // Deduplicate — one track per participant per source (keep last published)
   const seen = new Map<string, typeof tracks[0]>();
   remoteTracks.forEach(t => {
     seen.set(`${t.participant.identity}:${t.source}`, t);
@@ -37,9 +40,12 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
 
   if (dedupedTracks.length === 0) return null;
 
-  // Main track = clicked one, or first by default
-  const firstKey = `${dedupedTracks[0].participant.identity}:${dedupedTracks[0].source}`;
-  const activeKey = mainKey ?? firstKey;
+  // If mainKey points to a track that no longer exists, clear it
+  const keyExists = mainKey
+    ? dedupedTracks.some(t => `${t.participant.identity}:${t.source}` === mainKey)
+    : false;
+  const activeKey = (mainKey && keyExists) ? mainKey : `${dedupedTracks[0].participant.identity}:${dedupedTracks[0].source}`;
+
   const mainTrack = dedupedTracks.find(
     t => `${t.participant.identity}:${t.source}` === activeKey
   ) ?? dedupedTracks[0];
