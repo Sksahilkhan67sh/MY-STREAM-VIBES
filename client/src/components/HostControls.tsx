@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { LiveKitRoom, useLocalParticipant, useRoomContext, useTracks, VideoTrack } from '@livekit/components-react';
+import RemoteMonitor from './RemoteMonitor';
 import '@livekit/components-styles';
 import { Track, createLocalVideoTrack, createLocalScreenTracks, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack, ConnectionState } from 'livekit-client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -130,41 +131,6 @@ function PipVideo({ cameraRef, screenRef, mainIsCam, colorSettings, flipped }: {
     style={{ filter: buildFilter(colorSettings), transform }} />;
 }
 
-
-// ── Co-host monitor — shows remote co-host tracks to the host ─
-function CoHostMonitor() {
-  const tracks = useTracks(
-    [Track.Source.Camera, Track.Source.ScreenShare],
-    { onlySubscribed: true }
-  );
-  // Only show tracks from co-hosts (identity starts with "cohost-")
-  const coHostTracks = tracks.filter(t =>
-    t.participant.identity.startsWith('cohost-')
-  );
-  if (coHostTracks.length === 0) return null;
-  return (
-    <div className="flex-shrink-0 bg-gray-950 border-t border-gray-800 px-2 py-2">
-      <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1.5 px-1">
-        🎙 Co-hosts
-      </p>
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {coHostTracks.map(t => (
-          <div
-            key={`${t.participant.identity}-${t.source}`}
-            className="flex-shrink-0 w-40 h-24 rounded-xl overflow-hidden border border-gray-700 relative bg-black"
-          >
-            <VideoTrack trackRef={t} className="w-full h-full object-cover" />
-            <div className="absolute bottom-1 left-1.5 right-1.5">
-              <span className="text-[10px] bg-black/70 text-white px-1.5 py-0.5 rounded-full font-medium truncate block">
-                {t.source === Track.Source.ScreenShare ? '🖥' : '📷'} {t.participant.identity.replace('cohost-', '').replace(/-[a-z0-9]{4}$/, '')}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ── Host Studio ────────────────────────────────────────────────
 function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
@@ -646,8 +612,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
               </div>
             )}
           </div>
-          {/* Co-host monitor strip */}
-          <CoHostMonitor />
+          {/* Co-host monitor — host sees co-host feeds, click to swap POV */}
+          <RemoteMonitor filterPrefix="cohost-" label="Co-host streams" />
         </div>
 
         {/* ── Controls: horizontal bar on mobile, sidebar on desktop ── */}
