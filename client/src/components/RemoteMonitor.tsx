@@ -66,10 +66,12 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
         <p className="text-[10px] text-gray-600">Click to swap POV</p>
       </div>
 
-      {/* Main preview — fixed 180px height, works in all contexts including fullscreen */}
-      <div className="mx-2 mb-2 rounded-xl overflow-hidden bg-black relative" style={{ height: '180px' }}>
-        <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
-        <div className="absolute bottom-1.5 left-2">
+      {/* Main preview — w-full + aspect-ratio:16/9 so height always derives from column width */}
+      <div className="mx-2 mb-2 rounded-xl overflow-hidden bg-black relative w-[calc(100%-16px)]" style={{ aspectRatio: '16/9' }}>
+        <div className="absolute inset-0">
+          <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
+        </div>
+        <div className="absolute bottom-1.5 left-2 z-10">
           <span className="text-[10px] bg-black/70 text-white px-2 py-0.5 rounded-full font-semibold">
             {mainTrack.source === Track.Source.ScreenShare ? '🖥' : '📷'} {displayName(mainTrack)}
           </span>
