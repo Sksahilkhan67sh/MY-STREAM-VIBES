@@ -74,19 +74,16 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
       .replace(/-[a-z0-9]{6,}$/, '');
 
   return (
-    <div ref={containerRef} className="flex-shrink-0 bg-zinc-950 border-b border-zinc-800">
-      <div className="flex items-center justify-between px-3 py-2">
+    <div ref={containerRef} className="flex-1 min-h-0 flex flex-col bg-zinc-950">
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
           <span className="text-purple-400">👥</span> {label}
         </span>
         {thumbTracks.length > 0 && <p className="text-[10px] text-zinc-500">Click to swap POV</p>}
       </div>
 
-      {/* Main preview — height set by ResizeObserver so 16:9 is exact in every context */}
-      <div
-        className="w-full bg-black relative"
-        style={{ height: `${videoHeight}px` }}
-      >
+      {/* Main preview — fills remaining height of its 50% flex slot */}
+      <div className="flex-1 min-h-0 w-full bg-black relative overflow-hidden">
         <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
         <div className="absolute bottom-2 left-2 z-10">
           <span className="text-[10px] bg-black/70 text-white px-2 py-0.5 rounded-full font-semibold">
@@ -97,7 +94,7 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
 
       {/* Thumbnail strip */}
       {thumbTracks.length > 0 && (
-        <div className="flex gap-1.5 px-2 pb-2 overflow-x-auto">
+        <div className="flex-shrink-0 flex gap-1.5 px-2 py-2 overflow-x-auto border-t border-zinc-800">
           {thumbTracks.map(t => {
             const key = `${t.participant.identity}:${t.source}`;
             return (
