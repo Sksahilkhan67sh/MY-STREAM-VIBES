@@ -174,7 +174,7 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
           <button
             onClick={stopRecording}
             disabled={loading}
-            className="w-full py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800 disabled:opacity-40 transition-colors"
+            className="w-full py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800 disabled:opacity-40 transition-colors"
           >
             {loading ? 'Stopping...' : 'Stop recording'}
           </button>
@@ -187,6 +187,13 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
 
       {streams.length === 0 && !recording && (
         <p className="text-xs text-gray-400 dark:text-gray-500 text-center">Enable camera or screen first</p>
+      )}
+
+      {/* Production storage warning */}
+      {recordings.length === 0 && !recording && (
+        <div className="text-xs px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 text-amber-600 dark:text-amber-400">
+          ⚠️ Recordings are stored temporarily. Configure S3 in server env vars for permanent storage.
+        </div>
       )}
 
       {/* Recordings list */}
@@ -211,7 +218,7 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
                   <a
                     href={`${API}${r.downloadUrl}`}
                     download={r.fileName}
-                    className="flex-1 text-center py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800 transition-colors"
+                    className="flex-1 text-center py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800 transition-colors"
                   >
                     Download
                   </a>
