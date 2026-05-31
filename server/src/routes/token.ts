@@ -19,13 +19,20 @@ router.post('/viewer', async (req, res) => {
       return res.status(410).json({ error: 'Stream link has expired' });
     }
 
+    // Block access if stream hasn't started yet and isn't scheduled (pre-join waiting room)
+    if (!stream.isLive && !stream.scheduledAt) {
+      return res.status(403).json({ error: 'Stream is not live yet.' });
+    }
+
     if (stream.passwordHash) {
       if (!password) return res.status(401).json({ error: 'Password required' });
       const valid = await bcrypt.compare(password, stream.passwordHash);
       if (!valid) return res.status(401).json({ error: 'Invalid password' });
     }
 
-    const identity = `viewer-${nickname ? nickname.replace(/\s+/g, '-').toLowerCase() : nanoid()}`;
+    // Always append nanoid suffix to prevent identity collision when multiple viewers share the same nickname
+    const safeNick = nickname ? nickname.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase().slice(0, 20) : 'viewer';
+    const identity = `viewer-${safeNick}-${nanoid()}`;
     const token = await createViewerToken(roomId, identity);
 
     res.json({ token, identity });
