@@ -257,6 +257,8 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
         }
       }
     } else {
+      // Always cancel any existing loop before starting — prevents double RAF loops
+      cancelAnimationFrame(gradedRafRef.current);
       if (!gradedActiveRef.current) {
         gradedActiveRef.current = true;
         if (cameraTrackRef.current) {
@@ -283,6 +285,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
       }
       gradedActiveRef.current = false;
       if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
+      cameraTrackRef.current = null;
       setCameraOn(false);
     } else {
       try {
