@@ -1,6 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { LiveKitRoom, useLocalParticipant, useRoomContext, useTracks, VideoTrack } from '@livekit/components-react';
+import { LiveKitRoom, useLocalParticipant, useRoomContext, useTracks, useRemoteParticipants, VideoTrack } from '@livekit/components-react';
 import RemoteMonitor from './RemoteMonitor';
 import '@livekit/components-styles';
 import { Track, createLocalVideoTrack, createLocalScreenTracks, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack, ConnectionState } from 'livekit-client';
@@ -265,6 +265,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
   const viewerLink   = `${appUrl}${stream.viewerUrl}`;
   const bothOn       = cameraOn && screenOn;
+  const remoteParticipants = useRemoteParticipants();
+  const coHostPresent = remoteParticipants.some(p => p.identity.startsWith('cohost-'));
   const isConnected  = roomState === ConnectionState.Connected;
   const isConnecting = roomState === ConnectionState.Connecting || roomState === ConnectionState.Reconnecting;
 
@@ -657,11 +659,11 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
         <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
 
-        {/* ── Preview area: HOST STREAM top half, CO-HOST STREAM bottom half ── */}
+        {/* ── Preview area: full when alone, 50/50 when co-host present ── */}
         <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-zinc-950 overflow-hidden">
 
-          {/* ── HOST STREAM (You) — top 50% ── */}
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          {/* ── HOST STREAM — full height solo, top 50% with co-host ── */}
+          <div className={coHostPresent ? "flex-1 min-h-0 overflow-hidden flex flex-col" : "flex-1 min-h-0 overflow-hidden flex flex-col"}>
             <HostStreamSection
               cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
               cameraOn={cameraOn} screenOn={screenOn}
@@ -672,10 +674,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
             />
           </div>
 
-          {/* ── CO-HOST STREAM — bottom 50% ── */}
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-zinc-800">
-            <RemoteMonitor filterPrefix="cohost-" label="Co-host streams" />
-          </div>
+          {/* ── CO-HOST STREAM — only visible when co-host is present ── */}
+          {coHostPresent && (
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-zinc-800">
+              <RemoteMonitor filterPrefix="cohost-" label="Co-host streams" />
+            </div>
+          )}
         </div>
 
         {/* ── Controls: horizontal bar on mobile, sidebar on desktop ── */}
