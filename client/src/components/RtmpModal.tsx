@@ -42,9 +42,9 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
   const [ffmpegOk, setFfmpegOk] = useState<boolean | null>(null);
   const [bytesSent, setBytesSent] = useState(0);
 
-  const mrRef    = useRef<MediaRecorder | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const mrRef         = useRef<MediaRecorder | null>(null);
+  const abortCtrlRef  = useRef<AbortController | null>(null);
+  const byteCountRef  = useRef(0);
 
   useEffect(() => {
     fetch(`${API}/api/egress/ffmpeg-check`)
@@ -56,60 +56,160 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
   const p = PLATFORMS.find(x => x.id === platform);
   const rtmpUrl = platform === 'custom' ? customUrl : `${p?.base || ''}${key}`;
 
-  const flushChunks = async () => {
-    if (chunksRef.current.length === 0) return;
-    const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-    chunksRef.current = [];
-    try {
-      const res = await fetch(`${API}/api/egress/rtmp/chunk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'video/webm', 'x-room-id': roomId, 'x-host-token': hostToken },
-        body: blob,
-      });
-      if (res.ok) {
-        const d = await res.json();
-        setBytesSent(prev => prev + (d.bytes || 0));
-      }
-    } catch {}
-  };
-
   const startStream = async () => {
     if (!rtmpUrl) { setErrorMsg('Enter a stream key'); return; }
     if (streams.length === 0) { setErrorMsg('Enable camera or screen first'); return; }
     setErrorMsg(''); setStatus('connecting');
+
     try {
-      const res = await fetch(`${API}/api/egress/rtmp/start`, {
+      // ── Step 1: Tell server to start FFmpeg and wait for RTMP connection ──
+      const startRes = await fetch(`${API}/api/egress/rtmp/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomId, hostToken, rtmpUrl, platform }),
       });
-      const data = await res.json();
-      if (!res.ok) { setStatus('error'); setErrorMsg(data.error || 'Failed'); return; }
+      const startData = await startRes.json();
+      if (!startRes.ok) {
+        setStatus('error');
+        setErrorMsg(startData.error || 'Failed to start stream');
+        return;
+      }
 
+      // ── Step 2: Combine all active streams into one ──
       const combined = new MediaStream();
       streams.forEach(s => s.getTracks().forEach(t => combined.addTrack(t)));
-      const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
-        .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
-      const mr = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 2_500_000 });
+
+      // ── Step 3: Pick best supported MIME type ──
+      // Use VP8 — better FFmpeg compatibility for stdin WebM than VP9
+      const mimeType = [
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=vp8',
+        'video/webm',
+      ].find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+
+      // ── Step 4: Stream via a single continuous HTTP POST using ReadableStream ──
+      // This is the KEY fix: instead of sending many small chunks over separate
+      // HTTP requests (which FFmpeg cannot stitch into a valid stream), we pipe
+      // a single continuous body. FFmpeg reads a proper uninterrupted WebM stream.
+      const abortCtrl = new AbortController();
+      abortCtrlRef.current = abortCtrl;
+      byteCountRef.current = 0;
+
+      const mr = new MediaRecorder(combined, {
+        mimeType,
+        videoBitsPerSecond: 2_500_000,
+        audioBitsPerSecond: 128_000,
+      });
       mrRef.current = mr;
-      mr.ondataavailable = (e) => { if (e.data?.size > 0) chunksRef.current.push(e.data); };
-      mr.start(500);
-      timerRef.current = setInterval(() => flushChunks(), 1000);
+
+      // Buffer to hold pending chunks before they get read by the stream
+      let resolveNext: ((val: Uint8Array | null) => void) | null = null;
+      const pendingChunks: Uint8Array[] = [];
+      let streamDone = false;
+
+      const readable = new ReadableStream<Uint8Array>({
+        start() {},
+        pull(controller) {
+          if (pendingChunks.length > 0) {
+            const chunk = pendingChunks.shift()!;
+            controller.enqueue(chunk);
+            return;
+          }
+          if (streamDone) {
+            controller.close();
+            return;
+          }
+          // Wait for the next chunk
+          return new Promise<void>(resolve => {
+            resolveNext = (data) => {
+              resolveNext = null;
+              if (data === null) {
+                controller.close();
+              } else {
+                controller.enqueue(data);
+              }
+              resolve();
+            };
+          });
+        },
+        cancel() {
+          streamDone = true;
+        },
+      });
+
+      mr.ondataavailable = (e) => {
+        if (!e.data || e.data.size === 0) return;
+        e.data.arrayBuffer().then(buf => {
+          const bytes = new Uint8Array(buf);
+          byteCountRef.current += bytes.byteLength;
+          setBytesSent(byteCountRef.current);
+
+          if (resolveNext) {
+            resolveNext(bytes);
+          } else {
+            pendingChunks.push(bytes);
+          }
+        });
+      };
+
+      mr.onstop = () => {
+        streamDone = true;
+        if (resolveNext) resolveNext(null);
+      };
+
+      mr.onerror = () => {
+        streamDone = true;
+        if (resolveNext) resolveNext(null);
+        setStatus('error');
+        setErrorMsg('MediaRecorder error');
+      };
+
+      // Start recording — 250ms timeslices give FFmpeg a fast initial header
+      mr.start(250);
+
+      // Send the continuous stream to server in background (do not await)
+      fetch(`${API}/api/egress/rtmp/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'video/webm',
+          'x-room-id': roomId,
+          'x-host-token': hostToken,
+          'x-mime-type': mimeType,
+        },
+        body: readable,
+        // @ts-ignore — duplex needed for streaming request bodies in some environments
+        duplex: 'half',
+        signal: abortCtrl.signal,
+      }).catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.warn('RTMP stream ended:', err.message);
+        }
+      });
 
       setStatus('live');
       onActivate();
+
     } catch (e: any) {
       stopStream();
       setStatus('error');
-      setErrorMsg(e.message || 'Failed');
+      setErrorMsg(e.message || 'Failed to start');
     }
   };
 
   const stopStream = async () => {
-    if (mrRef.current && mrRef.current.state !== 'inactive') mrRef.current.stop();
+    // Stop MediaRecorder (triggers onstop which closes the readable stream)
+    if (mrRef.current && mrRef.current.state !== 'inactive') {
+      mrRef.current.stop();
+    }
     mrRef.current = null;
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    chunksRef.current = [];
+
+    // Abort the fetch (server will detect disconnect and kill FFmpeg)
+    if (abortCtrlRef.current) {
+      abortCtrlRef.current.abort();
+      abortCtrlRef.current = null;
+    }
+
+    // Tell server to clean up
     try {
       await fetch(`${API}/api/egress/rtmp/stop`, {
         method: 'POST',
@@ -117,7 +217,12 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
         body: JSON.stringify({ roomId, hostToken }),
       });
     } catch {}
-    setStatus('idle'); setKey(''); setPlatform(null); setBytesSent(0);
+
+    setStatus('idle');
+    setKey('');
+    setPlatform(null);
+    setBytesSent(0);
+    byteCountRef.current = 0;
     onDeactivate();
   };
 
@@ -134,7 +239,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
           <h2 className="font-semibold text-sm text-gray-900 dark:text-gray-100">Stream to social media</h2>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 dark:text-gray-100 transition-colors text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 transition-colors text-xl leading-none">×</button>
         </div>
 
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
@@ -147,8 +252,8 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
             {ffmpegOk === true  && '✓ FFmpeg ready — your stream will go live on social media'}
             {ffmpegOk === false && (
               <div className="space-y-1">
-                <p className="font-semibold">FFmpeg not found</p>
-                <p>Install it first: <code className="bg-red-100 px-1 rounded">winget install ffmpeg</code></p>
+                <p className="font-semibold">FFmpeg not found on server</p>
+                <p>Install it: <code className="bg-red-100 px-1 rounded">apt install ffmpeg</code> or <code className="bg-red-100 px-1 rounded">winget install ffmpeg</code></p>
               </div>
             )}
             {ffmpegOk === null && 'Checking FFmpeg...'}
@@ -170,7 +275,9 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
                   <span className="text-sm font-semibold text-green-700">Live on {p?.name}</span>
                 </div>
                 <span className="text-xs text-green-600">
-                  {bytesSent > 1024 * 1024 ? `${(bytesSent / 1024 / 1024).toFixed(1)} MB` : `${(bytesSent / 1024).toFixed(0)} KB`} sent
+                  {bytesSent > 1024 * 1024
+                    ? `${(bytesSent / 1024 / 1024).toFixed(1)} MB`
+                    : `${(bytesSent / 1024).toFixed(0)} KB`} sent
                 </span>
               </div>
               <button
@@ -193,7 +300,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
             <div className="bg-red-50 border border-red-100 rounded-lg p-4 space-y-2">
               <p className="text-sm font-semibold text-red-600">Stream failed</p>
               <p className="text-xs text-red-500">{errorMsg}</p>
-              <button onClick={() => { setStatus('idle'); setErrorMsg(''); }} className="text-xs text-gray-500 dark:text-gray-400 underline">
+              <button onClick={() => { setStatus('idle'); setErrorMsg(''); }} className="text-xs text-gray-500 underline">
                 Try again
               </button>
             </div>
@@ -252,7 +359,7 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
                         value={platform === 'custom' ? customUrl : key}
                         onChange={e => platform === 'custom' ? setCustomUrl(e.target.value) : setKey(e.target.value)}
                         placeholder={p.placeholder}
-                        className="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 dark:placeholder-gray-600 font-mono text-gray-900 dark:text-gray-100"
+                        className="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:border-gray-400 transition-colors placeholder-gray-300 dark:placeholder-gray-600 font-mono text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900"
                       />
                     </div>
 
