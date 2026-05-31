@@ -36,13 +36,14 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
 
   if (dedupedTracks.length === 0) return null;
 
-  // Stable mainKey — if it no longer exists fall back to first track
+  // Stable mainKey — if it no longer exists fall back to screen share, then first track
   const keyExists = mainKey
     ? dedupedTracks.some(t => `${t.participant.identity}:${t.source}` === mainKey)
     : false;
+  const defaultTrack = dedupedTracks.find(t => t.source === Track.Source.ScreenShare) ?? dedupedTracks[0];
   const activeKey = (mainKey && keyExists)
     ? mainKey
-    : `${dedupedTracks[0].participant.identity}:${dedupedTracks[0].source}`;
+    : `${defaultTrack.participant.identity}:${defaultTrack.source}`;
 
   const mainTrack = dedupedTracks.find(
     t => `${t.participant.identity}:${t.source}` === activeKey
