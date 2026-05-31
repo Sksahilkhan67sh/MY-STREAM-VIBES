@@ -251,7 +251,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
               cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
             }
           }
-          localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
+          if (cameraTrackRef.current) localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
         }
       }
     } else {
