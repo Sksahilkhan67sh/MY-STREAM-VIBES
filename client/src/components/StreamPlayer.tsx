@@ -32,11 +32,23 @@ function VideoStage({ title }: { title: string }) {
   const hostTracks = tracks.filter(t => t.participant.identity.startsWith('host-'));
   const coHostTracks = tracks.filter(t => !t.participant.identity.startsWith('host-'));
 
+  // Deduplicate: keep only ONE track per participant per source.
+  // If colour grading is active, host publishes raw + canvas both as Camera briefly.
+  // We keep only the LAST published track (highest index) per participant+source pair.
+  const dedupe = (arr: typeof tracks) => {
+    const seen = new Map<string, typeof tracks[0]>();
+    arr.forEach(t => {
+      const key = `${t.participant.identity}:${t.source}`;
+      seen.set(key, t); // later entries overwrite earlier — keeps most recent
+    });
+    return Array.from(seen.values());
+  };
+
   // Order: host camera first, then host screen, then co-host screens, then co-host cameras
-  const hostCamera = hostTracks.filter(t => t.source === Track.Source.Camera);
-  const hostScreen = hostTracks.filter(t => t.source === Track.Source.ScreenShare);
-  const coHostScreen = coHostTracks.filter(t => t.source === Track.Source.ScreenShare);
-  const coHostCamera = coHostTracks.filter(t => t.source === Track.Source.Camera);
+  const hostCamera = dedupe(hostTracks.filter(t => t.source === Track.Source.Camera));
+  const hostScreen = dedupe(hostTracks.filter(t => t.source === Track.Source.ScreenShare));
+  const coHostScreen = dedupe(coHostTracks.filter(t => t.source === Track.Source.ScreenShare));
+  const coHostCamera = dedupe(coHostTracks.filter(t => t.source === Track.Source.Camera));
 
   // Host is ALWAYS the main/primary view; co-host screen goes to PiP
   const allTracks = [...hostCamera, ...hostScreen, ...coHostScreen, ...coHostCamera];
