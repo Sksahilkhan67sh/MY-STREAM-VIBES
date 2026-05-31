@@ -214,9 +214,10 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
     // Publish canvas track as Camera source
     try { await localParticipant.publishTrack(lvt, { source: Track.Source.Camera }); } catch {}
 
-    // Unpublish raw camera track AFTER canvas is live — prevents duplicate PiP boxes
+    // Unpublish raw camera track — stopOnUnpublish=false keeps MediaStreamTrack alive
+    // so canvas drawImage keeps working after the raw track is unpublished.
     if (cameraTrackRef.current) {
-      try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {}
+      try { await localParticipant.unpublishTrack(cameraTrackRef.current, false); } catch {}
     }
 
     // Remove old graded track
@@ -239,7 +240,17 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
           localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {});
           gradedTrackRef.current = null;
         }
+        // Republish raw track — if it was stopped, recreate it first
         if (cameraTrackRef.current) {
+          const mst = cameraTrackRef.current.mediaStreamTrack;
+          if (mst && mst.readyState === 'ended') {
+            // Track was stopped — need to get a fresh one from the existing stream
+            const stream = cameraVideoRef.current?.srcObject as MediaStream | null;
+            const liveTracks = stream?.getVideoTracks().filter(t => t.readyState === 'live');
+            if (liveTracks && liveTracks.length > 0) {
+              cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
+            }
+          }
           localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
         }
       }
