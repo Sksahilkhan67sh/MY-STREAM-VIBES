@@ -29,7 +29,7 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     setLoading(true);
     setTimeout(() => {
       if (pin === HOST_PIN) {
-        sessionStorage.setItem(AUTH_KEY, '1');
+        localStorage.setItem(AUTH_KEY, '1');
         onSuccess();
       } else {
         setError('Incorrect PIN. Please try again.');
@@ -121,13 +121,13 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const [checked, setChecked]   = useState(false);
 
   useEffect(() => {
-    const authed = sessionStorage.getItem(AUTH_KEY) === '1';
+    const authed = localStorage.getItem(AUTH_KEY) === '1';
     setIsAuthed(authed);
     setChecked(true);
   }, []);
 
   const logout = () => {
-    sessionStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem(AUTH_KEY);
     setIsAuthed(false);
   };
 
