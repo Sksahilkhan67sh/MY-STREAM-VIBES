@@ -237,8 +237,10 @@ router.post('/rtmp/start', async (req: Request, res: Response) => {
     // stdin-based pipe: browser sends chunks → /api/egress/rtmp/chunk → FFmpeg stdin → RTMP
     const args = [
       '-loglevel',   'warning',
-      '-re',
-      '-i',          'pipe:0',          // read WebM from stdin
+      // NO -re flag: -re throttles to realtime which breaks chunked/piped stdin
+      // FFmpeg should process as fast as data arrives
+      '-fflags',     '+nobuffer+genpts',
+      '-i',          'pipe:0',          // read WebM from stdin (continuous stream)
       '-c:v',        'libx264',
       '-preset',     'veryfast',
       '-tune',       'zerolatency',
@@ -253,6 +255,7 @@ router.post('/rtmp/start', async (req: Request, res: Response) => {
       '-ar',         '44100',
       '-ac',         '2',
       '-f',          'flv',
+      '-flvflags',   'no_duration_filesize',
       rtmpUrl,
     ];
 
@@ -289,6 +292,47 @@ router.post('/rtmp/chunk', async (req: Request, res: Response) => {
       res.json({ success: true, bytes: buf.length });
     });
     req.on('error', () => res.status(500).json({ error: 'Read failed' }));
+  } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
+});
+
+
+// ── POST /api/egress/rtmp/stream ─────────────────────────────
+// Single continuous streaming POST — browser pipes WebM directly
+// to FFmpeg stdin without chunking. This is the correct approach
+// because FFmpeg needs an uninterrupted WebM stream, not isolated blobs.
+router.post('/rtmp/stream', async (req: Request, res: Response) => {
+  try {
+    const roomId    = req.headers['x-room-id'] as string;
+    const hostToken = req.headers['x-host-token'] as string;
+    if (!roomId || !hostToken) return res.status(400).json({ error: 'Headers required' });
+    await verifyHost(roomId, hostToken);
+
+    const session = rtmpSessions.get(roomId);
+    if (!session || !session.process.stdin) {
+      return res.status(400).json({ error: 'No active RTMP session. Call /rtmp/start first.' });
+    }
+
+    // Pipe the request body directly into FFmpeg stdin
+    // req is a readable stream — pipe it straight through
+    req.pipe(session.process.stdin);
+
+    // When client disconnects or aborts, end FFmpeg stdin cleanly
+    req.on('close', () => {
+      try { session.process.stdin?.end(); } catch {}
+      res.end();
+    });
+
+    req.on('error', () => {
+      try { session.process.stdin?.end(); } catch {}
+      res.end();
+    });
+
+    // Keep the response open — client is streaming
+    // We respond 200 immediately so client knows the pipe is established
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.write(JSON.stringify({ ok: true }));
+    // Do NOT call res.end() — connection stays open while streaming
+
   } catch (err: any) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
