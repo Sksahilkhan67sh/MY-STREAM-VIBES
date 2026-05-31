@@ -383,55 +383,61 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
         <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
         <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
 
-        {/* Preview column: local preview on top, host monitor below */}
-        <div className="flex-1 min-w-0 flex flex-col min-h-0">
-        <div className="flex-1 min-h-0 overflow-hidden bg-black relative flex items-center justify-center">
+        {/* Preview column: co-host stream top 50%, host stream bottom 50% */}
+        <div className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden bg-zinc-950">
 
-          {/* Main preview — show screen if active, else camera */}
-          {screenOn && (
-            <VideoPreview srcRef={screenVideoRef} active={screenOn} flipped={false} colorSettings={colorSettings} />
-          )}
-          {!screenOn && cameraOn && (
-            <VideoPreview srcRef={cameraVideoRef} active={cameraOn} flipped={flipped} colorSettings={colorSettings} />
-          )}
-
-          {/* PiP camera when both on */}
-          {bothOn && (
-            <div className="absolute bottom-3 right-3 w-36 h-24 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl">
-              <VideoPreview srcRef={cameraVideoRef} active={cameraOn} flipped={flipped} colorSettings={colorSettings} />
-            </div>
-          )}
-
-          {/* Vignette */}
-          {(cameraOn || screenOn) && colorSettings.vignette > 0 && <div style={buildVignette(colorSettings.vignette)} />}
-
-          {/* Placeholder */}
-          {!cameraOn && !screenOn && (
-            <div className="text-center px-6">
-              <div className="w-14 h-14 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-3">
-                <svg className="w-7 h-7 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-                </svg>
-              </div>
-              <p className="text-sm text-gray-500">
-                {isConnecting ? 'Connecting...' : `Welcome, ${name}! Enable your camera or screen to go live.`}
-              </p>
-            </div>
-          )}
-
-          {/* Co-host name badge on video */}
-          {(cameraOn || screenOn) && (
-            <div className="absolute bottom-3 left-3">
-              <span className="text-xs bg-black/60 text-white px-2.5 py-1 rounded-full font-semibold">
-                🎙 {name}
+          {/* ── CO-HOST STREAM (You) — top 50% ── */}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            {/* Label */}
+            <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800">
+              <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                <span className="text-blue-400">👤</span> Co-Host Stream (You)
               </span>
+              {bothOn && (
+                <span className="text-[10px] text-zinc-500">PiP active</span>
+              )}
             </div>
-          )}
-        </div>
+            {/* Video */}
+            <div className="flex-1 min-h-0 bg-black relative overflow-hidden flex items-center justify-center">
+              {screenOn && (
+                <VideoPreview srcRef={screenVideoRef} active={screenOn} flipped={false} colorSettings={colorSettings} />
+              )}
+              {!screenOn && cameraOn && (
+                <VideoPreview srcRef={cameraVideoRef} active={cameraOn} flipped={flipped} colorSettings={colorSettings} />
+              )}
+              {bothOn && (
+                <div className="absolute bottom-3 right-3 w-36 h-24 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl">
+                  <VideoPreview srcRef={cameraVideoRef} active={cameraOn} flipped={flipped} colorSettings={colorSettings} />
+                </div>
+              )}
+              {(cameraOn || screenOn) && colorSettings.vignette > 0 && <div style={buildVignette(colorSettings.vignette)} />}
+              {!cameraOn && !screenOn && (
+                <div className="text-center px-6">
+                  <div className="w-14 h-14 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-7 h-7 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {isConnecting ? 'Connecting...' : `Welcome, ${name}! Enable your camera or screen to go live.`}
+                  </p>
+                </div>
+              )}
+              {(cameraOn || screenOn) && (
+                <div className="absolute bottom-3 left-3">
+                  <span className="text-xs bg-black/60 text-white px-2.5 py-1 rounded-full font-semibold">
+                    🎙 {name}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
 
-        {/* Host monitor — co-host sees host's camera & screen, click to swap POV */}
-        <RemoteMonitor filterPrefix="host-" label="Host stream" />
+          {/* ── HOST STREAM — bottom 50% ── */}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t border-zinc-800">
+            <RemoteMonitor filterPrefix="host-" label="Host stream" />
+          </div>
 
         </div>{/* end preview column */}
 
