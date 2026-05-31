@@ -331,7 +331,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
               cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
             }
           }
-          localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
+          if (cameraTrackRef.current) localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
         }
       }
       // If already not graded, do nothing — sliders at default, raw track already published
