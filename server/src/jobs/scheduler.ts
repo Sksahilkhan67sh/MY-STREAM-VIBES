@@ -1,7 +1,13 @@
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const prisma = new PrismaClient();
+
+const RECORDINGS_DIR = process.env.NODE_ENV === 'production'
+  ? path.join('/tmp', 'recordings')
+  : path.join(process.cwd(), 'recordings');
 
 export function startScheduler() {
   // Every minute: send reminders 15 min before scheduled streams
@@ -27,9 +33,30 @@ export function startScheduler() {
     }
   });
 
-  // Every hour: clean up expired streams and their data
+  // Every hour: clean up expired streams and their recording files
   cron.schedule('0 * * * *', async () => {
     try {
+      // Find expired streams with their recordings before deleting
+      const expiredStreams = await prisma.stream.findMany({
+        where: { expiresAt: { lt: new Date() } },
+        include: { recordings: true },
+      });
+
+      for (const stream of expiredStreams) {
+        // Delete physical recording files
+        for (const rec of stream.recordings) {
+          try {
+            if (fs.existsSync(rec.filePath)) {
+              fs.unlinkSync(rec.filePath);
+              console.log(`🗑 Deleted recording file: ${rec.fileName}`);
+            }
+          } catch (fileErr) {
+            console.error(`Failed to delete file ${rec.filePath}:`, fileErr);
+          }
+        }
+      }
+
+      // Now delete DB records (cascade deletes recordings, polls, etc.)
       const deleted = await prisma.stream.deleteMany({
         where: { expiresAt: { lt: new Date() } },
       });
