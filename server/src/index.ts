@@ -14,7 +14,7 @@ import streamsRouter   from './routes/streams';
 import tokenRouter     from './routes/token';
 import egressRouter    from './routes/egress';
 import remindersRouter from './routes/reminders';
-import pollsRouter, { recoverActivePolls } from './routes/polls';
+import pollsRouter     from './routes/polls';
 import coHostsRouter   from './routes/cohosts';
 import { startScheduler } from './jobs/scheduler';
 
@@ -48,19 +48,28 @@ app.use(express.json());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ── Rate limiting ─────────────────────────────────────────────
+// General API rate limit — 100 req / 15 min
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max:      100,
   standardHeaders: true,
   legacyHeaders:   false,
-  // Required when behind Render's proxy
+});
+
+// Relaxed limit for token/join routes — 500 req / 15 min
+// (busy streams can have 100+ viewers joining in quick succession)
+const tokenLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max:      500,
+  standardHeaders: true,
+  legacyHeaders:   false,
 });
 app.set('trust proxy', 1);
 app.use('/api', limiter);
 
 // ── Routes ────────────────────────────────────────────────────
 app.use('/api/streams',   streamsRouter);
-app.use('/api/token',     tokenRouter);
+app.use('/api/token',     tokenLimiter, tokenRouter);   // relaxed — viewers joining
 app.use('/api/egress',    egressRouter);
 app.use('/api/reminders', remindersRouter);
 app.use('/api/polls',     pollsRouter);
@@ -83,7 +92,6 @@ async function main() {
 
     await connectRedis();
     startScheduler();
-  recoverActivePolls().catch(console.error);
 
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`\n🚀 StreamVault Server running on port ${PORT}`);
