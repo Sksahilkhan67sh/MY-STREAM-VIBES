@@ -71,6 +71,13 @@ export default function ViewerPage() {
       s.emit('join-room', { roomId, nickname: nicknameRef.current || 'Anonymous' });
       setSocketReady(true);
     });
+    // When host goes live, refresh stream info so video appears without manual reload
+    s.on('stream-started', () => {
+      setStream(prev => prev ? { ...prev, isLive: true } : prev);
+    });
+    s.on('stream-ended', () => {
+      setStream(prev => prev ? { ...prev, isLive: false } : prev);
+    });
 
     setSocket(s);
 
@@ -136,12 +143,10 @@ export default function ViewerPage() {
           {socketReady && <PollWidget roomId={roomId} socket={socket} />}
         </div>
 
-        {/* Mobile: video is 16:9 then chat below */}
+        {/* Mobile: video fills available height, chat toggles below */}
         <div className="flex lg:hidden flex-col w-full h-full">
-          <div className="w-full flex-shrink-0 bg-black relative" style={{ aspectRatio: '16/9', maxHeight: '56vw' }}>
-            <div className="absolute inset-0">
-              <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
-            </div>
+          <div className="flex-1 min-h-0 bg-black relative overflow-hidden">
+            <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
             {socketReady && <PollWidget roomId={roomId} socket={socket} />}
           </div>
           {/* Title bar + chat toggle */}
