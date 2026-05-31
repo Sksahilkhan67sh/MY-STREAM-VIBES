@@ -564,10 +564,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       {/* ── Body: on mobile stack vertically, on desktop side by side ── */}
       <div className="flex flex-col sm:flex-row flex-1 min-h-0 gap-0">
 
+        {/* Hidden source video elements — kept outside overflow-hidden so they are never clipped */}
+        <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
+        <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
+
         {/* ── Preview area ── */}
         <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-black overflow-hidden" style={{ minHeight: '40vw' }}>
-          <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />
-          <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />
 
           {/* Main video */}
           <div className="flex-1 min-h-0 overflow-hidden relative flex items-center justify-center">
