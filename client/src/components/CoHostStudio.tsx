@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import {
-  LiveKitRoom, useLocalParticipant, useRoomContext, useTracks, VideoTrack,
+  LiveKitRoom, useLocalParticipant, useRoomContext, useTracks, useRemoteParticipants, VideoTrack,
 } from '@livekit/components-react';
 import RemoteMonitor from './RemoteMonitor';
 import '@livekit/components-styles';
@@ -98,6 +98,8 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
   const isConnected  = roomState === ConnectionState.Connected;
   const isConnecting = roomState === ConnectionState.Connecting || roomState === ConnectionState.Reconnecting;
   const bothOn       = cameraOn && screenOn;
+  const remoteParticipants = useRemoteParticipants();
+  const hostPresent = remoteParticipants.some(p => p.identity.startsWith('host-'));
   const isColorActive = Object.entries(colorSettings).some(([k,v]) => v !== DEFAULT_SETTINGS[k as keyof ColorSettings]);
 
   useEffect(() => {
@@ -434,10 +436,12 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
             </div>
           </div>
 
-          {/* ── HOST STREAM — bottom 50% ── */}
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-zinc-800">
-            <RemoteMonitor filterPrefix="host-" label="Host stream" />
-          </div>
+          {/* ── HOST STREAM — only shown when host is streaming ── */}
+          {hostPresent && (
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-zinc-800">
+              <RemoteMonitor filterPrefix="host-" label="Host stream" />
+            </div>
+          )}
 
         </div>{/* end preview column */}
 
