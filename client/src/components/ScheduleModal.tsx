@@ -17,7 +17,19 @@ export default function ScheduleModal({ title, onClose, onSchedule }: ScheduleMo
 
   const handleSubmit = () => {
     if (!datetime) return;
-    onSchedule(new Date(datetime).toISOString());
+    // datetime-local gives "YYYY-MM-DDTHH:MM" in LOCAL time — not UTC.
+    // new Date(datetime) treats it as UTC in some browsers, shifting by timezone offset.
+    // Fix: parse parts explicitly and construct as local time.
+    const [datePart, timePart] = datetime.split('T');
+    const [year, month, day]   = datePart.split('-').map(Number);
+    const [hour, minute]       = timePart.split(':').map(Number);
+    const localDate = new Date(year, month - 1, day, hour, minute);
+    if (isNaN(localDate.getTime())) return;
+    if (localDate <= new Date()) {
+      alert('Please choose a future date and time.');
+      return;
+    }
+    onSchedule(localDate.toISOString());
   };
 
   return (
@@ -44,7 +56,7 @@ export default function ScheduleModal({ title, onClose, onSchedule }: ScheduleMo
             <p className="font-semibold text-sm">{title}</p>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Date & Time</label>
+            <label className="block text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Date & Time <span className="text-zinc-600 normal-case font-normal">({Intl.DateTimeFormat().resolvedOptions().timeZone})</span></label>
             <input
               type="datetime-local"
               value={datetime}
