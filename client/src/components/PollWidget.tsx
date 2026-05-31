@@ -56,13 +56,16 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
   }, [roomId]);
 
   useEffect(() => {
+    // Use a ref to track dismissed so interval always reads latest value (no stale closure)
+    const dismissedRef = { current: dismissed };
     const iv = setInterval(() => {
-      if (dismissed) return;
+      if (dismissedRef.current) return;
       fetch(`${API}/api/polls/${roomId}/active`)
         .then(r => r.ok ? r.json() : null)
         .then((d: PollData | null) => { if (d && d.id !== currentId.current) showPoll(d); })
         .catch(() => {});
     }, 3000);
+    dismissedRef.current = dismissed;
     return () => clearInterval(iv);
   }, [roomId, dismissed]);
 
