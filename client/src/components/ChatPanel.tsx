@@ -35,13 +35,16 @@ export default function ChatPanel({ roomId, identity, nickname, isHost, socket: 
       socketRef.current = sock;
       setConnected(sock.connected);
     } else {
-      sock = io(API, { transports: ['websocket', 'polling'] });
+      sock = io(API, { transports: ['websocket', 'polling'], reconnectionAttempts: 10 });
       ownSocketRef.current = sock;
       socketRef.current = sock;
-      sock.on('connect', () => {
+      const rejoin = () => {
         setConnected(true);
         sock.emit('join-room', { roomId, nickname });
-      });
+      };
+      sock.on('connect', rejoin);
+      // Rejoin room after every reconnect so host keeps receiving chat messages
+      sock.on('reconnect', rejoin);
       sock.on('disconnect', () => setConnected(false));
     }
 
