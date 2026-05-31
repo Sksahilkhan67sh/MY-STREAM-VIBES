@@ -123,12 +123,12 @@ export default function ViewerPage() {
   );
 
   if (step === 'watching' && stream && token) return (
-    <div className="h-screen flex flex-col bg-zinc-950 overflow-hidden">
+    <div className="flex flex-col bg-zinc-950 overflow-hidden" style={{ height: '100dvh' }}>
 
       {/* ── Desktop layout: video + chat side by side, fills full screen ── */}
       <div className="hidden lg:flex flex-1 min-h-0">
         {/* Video — fills all remaining width, no black gap */}
-        <div className="flex-1 min-w-0 bg-black relative">
+        <div className="flex-1 min-w-0 bg-black relative h-full">
           <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
           {socketReady && <PollWidget roomId={roomId} socket={socket} />}
         </div>
@@ -144,9 +144,9 @@ export default function ViewerPage() {
       </div>
 
       {/* ── Mobile layout: video on top, chat below ── */}
-      <div className="flex lg:hidden flex-col h-full">
+      <div className="flex lg:hidden flex-col h-full overflow-hidden">
         {/* Video — 16:9 aspect ratio, no extra space */}
-        <div className="w-full bg-black relative" style={{ aspectRatio: '16/9', maxHeight: '56vw' }}>
+        <div className="w-full bg-black flex-shrink-0" style={{ aspectRatio: '16/9', maxHeight: '56vw', position: 'relative' }}>
           <div className="absolute inset-0">
             <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
           </div>
