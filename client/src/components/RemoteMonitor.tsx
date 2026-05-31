@@ -74,7 +74,7 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
       .replace(/-[a-z0-9]{6,}$/, '');
 
   return (
-    <div ref={containerRef} className="flex-1 min-h-0 flex flex-col bg-zinc-950">
+    <div ref={containerRef} className="flex-1 min-h-0 flex flex-col bg-zinc-950 overflow-hidden">
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
           <span className="text-purple-400">👥</span> {label}
@@ -85,36 +85,33 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
       {/* Main preview — fills remaining height of its 50% flex slot */}
       <div className="flex-1 min-h-0 w-full bg-black relative overflow-hidden">
         <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
+
+        {/* Name badge bottom-left */}
         <div className="absolute bottom-2 left-2 z-10">
           <span className="text-[10px] bg-black/70 text-white px-2 py-0.5 rounded-full font-semibold">
             {mainTrack.source === Track.Source.ScreenShare ? '🖥' : '📷'} {displayName(mainTrack)}
           </span>
         </div>
-      </div>
 
-      {/* Thumbnail strip */}
-      {thumbTracks.length > 0 && (
-        <div className="flex-shrink-0 flex gap-1.5 px-2 py-2 overflow-x-auto border-t border-zinc-800">
-          {thumbTracks.map(t => {
-            const key = `${t.participant.identity}:${t.source}`;
-            return (
-              <div
-                key={key}
-                onClick={() => setMainKey(key)}
-                className="flex-shrink-0 w-28 h-16 rounded-lg overflow-hidden border-2 border-gray-700 hover:border-blue-400 cursor-pointer transition-all relative bg-black"
-                title={`Click to view ${displayName(t)}`}
-              >
-                <VideoTrack trackRef={t} className="w-full h-full object-contain" />
-                <div className="absolute bottom-0.5 left-1">
-                  <span className="text-[9px] bg-black/70 text-white px-1 py-0.5 rounded-full">
-                    {t.source === Track.Source.ScreenShare ? '🖥' : '📷'} {displayName(t)}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+        {/* PiP corner — show secondary track bottom-right */}
+        {thumbTracks.length > 0 && (
+          <div
+            className="absolute bottom-2 right-2 z-10 w-28 h-16 sm:w-36 sm:h-20 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl cursor-pointer hover:border-white/50 transition-all group"
+            onClick={() => setMainKey(`${thumbTracks[0].participant.identity}:${thumbTracks[0].source}`)}
+            title="Click to swap"
+          >
+            <VideoTrack trackRef={thumbTracks[0]} className="w-full h-full object-contain bg-black" />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+              <span className="text-white text-[10px] opacity-0 group-hover:opacity-100 font-medium">Swap</span>
+            </div>
+            <div className="absolute bottom-0.5 left-1">
+              <span className="text-[9px] bg-black/70 text-white px-1 py-0.5 rounded-full">
+                {thumbTracks[0].source === Track.Source.ScreenShare ? '🖥' : '📷'}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
