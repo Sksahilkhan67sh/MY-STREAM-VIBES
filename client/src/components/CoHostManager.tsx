@@ -62,7 +62,11 @@ export default function CoHostManager({ roomId, hostToken }: CoHostManagerProps)
   };
 
   const copyLink = (ch: CoHost) => {
-    navigator.clipboard.writeText(ch.joinUrl);
+    // Ensure URL is absolute — server may return a relative path
+    const url = ch.joinUrl.startsWith('http')
+      ? ch.joinUrl
+      : `${window.location.origin}${ch.joinUrl.startsWith('/') ? '' : '/'}${ch.joinUrl}`;
+    navigator.clipboard.writeText(url);
     setCopied(ch.id);
     setTimeout(() => setCopied(null), 2000);
   };
