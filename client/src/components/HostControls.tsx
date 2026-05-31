@@ -316,8 +316,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     const lvt = new LVT(vt, undefined, false);
 
     // Publish canvas track as Camera source so viewer's useTracks picks it up.
-    // Without this, the canvas track is published as Track.Source.Unknown
-    // which is filtered out by useTracks([Camera, ScreenShare]) on the viewer side.
     try {
       await lp.publishTrack(lvt, { source: Track.Source.Camera });
     } catch (e) {
@@ -325,8 +323,15 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       return;
     }
 
-    // Now safely remove the old graded track (new one is already live)
-    if (gradedTrackRef.current) {
+    // Unpublish raw camera track — it was still published alongside the canvas track
+    // causing viewers to see TWO camera PiP boxes from the same host.
+    // We unpublish AFTER the canvas track is live so there is no blank gap.
+    if (cameraTrackRef.current) {
+      try { await lp.unpublishTrack(cameraTrackRef.current); } catch {}
+    }
+
+    // Also remove any previous graded track
+    if (gradedTrackRef.current && gradedTrackRef.current !== lvt) {
       try { await lp.unpublishTrack(gradedTrackRef.current); } catch {}
     }
     gradedTrackRef.current = lvt;
