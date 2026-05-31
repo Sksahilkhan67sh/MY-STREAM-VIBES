@@ -123,59 +123,50 @@ export default function ViewerPage() {
   );
 
   if (step === 'watching' && stream && token) return (
-    <div className="fixed inset-0 flex flex-col bg-zinc-950 overflow-hidden">
+    <div className="fixed inset-0 flex bg-zinc-950 overflow-hidden">
 
-      {/* ── Desktop layout: video + chat side by side, fills full screen ── */}
-      <div className="hidden lg:flex flex-1 min-h-0">
-        {/* Video — fills all remaining width, no black gap */}
-        <div className="flex-1 min-w-0 bg-black relative h-full">
-          <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
-          {socketReady && <PollWidget roomId={roomId} socket={socket} />}
-        </div>
-        {/* Chat sidebar — fixed width, full height */}
-        <div className="w-80 flex-shrink-0 border-l border-zinc-800/60 flex flex-col">
-          <ChatPanel
-            roomId={roomId}
-            identity={identity}
-            nickname={nickname || 'Anonymous'}
-            socket={socket}
-          />
-        </div>
-      </div>
+      {/* ── Video area: fills all space left of chat ── */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-0">
 
-      {/* ── Mobile layout: video on top, chat below ── */}
-      <div className="flex lg:hidden flex-col h-full overflow-hidden">
-        {/* Video — 16:9 aspect ratio, no extra space */}
-        <div className="w-full bg-black flex-shrink-0" style={{ aspectRatio: '16/9', maxHeight: '56vw', position: 'relative' }}>
+        {/* Desktop: video fills entire column */}
+        <div className="hidden lg:block flex-1 w-full h-full relative" style={{ height: '100%' }}>
           <div className="absolute inset-0">
             <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
           </div>
           {socketReady && <PollWidget roomId={roomId} socket={socket} />}
         </div>
 
-        {/* Stream title + chat toggle */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 flex-shrink-0">
-          <div className="flex items-center gap-2 text-xs text-zinc-400 min-w-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-            <span className="truncate">{stream.title}</span>
+        {/* Mobile: video is 16:9 then chat below */}
+        <div className="flex lg:hidden flex-col w-full h-full">
+          <div className="w-full flex-shrink-0 bg-black relative" style={{ aspectRatio: '16/9', maxHeight: '56vw' }}>
+            <div className="absolute inset-0">
+              <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
+            </div>
+            {socketReady && <PollWidget roomId={roomId} socket={socket} />}
           </div>
-          <button
-            onClick={() => setChatOpen(o => !o)}
-            className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors flex-shrink-0 ml-2"
-          >
-            {chatOpen ? 'Hide chat' : 'Chat'}
-          </button>
+          {/* Title bar + chat toggle */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 flex-shrink-0">
+            <div className="flex items-center gap-2 text-xs text-zinc-400 min-w-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+              <span className="truncate">{stream.title}</span>
+            </div>
+            <button
+              onClick={() => setChatOpen(o => !o)}
+              className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors flex-shrink-0 ml-2"
+            >
+              {chatOpen ? 'Hide chat' : 'Chat'}
+            </button>
+          </div>
+          <div className={`${chatOpen ? 'flex' : 'hidden'} flex-col flex-1 min-h-0`}>
+            <ChatPanel roomId={roomId} identity={identity} nickname={nickname || 'Anonymous'} socket={socket} />
+          </div>
         </div>
 
-        {/* Chat — fills remaining space below video */}
-        <div className={`${chatOpen ? 'flex' : 'hidden'} flex-col flex-1 min-h-0`}>
-          <ChatPanel
-            roomId={roomId}
-            identity={identity}
-            nickname={nickname || 'Anonymous'}
-            socket={socket}
-          />
-        </div>
+      </div>
+
+      {/* ── Chat sidebar (desktop only) ── */}
+      <div className="hidden lg:flex w-80 flex-shrink-0 border-l border-zinc-800/60 flex-col">
+        <ChatPanel roomId={roomId} identity={identity} nickname={nickname || 'Anonymous'} socket={socket} />
       </div>
 
     </div>
