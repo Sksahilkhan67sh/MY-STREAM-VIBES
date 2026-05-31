@@ -4,7 +4,7 @@
  * Click any tile to swap it into the main preview area.
  * Used by both HostControls (to see co-hosts) and CoHostStudio (to see host).
  */
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTracks, VideoTrack, useLocalParticipant } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 
@@ -16,6 +16,20 @@ interface RemoteMonitorProps {
 export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: RemoteMonitorProps) {
   const [mainKey, setMainKey] = useState<string | null>(null);
   const { localParticipant } = useLocalParticipant();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [videoHeight, setVideoHeight] = useState(180);
+
+  // Measure actual rendered width and derive 16:9 height — works in all contexts
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const width = entries[0].contentRect.width;
+      if (width > 0) setVideoHeight(Math.round(width * 9 / 16));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const tracks = useTracks(
     [Track.Source.Camera, Track.Source.ScreenShare],
@@ -60,17 +74,18 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
       .replace(/-[a-z0-9]{6,}$/, '');
 
   return (
-    <div className="flex-shrink-0 bg-gray-950 border-t border-gray-800">
+    <div ref={containerRef} className="flex-shrink-0 bg-gray-950 border-t border-gray-800">
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</p>
         <p className="text-[10px] text-gray-600">Click to swap POV</p>
       </div>
 
-      {/* Main preview — w-full + aspect-ratio:16/9 so height always derives from column width */}
-      <div className="mx-2 mb-2 rounded-xl overflow-hidden bg-black relative w-[calc(100%-16px)]" style={{ aspectRatio: '16/9' }}>
-        <div className="absolute inset-0">
-          <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
-        </div>
+      {/* Main preview — height set by ResizeObserver so 16:9 is exact in every context */}
+      <div
+        className="mx-2 mb-2 rounded-xl overflow-hidden bg-black relative"
+        style={{ height: `${videoHeight}px` }}
+      >
+        <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
         <div className="absolute bottom-1.5 left-2 z-10">
           <span className="text-[10px] bg-black/70 text-white px-2 py-0.5 rounded-full font-semibold">
             {mainTrack.source === Track.Source.ScreenShare ? '🖥' : '📷'} {displayName(mainTrack)}
