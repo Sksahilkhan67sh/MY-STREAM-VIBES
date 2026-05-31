@@ -381,7 +381,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
 
         {/* Preview column: local preview on top, host monitor below */}
         <div className="flex-1 min-w-0 flex flex-col min-h-0">
-        <div className="flex-1 bg-black relative flex items-center justify-center" style={{ minHeight: '200px' }}>
+        <div className="flex-1 min-h-0 overflow-hidden bg-black relative flex items-center justify-center">
           <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />
           <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />
 
@@ -429,9 +429,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
         </div>
 
         {/* Host monitor — co-host sees host's camera & screen, click to swap POV */}
-        <div className="flex-shrink-0 overflow-hidden" style={{ minHeight: '180px', maxHeight: '40%' }}>
-          <RemoteMonitor filterPrefix="host-" label="Host stream" />
-        </div>
+        <RemoteMonitor filterPrefix="host-" label="Host stream" />
 
         </div>{/* end preview column */}
 
