@@ -167,24 +167,56 @@ export default function RtmpModal({ roomId, hostToken, onClose, onActivate, onDe
       // Start recording — 250ms timeslices give FFmpeg a fast initial header
       mr.start(250);
 
-      // Send the continuous stream to server in background (do not await)
-      fetch(`${API}/api/egress/rtmp/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'video/webm',
-          'x-room-id': roomId,
-          'x-host-token': hostToken,
-          'x-mime-type': mimeType,
-        },
-        body: readable,
-        // @ts-ignore — duplex needed for streaming request bodies in some environments
-        duplex: 'half',
-        signal: abortCtrl.signal,
-      }).catch((err) => {
-        if (err.name !== 'AbortError') {
-          console.warn('RTMP stream ended:', err.message);
-        }
-      });
+      // Detect if browser supports streaming fetch (Chrome 105+)
+      // Firefox and Safari don't support duplex:'half' — fall back to chunked XHR approach
+      const supportsStreamingFetch = (() => {
+        try {
+          let supported = false;
+          new Request('', { body: new ReadableStream(), method: 'POST', // @ts-ignore
+            duplex: 'half' });
+          supported = true;
+          return supported;
+        } catch { return false; }
+      })();
+
+      if (supportsStreamingFetch) {
+        // Chrome: pipe continuous WebM stream via single fetch
+        fetch(`${API}/api/egress/rtmp/stream`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'video/webm',
+            'x-room-id': roomId,
+            'x-host-token': hostToken,
+            'x-mime-type': mimeType,
+          },
+          body: readable,
+          // @ts-ignore
+          duplex: 'half',
+          signal: abortCtrl.signal,
+        }).catch((err) => {
+          if (err.name !== 'AbortError') console.warn('RTMP stream ended:', err.message);
+        });
+      } else {
+        // Firefox/Safari fallback: send chunks via individual POST requests
+        mr.ondataavailable = (e) => {
+          if (!e.data || e.data.size === 0) return;
+          e.data.arrayBuffer().then(buf => {
+            const bytes = new Uint8Array(buf);
+            byteCountRef.current += bytes.byteLength;
+            setBytesSent(byteCountRef.current);
+            fetch(`${API}/api/egress/rtmp/chunk`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'video/webm',
+                'x-room-id': roomId,
+                'x-host-token': hostToken,
+              },
+              body: bytes,
+              signal: abortCtrl.signal,
+            }).catch(() => {});
+          });
+        };
+      }
 
       setStatus('live');
       onActivate();
