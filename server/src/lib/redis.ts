@@ -3,6 +3,9 @@ import { createClient } from 'redis';
 let client: ReturnType<typeof createClient> | null = null;
 let available = false;
 
+// In-memory fallback for viewer counts when Redis is not configured
+const memCounts = new Map<string, number>();
+
 export async function connectRedis() {
   const url = process.env.REDIS_URL;
 
@@ -57,7 +60,11 @@ export async function getViewerCount(roomId: string): Promise<number> {
 }
 
 export async function incrementViewerCount(roomId: string): Promise<number> {
-  if (!available || !client) return 0;
+  if (!available || !client) {
+    const count = (memCounts.get(roomId) ?? 0) + 1;
+    memCounts.set(roomId, count);
+    return count;
+  }
   try {
     const val = await client.incr(`viewers:${roomId}`);
     await client.expire(`viewers:${roomId}`, 3600);
@@ -66,7 +73,11 @@ export async function incrementViewerCount(roomId: string): Promise<number> {
 }
 
 export async function decrementViewerCount(roomId: string): Promise<number> {
-  if (!available || !client) return 0;
+  if (!available || !client) {
+    const count = Math.max(0, (memCounts.get(roomId) ?? 0) - 1);
+    memCounts.set(roomId, count);
+    return count;
+  }
   try {
     const current = await getViewerCount(roomId);
     if (current <= 0) return 0;
