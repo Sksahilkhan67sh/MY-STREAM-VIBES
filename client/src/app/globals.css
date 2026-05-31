@@ -12,17 +12,26 @@
 
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  height: 100%;
+}
 
 body {
   background: #09090b;
   color: #f4f4f5;
+  height: 100%;
 }
 
 /* Mobile: prevent horizontal overflow */
 html, body {
   overflow-x: hidden;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Next.js root div must also be full height */
+#__next {
+  height: 100%;
 }
 
 /* Better tap targets on mobile */
