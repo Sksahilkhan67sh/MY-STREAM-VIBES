@@ -5,6 +5,8 @@ import {
   useTracks,
   VideoTrack,
   RoomAudioRenderer,
+  isTrackReference,
+  type TrackReference,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { Track } from 'livekit-client';
@@ -22,14 +24,14 @@ function StreamSection({
 }: {
   label: string;
   icon: string;
-  tracks: ReturnType<typeof useTracks>;
+  tracks: TrackReference[];
   mainKey: string | null;
   setMainKey: (k: string) => void;
   controls?: React.ReactNode;
 }) {
   const dedupe = (arr: typeof tracks) => {
     const seen = new Map<string, typeof tracks[0]>();
-    arr.forEach(t => seen.set(`${t.participant.identity}:${t.source}`, t));
+    arr.filter(isTrackReference).forEach(t => seen.set(`${t.participant.identity}:${t.source}`, t));
     return Array.from(seen.values());
   };
   const deduped = dedupe(tracks);
@@ -88,8 +90,8 @@ function VideoStage({ title }: { title: string }) {
   const [coHostMainKey, setCoHostMainKey] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const hostTracks = tracks.filter(t => t.participant.identity.startsWith('host-'));
-  const coHostTracks = tracks.filter(t => t.participant.identity.startsWith('cohost-'));
+  const hostTracks = tracks.filter(isTrackReference).filter(t => t.participant.identity.startsWith('host-'));
+  const coHostTracks = tracks.filter(isTrackReference).filter(t => t.participant.identity.startsWith('cohost-'));
   const hasHost = hostTracks.length > 0;
   const hasCoHost = coHostTracks.length > 0;
 
