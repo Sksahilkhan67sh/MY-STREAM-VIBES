@@ -157,7 +157,7 @@ function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn,
   }, []);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-zinc-950">
+    <div className="flex-1 min-h-0 flex flex-col bg-zinc-950 overflow-hidden">
       {/* Label row */}
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
@@ -661,7 +661,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-zinc-950 overflow-hidden">
 
           {/* ── HOST STREAM (You) — top 50% ── */}
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
             <HostStreamSection
               cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
               cameraOn={cameraOn} screenOn={screenOn}
@@ -673,7 +673,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           </div>
 
           {/* ── CO-HOST STREAM — bottom 50% ── */}
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t border-zinc-800">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-zinc-800">
             <RemoteMonitor filterPrefix="cohost-" label="Co-host streams" />
           </div>
         </div>
