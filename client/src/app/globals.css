@@ -112,3 +112,12 @@ button, a, input, select {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* ── Force LiveKit room containers to fill parent height ── */
+[data-lk-theme],
+.lk-room-container,
+.lk-video-conference,
+[class*="lk-"] {
+  height: 100% !important;
+  min-height: 0 !important;
+}
