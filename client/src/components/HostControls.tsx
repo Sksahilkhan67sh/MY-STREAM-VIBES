@@ -157,9 +157,9 @@ function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn,
   }, []);
 
   return (
-    <div className="flex-shrink-0 bg-zinc-950 border-b border-zinc-800">
+    <div className="flex-1 min-h-0 flex flex-col bg-zinc-950">
       {/* Label row */}
-      <div className="flex items-center justify-between px-3 py-2">
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
           <span className="text-blue-400">👤</span> Host Stream (You)
         </span>
@@ -170,8 +170,8 @@ function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn,
           </button>
         )}
       </div>
-      {/* Video box — exact 16:9 via ResizeObserver */}
-      <div ref={containerRef} className="w-full bg-black relative" style={{ height: `${videoHeight}px` }}>
+      {/* Video fills remaining height */}
+      <div ref={containerRef} className="flex-1 min-h-0 w-full bg-black relative overflow-hidden">
         <VideoPreview
           cameraRef={cameraVideoRef} screenRef={screenVideoRef}
           cameraOn={cameraOn} screenOn={screenOn}
@@ -657,21 +657,25 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
         <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
 
-        {/* ── Preview area: HOST STREAM top, CO-HOST STREAM bottom, equal 16:9 boxes ── */}
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-zinc-950 overflow-y-auto">
+        {/* ── Preview area: HOST STREAM top half, CO-HOST STREAM bottom half ── */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-zinc-950 overflow-hidden">
 
-          {/* ── HOST STREAM (You) ── */}
-          <HostStreamSection
-            cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
-            cameraOn={cameraOn} screenOn={screenOn}
-            bothOn={bothOn} pipSwapped={pipSwapped} setPipSwapped={setPipSwapped}
-            cameraFlipped={cameraFlipped} facingMode={facingMode}
-            colorSettings={colorSettings} isConnecting={isConnecting}
-            isConnected={isConnected}
-          />
+          {/* ── HOST STREAM (You) — top 50% ── */}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <HostStreamSection
+              cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
+              cameraOn={cameraOn} screenOn={screenOn}
+              bothOn={bothOn} pipSwapped={pipSwapped} setPipSwapped={setPipSwapped}
+              cameraFlipped={cameraFlipped} facingMode={facingMode}
+              colorSettings={colorSettings} isConnecting={isConnecting}
+              isConnected={isConnected}
+            />
+          </div>
 
-          {/* ── CO-HOST STREAM ── */}
-          <RemoteMonitor filterPrefix="cohost-" label="Co-host streams" />
+          {/* ── CO-HOST STREAM — bottom 50% ── */}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t border-zinc-800">
+            <RemoteMonitor filterPrefix="cohost-" label="Co-host streams" />
+          </div>
         </div>
 
         {/* ── Controls: horizontal bar on mobile, sidebar on desktop ── */}
