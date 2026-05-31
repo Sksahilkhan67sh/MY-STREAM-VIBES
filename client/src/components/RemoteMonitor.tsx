@@ -74,19 +74,21 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
       .replace(/-[a-z0-9]{6,}$/, '');
 
   return (
-    <div ref={containerRef} className="flex-shrink-0 bg-gray-950 border-t border-gray-800">
-      <div className="flex items-center justify-between px-3 pt-2 pb-1">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</p>
-        <p className="text-[10px] text-gray-600">Click to swap POV</p>
+    <div ref={containerRef} className="flex-shrink-0 bg-zinc-950 border-b border-zinc-800">
+      <div className="flex items-center justify-between px-3 py-2">
+        <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
+          <span className="text-purple-400">👥</span> {label}
+        </span>
+        {thumbTracks.length > 0 && <p className="text-[10px] text-zinc-500">Click to swap POV</p>}
       </div>
 
       {/* Main preview — height set by ResizeObserver so 16:9 is exact in every context */}
       <div
-        className="mx-2 mb-2 rounded-xl overflow-hidden bg-black relative"
+        className="w-full bg-black relative"
         style={{ height: `${videoHeight}px` }}
       >
         <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
-        <div className="absolute bottom-1.5 left-2 z-10">
+        <div className="absolute bottom-2 left-2 z-10">
           <span className="text-[10px] bg-black/70 text-white px-2 py-0.5 rounded-full font-semibold">
             {mainTrack.source === Track.Source.ScreenShare ? '🖥' : '📷'} {displayName(mainTrack)}
           </span>
