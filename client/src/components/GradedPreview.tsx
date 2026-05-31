@@ -6,7 +6,24 @@
  * output can be published to LiveKit instead of the raw MediaStream.
  */
 import { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { buildFilter, buildVignette, ColorSettings } from './ColorGrading';
+import { buildVignette, ColorSettings } from './ColorGrading';
+
+// Safe canvas filter — never uses SVG url() which taints canvas in Firefox/Safari
+// (HostControls uses the same approach in its own buildCtxFilter)
+function buildSafeCanvasFilter(s: ColorSettings): string {
+  const bright = 1 + s.brightness / 100;
+  // Boost contrast slightly when sharpness > 0 to simulate sharpening without SVG
+  const sharpBoost = s.sharpness > 0 ? s.sharpness * 0.003 : 0;
+  const cont   = (1 + s.contrast / 100) * (1 + sharpBoost);
+  const sat    = Math.max(0, 1 + s.saturation / 100);
+  const hue    = s.hue + s.warmth * 0.08;
+  return [
+    `brightness(${bright.toFixed(3)})`,
+    `contrast(${cont.toFixed(3)})`,
+    `saturate(${sat.toFixed(3)})`,
+    `hue-rotate(${hue.toFixed(1)}deg)`,
+  ].join(' ');
+}
 
 export interface GradedPreviewHandle {
   /** Returns a MediaStream of the canvas output — publish this to LiveKit */
@@ -53,7 +70,7 @@ const GradedPreview = forwardRef<GradedPreviewHandle, GradedPreviewProps>(
           if (canvas.height !== src.videoHeight) canvas.height = src.videoHeight;
 
           // Apply CSS filter via canvas filter API
-          ctx.filter = buildFilter(settings);
+          ctx.filter = buildSafeCanvasFilter(settings);
           ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
 
           // Vignette overlay drawn on top
