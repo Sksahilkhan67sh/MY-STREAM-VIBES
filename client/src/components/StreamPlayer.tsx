@@ -136,8 +136,17 @@ function VideoStage({ title }: { title: string }) {
 export default function StreamPlayer({ roomId, token, title, isHost }: StreamPlayerProps) {
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'ws://localhost:7880';
   return (
-    <LiveKitRoom serverUrl={livekitUrl} token={token} connect={true} audio={isHost} video={false} className="w-full h-full" style={{ height: '100%' }}>
-      <VideoStage title={title} />
-    </LiveKitRoom>
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      <LiveKitRoom
+        serverUrl={livekitUrl}
+        token={token}
+        connect={true}
+        audio={isHost}
+        video={false}
+        style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
+      >
+        <VideoStage title={title} />
+      </LiveKitRoom>
+    </div>
   );
 }
