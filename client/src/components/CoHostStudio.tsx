@@ -1,8 +1,9 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import {
-  LiveKitRoom, useLocalParticipant, useRoomContext,
+  LiveKitRoom, useLocalParticipant, useRoomContext, useTracks, VideoTrack,
 } from '@livekit/components-react';
+import RemoteMonitor from './RemoteMonitor';
 import '@livekit/components-styles';
 import {
   Track, createLocalVideoTrack, createLocalScreenTracks,
@@ -367,7 +368,8 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
       {/* Body */}
       <div className="flex flex-1 min-h-0">
 
-        {/* Preview */}
+        {/* Preview column: local preview on top, host monitor below */}
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
         <div className="flex-1 bg-black relative flex items-center justify-center">
           <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />
           <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />
@@ -414,6 +416,11 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
             </div>
           )}
         </div>
+
+        {/* Host monitor — co-host sees host's camera & screen, click to swap POV */}
+        <RemoteMonitor filterPrefix="host-" label="Host stream" />
+
+        </div>{/* end preview column */}
 
         {/* Controls sidebar */}
         <div className="w-56 flex-shrink-0 bg-white dark:bg-gray-900 border-l border-gray-100 dark:border-gray-800 flex flex-col overflow-y-auto">
