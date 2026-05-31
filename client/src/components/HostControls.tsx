@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { LiveKitRoom, useLocalParticipant, useRoomContext, useTracks, useRemoteParticipants, VideoTrack } from '@livekit/components-react';
+import { io as socketIo } from 'socket.io-client';
 import RemoteMonitor from './RemoteMonitor';
 import '@livekit/components-styles';
 import { Track, createLocalVideoTrack, createLocalScreenTracks, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack, ConnectionState } from 'livekit-client';
@@ -469,6 +470,15 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     setActiveStreams(s);
   };
 
+  const socketRef = useRef<ReturnType<typeof socketIo> | null>(null);
+
+  useEffect(() => {
+    const sock = socketIo(API, { transports: ['websocket', 'polling'] });
+    sock.on('connect', () => sock.emit('join-room', { roomId: stream.roomId, nickname: 'Host' }));
+    socketRef.current = sock;
+    return () => { sock.disconnect(); socketRef.current = null; };
+  }, [stream.roomId]);
+
   const updateLive = async (live: boolean) => {
     try {
       await fetch(`${API}/api/streams/${stream.roomId}`, {
@@ -476,6 +486,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hostToken: stream.hostToken, isLive: live }),
       });
+      socketRef.current?.emit(live ? 'stream-started' : 'stream-ended', { roomId: stream.roomId });
     } catch {}
   };
 
