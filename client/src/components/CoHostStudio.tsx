@@ -210,11 +210,16 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
     const { LocalVideoTrack: LVT } = await import('livekit-client');
     const lvt = new LVT(vt, undefined, false);
 
-    // Publish as Camera source — without this the canvas track is Track.Source.Unknown
-    // and viewer's useTracks([Camera, ScreenShare]) ignores it entirely.
+    // Publish canvas track as Camera source
     try { await localParticipant.publishTrack(lvt, { source: Track.Source.Camera }); } catch {}
 
-    if (gradedTrackRef.current) {
+    // Unpublish raw camera track AFTER canvas is live — prevents duplicate PiP boxes
+    if (cameraTrackRef.current) {
+      try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {}
+    }
+
+    // Remove old graded track
+    if (gradedTrackRef.current && gradedTrackRef.current !== lvt) {
       try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
     }
     gradedTrackRef.current = lvt;
