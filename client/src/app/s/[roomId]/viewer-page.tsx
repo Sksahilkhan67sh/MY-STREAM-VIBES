@@ -123,7 +123,7 @@ export default function ViewerPage() {
   );
 
   if (step === 'watching' && stream && token) return (
-    <div className="flex flex-col bg-zinc-950 overflow-hidden" style={{ height: '100dvh' }}>
+    <div className="fixed inset-0 flex flex-col bg-zinc-950 overflow-hidden">
 
       {/* ── Desktop layout: video + chat side by side, fills full screen ── */}
       <div className="hidden lg:flex flex-1 min-h-0">
