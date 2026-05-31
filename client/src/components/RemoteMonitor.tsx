@@ -4,14 +4,12 @@
  * Click any tile to swap it into the main preview area.
  * Used by both HostControls (to see co-hosts) and CoHostStudio (to see host).
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useTracks, VideoTrack, useLocalParticipant } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 
 interface RemoteMonitorProps {
-  /** Filter to only show participants whose identity starts with this prefix */
   filterPrefix?: string;
-  /** Label shown above the tile strip */
   label?: string;
 }
 
@@ -24,31 +22,32 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
     { onlySubscribed: true }
   );
 
-  // Filter by prefix AND exclude own local participant tracks
+  // Exclude own tracks + filter by prefix
   const remoteTracks = tracks.filter(t => {
     if (t.participant.identity === localParticipant.identity) return false;
     if (filterPrefix) return t.participant.identity.startsWith(filterPrefix);
     return true;
   });
 
-  // Deduplicate — one track per participant per source (keep last published)
+  // Deduplicate — one track per participant per source
   const seen = new Map<string, typeof tracks[0]>();
-  remoteTracks.forEach(t => {
-    seen.set(`${t.participant.identity}:${t.source}`, t);
-  });
+  remoteTracks.forEach(t => seen.set(`${t.participant.identity}:${t.source}`, t));
   const dedupedTracks = Array.from(seen.values());
 
   if (dedupedTracks.length === 0) return null;
 
-  // If mainKey points to a track that no longer exists, clear it
+  // Stable mainKey — if it no longer exists fall back to first track
   const keyExists = mainKey
     ? dedupedTracks.some(t => `${t.participant.identity}:${t.source}` === mainKey)
     : false;
-  const activeKey = (mainKey && keyExists) ? mainKey : `${dedupedTracks[0].participant.identity}:${dedupedTracks[0].source}`;
+  const activeKey = (mainKey && keyExists)
+    ? mainKey
+    : `${dedupedTracks[0].participant.identity}:${dedupedTracks[0].source}`;
 
   const mainTrack = dedupedTracks.find(
     t => `${t.participant.identity}:${t.source}` === activeKey
   ) ?? dedupedTracks[0];
+
   const thumbTracks = dedupedTracks.filter(
     t => `${t.participant.identity}:${t.source}` !== `${mainTrack.participant.identity}:${mainTrack.source}`
   );
@@ -61,13 +60,12 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
 
   return (
     <div className="flex-shrink-0 bg-gray-950 border-t border-gray-800">
-      {/* Label */}
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</p>
         <p className="text-[10px] text-gray-600">Click to swap POV</p>
       </div>
 
-      {/* Main big preview */}
+      {/* Main preview */}
       <div className="mx-2 mb-2 rounded-xl overflow-hidden bg-black relative" style={{ aspectRatio: '16/9' }}>
         <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
         <div className="absolute bottom-1.5 left-2">
@@ -77,7 +75,7 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
         </div>
       </div>
 
-      {/* Thumbnail strip — click to swap into main */}
+      {/* Thumbnail strip */}
       {thumbTracks.length > 0 && (
         <div className="flex gap-1.5 px-2 pb-2 overflow-x-auto">
           {thumbTracks.map(t => {
