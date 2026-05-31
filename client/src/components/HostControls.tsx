@@ -289,11 +289,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       return;
     }
 
-    // Unpublish raw camera track — it was still published alongside the canvas track
-    // causing viewers to see TWO camera PiP boxes from the same host.
-    // We unpublish AFTER the canvas track is live so there is no blank gap.
+    // Unpublish raw camera track — stopOnUnpublish=false is CRITICAL.
+    // By default LiveKit stops the MediaStreamTrack on unpublish, which kills
+    // the camera feed that the canvas drawImage loop reads from.
+    // We pass false so the camera stays physically active as the canvas source.
     if (cameraTrackRef.current) {
-      try { await lp.unpublishTrack(cameraTrackRef.current); } catch {}
+      try { await lp.unpublishTrack(cameraTrackRef.current, false); } catch {}
     }
 
     // Also remove any previous graded track
@@ -319,7 +320,17 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {});
           gradedTrackRef.current = null;
         }
+        // Republish raw track — if it was stopped, recreate it first
         if (cameraTrackRef.current) {
+          const mst = cameraTrackRef.current.mediaStreamTrack;
+          if (mst && mst.readyState === 'ended') {
+            // Track was stopped — need to get a fresh one from the existing stream
+            const stream = cameraVideoRef.current?.srcObject as MediaStream | null;
+            const liveTracks = stream?.getVideoTracks().filter(t => t.readyState === 'live');
+            if (liveTracks && liveTracks.length > 0) {
+              cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
+            }
+          }
           localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
         }
       }
