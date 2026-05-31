@@ -113,11 +113,14 @@ button, a, input, select {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* ── Force LiveKit room containers to fill parent height ── */
-[data-lk-theme],
-.lk-room-container,
-.lk-video-conference,
-[class*="lk-"] {
+/* ── Force LiveKit room containers to fill parent height ──
+   Scoped tightly — do NOT use [class*="lk-"] globally as it
+   breaks the landing page and any non-viewer route. ── */
+.lk-room-container {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+.lk-video-conference {
   height: 100% !important;
   min-height: 0 !important;
 }
