@@ -66,11 +66,9 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
         <p className="text-[10px] text-gray-600">Click to swap POV</p>
       </div>
 
-      {/* Main preview — padding-bottom trick gives stable 16:9 in all contexts */}
-      <div className="mx-2 mb-2 rounded-xl overflow-hidden bg-black relative" style={{ paddingBottom: '56.25%', height: 0 }}>
-        <div className="absolute inset-0">
-          <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
-        </div>
+      {/* Main preview — fixed 180px height, works in all contexts including fullscreen */}
+      <div className="mx-2 mb-2 rounded-xl overflow-hidden bg-black relative" style={{ height: '180px' }}>
+        <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
         <div className="absolute bottom-1.5 left-2">
           <span className="text-[10px] bg-black/70 text-white px-2 py-0.5 rounded-full font-semibold">
             {mainTrack.source === Track.Source.ScreenShare ? '🖥' : '📷'} {displayName(mainTrack)}
@@ -87,14 +85,11 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
               <div
                 key={key}
                 onClick={() => setMainKey(key)}
-                className="flex-shrink-0 w-28 rounded-lg overflow-hidden border-2 border-gray-700 hover:border-blue-400 cursor-pointer transition-all relative bg-black"
-                style={{ paddingBottom: '57.14%', height: 0 }}
+                className="flex-shrink-0 w-28 h-16 rounded-lg overflow-hidden border-2 border-gray-700 hover:border-blue-400 cursor-pointer transition-all relative bg-black"
                 title={`Click to view ${displayName(t)}`}
               >
-                <div className="absolute inset-0">
-                  <VideoTrack trackRef={t} className="w-full h-full object-contain" />
-                </div>
-                <div className="absolute bottom-0.5 left-1 z-10">
+                <VideoTrack trackRef={t} className="w-full h-full object-contain" />
+                <div className="absolute bottom-0.5 left-1">
                   <span className="text-[9px] bg-black/70 text-white px-1 py-0.5 rounded-full">
                     {t.source === Track.Source.ScreenShare ? '🖥' : '📷'} {displayName(t)}
                   </span>
