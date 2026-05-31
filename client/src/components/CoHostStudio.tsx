@@ -387,7 +387,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
         <div className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden bg-zinc-950">
 
           {/* ── CO-HOST STREAM (You) — top 50% ── */}
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
             {/* Label */}
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800">
               <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
@@ -435,7 +435,7 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
           </div>
 
           {/* ── HOST STREAM — bottom 50% ── */}
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t border-zinc-800">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-zinc-800">
             <RemoteMonitor filterPrefix="host-" label="Host stream" />
           </div>
 
