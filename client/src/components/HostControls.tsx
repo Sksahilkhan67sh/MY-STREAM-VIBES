@@ -132,6 +132,95 @@ function PipVideo({ cameraRef, screenRef, mainIsCam, colorSettings, flipped }: {
 }
 
 
+// ── HostStreamSection: labeled 16:9 box for host's own preview ──
+function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn, bothOn,
+  pipSwapped, setPipSwapped, cameraFlipped, facingMode, colorSettings, isConnecting, isConnected }: {
+  cameraVideoRef: React.RefObject<HTMLVideoElement | null>;
+  screenVideoRef: React.RefObject<HTMLVideoElement | null>;
+  cameraOn: boolean; screenOn: boolean; bothOn: boolean;
+  pipSwapped: boolean; setPipSwapped: (fn: (s: boolean) => boolean) => void;
+  cameraFlipped: boolean; facingMode: string;
+  colorSettings: ColorSettings; isConnecting: boolean; isConnected: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [videoHeight, setVideoHeight] = useState(180);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0].contentRect.width;
+      if (w > 0) setVideoHeight(Math.round(w * 9 / 16));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div className="flex-shrink-0 bg-zinc-950 border-b border-zinc-800">
+      {/* Label row */}
+      <div className="flex items-center justify-between px-3 py-2">
+        <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
+          <span className="text-blue-400">👤</span> Host Stream (You)
+        </span>
+        {bothOn && (
+          <button onClick={() => setPipSwapped(s => !s)}
+            className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-white transition-colors">
+            ⇄ Swap POV
+          </button>
+        )}
+      </div>
+      {/* Video box — exact 16:9 via ResizeObserver */}
+      <div ref={containerRef} className="w-full bg-black relative" style={{ height: `${videoHeight}px` }}>
+        <VideoPreview
+          cameraRef={cameraVideoRef} screenRef={screenVideoRef}
+          cameraOn={cameraOn} screenOn={screenOn}
+          mainIsCam={pipSwapped} colorSettings={colorSettings}
+          flipped={cameraFlipped}
+        />
+        {/* PiP */}
+        {bothOn && (
+          <div className="absolute bottom-2 right-2 w-24 h-14 sm:w-32 sm:h-20 rounded-xl overflow-hidden border-2 border-white/20 cursor-pointer hover:border-white/50 transition-all shadow-xl group"
+            onClick={() => setPipSwapped(s => !s)}>
+            <PipVideo cameraRef={cameraVideoRef} screenRef={screenVideoRef}
+              mainIsCam={pipSwapped} colorSettings={colorSettings} flipped={cameraFlipped} />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+              <span className="text-white text-xs opacity-0 group-hover:opacity-100 font-medium">Swap</span>
+            </div>
+          </div>
+        )}
+        {/* Vignette */}
+        {(cameraOn || screenOn) && colorSettings.vignette > 0 && <div style={buildVignette(colorSettings.vignette)} />}
+        {/* Placeholder */}
+        {!cameraOn && !screenOn && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
+            <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center mb-2">
+              <svg className="w-5 h-5 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+              </svg>
+            </div>
+            <p className="text-xs text-zinc-500">
+              {isConnecting ? 'Connecting...' : isConnected ? 'Enable camera or screen' : 'Cannot reach server'}
+            </p>
+          </div>
+        )}
+        {/* Camera badge */}
+        {cameraOn && (
+          <div className="absolute top-2 left-2 flex items-center gap-1.5">
+            <span className="text-xs bg-black/50 text-white px-2 py-0.5 rounded-full">
+              {facingMode === 'user' ? '📷 Front' : '🔄 Rear'}
+            </span>
+            {cameraFlipped && (
+              <span className="text-xs bg-black/50 text-white px-2 py-0.5 rounded-full hidden sm:inline">⟺ Mirrored</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Host Studio ────────────────────────────────────────────────
 function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const { localParticipant } = useLocalParticipant();
@@ -568,64 +657,20 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
         <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
 
-        {/* ── Preview area ── */}
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-black overflow-hidden" style={{ minHeight: '40vw' }}>
+        {/* ── Preview area: HOST STREAM top, CO-HOST STREAM bottom, equal 16:9 boxes ── */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-zinc-950 overflow-y-auto">
 
-          {/* Main video */}
-          <div className="flex-1 min-h-0 overflow-hidden relative flex items-center justify-center">
-            <VideoPreview
-              cameraRef={cameraVideoRef} screenRef={screenVideoRef}
-              cameraOn={cameraOn} screenOn={screenOn}
-              mainIsCam={pipSwapped} colorSettings={colorSettings}
-              flipped={cameraFlipped}
-            />
+          {/* ── HOST STREAM (You) ── */}
+          <HostStreamSection
+            cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
+            cameraOn={cameraOn} screenOn={screenOn}
+            bothOn={bothOn} pipSwapped={pipSwapped} setPipSwapped={setPipSwapped}
+            cameraFlipped={cameraFlipped} facingMode={facingMode}
+            colorSettings={colorSettings} isConnecting={isConnecting}
+            isConnected={isConnected}
+          />
 
-            {/* PiP */}
-            {bothOn && (
-              <div className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 w-24 h-16 sm:w-36 sm:h-24 rounded-xl overflow-hidden border-2 border-white/20 cursor-pointer hover:border-white/50 transition-all shadow-xl group"
-                onClick={() => setPipSwapped(s => !s)}>
-                <PipVideo cameraRef={cameraVideoRef} screenRef={screenVideoRef}
-                  mainIsCam={pipSwapped} colorSettings={colorSettings} flipped={cameraFlipped} />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                  <span className="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity font-medium">Swap</span>
-                </div>
-              </div>
-            )}
-
-            {/* Vignette */}
-            {(cameraOn || screenOn) && colorSettings.vignette > 0 && <div style={buildVignette(colorSettings.vignette)} />}
-
-            {/* Placeholder */}
-            {!cameraOn && !screenOn && (
-              <div className="text-center px-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-3">
-                  {Icons.camera}
-                </div>
-                <p className="text-sm text-gray-500">
-                  {isConnecting ? 'Connecting to LiveKit...' : isConnected ? 'Enable camera or screen to begin' : 'Cannot reach LiveKit server'}
-                </p>
-                {!isConnected && !isConnecting && (
-                  <button onClick={() => window.location.reload()}
-                    className="mt-2 text-xs text-gray-600 hover:text-gray-300 underline">
-                    Retry connection
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Camera overlay badges */}
-            {cameraOn && (
-              <div className="absolute top-2 sm:top-3 left-2 sm:left-3 flex items-center gap-1.5 sm:gap-2">
-                <span className="text-xs bg-black/50 text-white px-2 py-1 rounded-full">
-                  {facingMode === 'user' ? '📷 Front' : '🔄 Rear'}
-                </span>
-                {cameraFlipped && (
-                  <span className="text-xs bg-black/50 text-white px-2 py-1 rounded-full hidden sm:inline">⟺ Mirrored</span>
-                )}
-              </div>
-            )}
-          </div>
-          {/* Co-host monitor — host sees co-host feeds, click to swap POV */}
+          {/* ── CO-HOST STREAM ── */}
           <RemoteMonitor filterPrefix="cohost-" label="Co-host streams" />
         </div>
 
