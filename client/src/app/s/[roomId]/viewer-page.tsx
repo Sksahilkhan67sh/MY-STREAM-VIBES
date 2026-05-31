@@ -123,34 +123,17 @@ export default function ViewerPage() {
   );
 
   if (step === 'watching' && stream && token) return (
-    <div className="min-h-screen flex flex-col bg-zinc-950 relative">
-      {/* Video takes full width, fixed height on mobile */}
-      <div className="w-full relative bg-black" style={{ aspectRatio: '16/9' }}>
-        <div className="absolute inset-0">
+    <div className="h-screen flex flex-col bg-zinc-950 overflow-hidden">
+
+      {/* ── Desktop layout: video + chat side by side, fills full screen ── */}
+      <div className="hidden lg:flex flex-1 min-h-0">
+        {/* Video — fills all remaining width, no black gap */}
+        <div className="flex-1 min-w-0 bg-black relative">
           <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
+          {socketReady && <PollWidget roomId={roomId} socket={socket} />}
         </div>
-        {socketReady && <PollWidget roomId={roomId} socket={socket} />}
-      </div>
-
-      {/* On mobile: chat below video. On desktop: sidebar */}
-      <div className="flex flex-col lg:flex-row flex-1 min-h-0">
-        {/* Mobile: chat toggle button */}
-        <div className="lg:hidden flex items-center justify-between px-4 py-2 border-b border-zinc-800">
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            {stream.title}
-          </div>
-          <button
-            onClick={() => setChatOpen(o => !o)}
-            className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors"
-          >
-            {chatOpen ? 'Hide chat' : 'Show chat'}
-          </button>
-        </div>
-
-        {/* Chat panel: collapsible on mobile, always visible on desktop */}
-        <div className={`${chatOpen ? 'flex' : 'hidden'} lg:flex flex-col w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-zinc-800/60`}
-          style={{ height: chatOpen ? '320px' : undefined }}>
+        {/* Chat sidebar — fixed width, full height */}
+        <div className="w-80 flex-shrink-0 border-l border-zinc-800/60 flex flex-col">
           <ChatPanel
             roomId={roomId}
             identity={identity}
@@ -159,6 +142,42 @@ export default function ViewerPage() {
           />
         </div>
       </div>
+
+      {/* ── Mobile layout: video on top, chat below ── */}
+      <div className="flex lg:hidden flex-col h-full">
+        {/* Video — 16:9 aspect ratio, no extra space */}
+        <div className="w-full bg-black relative" style={{ aspectRatio: '16/9', maxHeight: '56vw' }}>
+          <div className="absolute inset-0">
+            <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
+          </div>
+          {socketReady && <PollWidget roomId={roomId} socket={socket} />}
+        </div>
+
+        {/* Stream title + chat toggle */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 flex-shrink-0">
+          <div className="flex items-center gap-2 text-xs text-zinc-400 min-w-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+            <span className="truncate">{stream.title}</span>
+          </div>
+          <button
+            onClick={() => setChatOpen(o => !o)}
+            className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors flex-shrink-0 ml-2"
+          >
+            {chatOpen ? 'Hide chat' : 'Chat'}
+          </button>
+        </div>
+
+        {/* Chat — fills remaining space below video */}
+        <div className={`${chatOpen ? 'flex' : 'hidden'} flex-col flex-1 min-h-0`}>
+          <ChatPanel
+            roomId={roomId}
+            identity={identity}
+            nickname={nickname || 'Anonymous'}
+            socket={socket}
+          />
+        </div>
+      </div>
+
     </div>
   );
 
