@@ -6,19 +6,27 @@ interface IntroWrapperProps {
   children: React.ReactNode;
 }
 
+// Bump this key version whenever you want all users to see the intro again
+const INTRO_KEY = 'sv-intro-seen-v2';
+
 export default function IntroWrapper({ children }: IntroWrapperProps) {
   const [showIntro, setShowIntro] = useState(false);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    // Show intro only once per session
-    const seen = localStorage.getItem('sv-intro-seen');
+    // Show intro only once per key version
+    const seen = localStorage.getItem(INTRO_KEY);
     if (!seen) setShowIntro(true);
+    setChecked(true);
   }, []);
 
   const handleComplete = () => {
-    localStorage.setItem('sv-intro-seen', '1');
+    localStorage.setItem(INTRO_KEY, '1');
     setShowIntro(false);
   };
+
+  // Don't render anything until we've checked localStorage (avoids SSR flash)
+  if (!checked) return null;
 
   return (
     <>
