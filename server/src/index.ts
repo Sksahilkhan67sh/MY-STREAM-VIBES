@@ -13,8 +13,8 @@ import prisma from './lib/prisma';
 import streamsRouter   from './routes/streams';
 import tokenRouter     from './routes/token';
 import egressRouter    from './routes/egress';
-import remindersRouter from './routes/reminders';
-import pollsRouter     from './routes/polls';
+import remindersRouter, { recoverReminders } from './routes/reminders';
+import pollsRouter, { recoverActivePolls } from './routes/polls';
 import coHostsRouter   from './routes/cohosts';
 import { startScheduler } from './jobs/scheduler';
 
@@ -92,6 +92,8 @@ async function main() {
 
     await connectRedis();
     startScheduler();
+  recoverActivePolls().catch(console.error);
+  recoverReminders().catch(console.error);
 
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`\n🚀 StreamVault Server running on port ${PORT}`);
