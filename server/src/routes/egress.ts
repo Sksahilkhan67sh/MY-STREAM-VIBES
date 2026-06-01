@@ -33,6 +33,21 @@ const RECORDINGS_DIR = process.env.NODE_ENV === 'production'
 
 if (!fs.existsSync(RECORDINGS_DIR)) fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
 
+// ── Recover stuck states on server restart ────────────────────
+// If server restarts mid-recording or mid-RTMP, DB has stale isRecording/rtmpUrl = true
+// Reset them so host UI doesn't show phantom "recording in progress"
+(async () => {
+  try {
+    await prisma.stream.updateMany({
+      where: { OR: [{ isRecording: true }, { rtmpUrl: { not: null } }] },
+      data:  { isRecording: false, rtmpUrl: null },
+    });
+    console.log('✅ Cleared stale recording/RTMP states');
+  } catch (e) {
+    console.error('State recovery error:', e);
+  }
+})();
+
 interface ActiveRecorder {
   filePath:    string;
   fileName:    string;
@@ -170,10 +185,23 @@ router.get('/recordings/:roomId', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/egress/download/:fileName ───────────────────────
-router.get('/download/:fileName', (req: Request, res: Response) => {
+// Requires hostToken query param to prevent unauthorized downloads
+router.get('/download/:fileName', async (req: Request, res: Response) => {
   try {
+    const { hostToken } = req.query as { hostToken: string };
+    if (!hostToken) return res.status(401).json({ error: 'hostToken required' });
+
     const safe = path.basename(req.params.fileName);
     if (!safe.match(/\.(webm|mp4)$/i)) return res.status(400).json({ error: 'Invalid file type' });
+
+    // Verify the hostToken owns a stream that has this recording
+    const recording = await prisma.recording.findFirst({
+      where: { fileName: safe },
+      include: { stream: true },
+    });
+    if (!recording) return res.status(404).json({ error: 'Recording not found' });
+    if (recording.stream.hostToken !== hostToken) return res.status(403).json({ error: 'Unauthorized' });
+
     const filePath = path.join(RECORDINGS_DIR, safe);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found. It may have been uploaded to cloud storage.' });
     const stat = fs.statSync(filePath);
