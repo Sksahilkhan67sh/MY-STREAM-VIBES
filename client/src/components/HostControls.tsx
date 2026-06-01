@@ -486,7 +486,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hostToken: stream.hostToken, isLive: live }),
       });
-      socketRef.current?.emit(live ? 'stream-started' : 'stream-ended', { roomId: stream.roomId });
+      socketRef.current?.emit(live ? 'stream-started' : 'stream-ended', { roomId: stream.roomId, hostToken: stream.hostToken });
     } catch {}
   };
 
