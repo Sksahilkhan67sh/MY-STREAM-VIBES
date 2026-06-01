@@ -213,4 +213,44 @@ router.patch('/:id/close', async (req: Request, res: Response) => {
   }
 });
 
+
+// ── Recover active polls on server restart ───────────────────
+export async function recoverActivePolls() {
+  try {
+    const activePolls = await prisma.poll.findMany({
+      where: { status: 'active' },
+      include: { stream: true },
+    });
+    for (const poll of activePolls) {
+      if (!poll.endsAt) continue;
+      const msLeft = poll.endsAt.getTime() - Date.now();
+      if (msLeft <= 0) {
+        await prisma.poll.update({ where: { id: poll.id }, data: { status: 'closed' } });
+        const votes = JSON.parse(poll.votes as string) as number[];
+        getIo()?.to(poll.stream.roomId).emit('poll-closed', {
+          id: poll.id, votes,
+          totalVotes: votes.reduce((a: number, b: number) => a + b, 0),
+        });
+      } else {
+        setTimeout(async () => {
+          try {
+            await prisma.poll.update({ where: { id: poll.id }, data: { status: 'closed' } });
+            const updated = await prisma.poll.findUnique({ where: { id: poll.id } });
+            if (updated) {
+              const votes = JSON.parse(updated.votes as string) as number[];
+              getIo()?.to(poll.stream.roomId).emit('poll-closed', {
+                id: poll.id, votes,
+                totalVotes: votes.reduce((a: number, b: number) => a + b, 0),
+              });
+            }
+          } catch {}
+        }, msLeft);
+        console.log(`♻️ Recovered poll ${poll.id} — closes in ${Math.round(msLeft / 1000)}s`);
+      }
+    }
+  } catch (err) {
+    console.error('Poll recovery error:', err);
+  }
+}
+
 export default router;
