@@ -11,12 +11,12 @@ export default function IntroWrapper({ children }: IntroWrapperProps) {
 
   useEffect(() => {
     // Show intro only once per session
-    const seen = sessionStorage.getItem('sv-intro-seen');
+    const seen = localStorage.getItem('sv-intro-seen');
     if (!seen) setShowIntro(true);
   }, []);
 
   const handleComplete = () => {
-    sessionStorage.setItem('sv-intro-seen', '1');
+    localStorage.setItem('sv-intro-seen', '1');
     setShowIntro(false);
   };
 
