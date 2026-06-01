@@ -93,7 +93,9 @@ router.get('/:roomId', async (req, res) => {
 // PATCH /api/streams/:roomId
 router.patch('/:roomId', async (req, res) => {
   try {
-    const { hostToken, isLive, isRecording } = req.body;
+    // Only isLive is settable via this public PATCH endpoint
+    // isRecording is managed exclusively by the /api/egress routes to prevent state corruption
+    const { hostToken, isLive } = req.body;
     const stream = await prisma.stream.findUnique({
       where: { roomId: req.params.roomId },
     });
@@ -107,7 +109,6 @@ router.patch('/:roomId', async (req, res) => {
       where: { roomId: req.params.roomId },
       data: {
         ...(isLive !== undefined && { isLive }),
-        ...(isRecording !== undefined && { isRecording }),
       },
     });
 
