@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { incrementViewerCount, decrementViewerCount } from './redis';
+import prisma from './prisma';
 
 let io: SocketServer;
 
@@ -49,21 +50,18 @@ export function initSocket(httpServer: HttpServer) {
       socket.join(roomId);
       const count = await incrementViewerCount(roomId);
       io.to(roomId).emit('viewer-count', count);
+      // Keep DB viewerCount in sync so GET /api/streams returns accurate count
+      prisma.stream.update({ where: { roomId }, data: { viewerCount: count } }).catch(() => {});
       if (nickname) socket.to(roomId).emit('viewer-joined', { nickname });
     });
 
     socket.on('chat-message', ({ roomId, message, nickname }) => {
       if (!message?.trim() || message.length > 500) return;
       if (!roomId) return;
-      // Sanitize: strip HTML tags and control characters to prevent XSS/display issues
-      const sanitize = (s: string) => s.replace(/<[^>]*>/g, '').replace(/[\u0000-\u001F\u007F]/g, '').trim();
-      const safeNick = sanitize(nickname || 'Anonymous').slice(0, 30) || 'Anonymous';
-      const safeMsg  = sanitize(message).slice(0, 500);
-      if (!safeMsg) return;
       io.to(roomId).emit('chat-message', {
         id:        Date.now().toString(),
-        nickname:  safeNick,
-        message:   safeMsg,
+        nickname:  nickname || 'Anonymous',
+        message:   message.trim(),
         timestamp: new Date().toISOString(),
       });
     });
@@ -74,18 +72,33 @@ export function initSocket(httpServer: HttpServer) {
       io.to(roomId).emit('reaction', { emoji, id: Date.now() });
     });
 
-    socket.on('stream-started', ({ roomId }) => {
-      if (roomId) io.to(roomId).emit('stream-started');
+    // stream-started/ended must be authenticated with hostToken
+    // so random clients can't fake live/ended events to viewers
+    socket.on('stream-started', async ({ roomId, hostToken }) => {
+      if (!roomId || !hostToken) return;
+      try {
+        const stream = await prisma.stream.findUnique({ where: { roomId } });
+        if (!stream || stream.hostToken !== hostToken) return;
+        io.to(roomId).emit('stream-started');
+      } catch {}
     });
 
-    socket.on('stream-ended', ({ roomId }) => {
-      if (roomId) io.to(roomId).emit('stream-ended');
+    socket.on('stream-ended', async ({ roomId, hostToken }) => {
+      if (!roomId || !hostToken) return;
+      try {
+        const stream = await prisma.stream.findUnique({ where: { roomId } });
+        if (!stream || stream.hostToken !== hostToken) return;
+        io.to(roomId).emit('stream-ended');
+      } catch {}
     });
 
     socket.on('disconnect', async () => {
       if (currentRoom) {
         const count = await decrementViewerCount(currentRoom);
-        io.to(currentRoom).emit('viewer-count', Math.max(0, count));
+        const safe = Math.max(0, count);
+        io.to(currentRoom).emit('viewer-count', safe);
+        // Sync DB
+        prisma.stream.update({ where: { roomId: currentRoom }, data: { viewerCount: safe } }).catch(() => {});
       }
     });
   });
