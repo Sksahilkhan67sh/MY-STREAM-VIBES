@@ -18,22 +18,37 @@ export default function CoHostPageClient() {
   const params       = useParams();
   const searchParams = useSearchParams();
   const roomId       = params.id as string;
-  const coHostToken  = searchParams.get('token') || '';
+
+  // useSearchParams() can return empty during the Suspense pre-render pass.
+  // Fall back to window.location.search to guarantee we always get the token.
+  const coHostToken =
+    searchParams.get('token') ||
+    (typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('token')
+      : '') ||
+    '';
 
   const [data, setData]       = useState<CoHostData | null>(null);
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!coHostToken) {
+    // Re-read token inside the effect to be safe — runs only client-side
+    const token =
+      new URLSearchParams(window.location.search).get('token') ||
+      searchParams.get('token') ||
+      '';
+
+    if (!token) {
       setError('Missing co-host token. Use the invite link sent by the host.');
       setLoading(false);
       return;
     }
+
     fetch(`${API}/api/cohosts/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roomId, coHostToken }),
+      body: JSON.stringify({ roomId, coHostToken: token }),
     })
       .then(r => r.json().then(d => ({ ok: r.ok, d })))
       .then(({ ok, d }) => {
@@ -44,7 +59,7 @@ export default function CoHostPageClient() {
       })
       .catch(() => setError('Cannot connect to server.'))
       .finally(() => setLoading(false));
-  }, [roomId, coHostToken]);
+  }, [roomId]);
 
   if (loading) return (
     <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center"
