@@ -3,13 +3,15 @@ import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 
 export default auth((req) => {
-  const isLoggedIn = !!req.auth;
-  const isLoginPage = req.nextUrl.pathname === '/login';
-  const isHostPage = req.nextUrl.pathname.startsWith('/host');
-  const isApiAuth = req.nextUrl.pathname.startsWith('/api/auth');
+  const { pathname } = req.nextUrl;
+  const isLoggedIn   = !!req.auth;
+  const isLoginPage  = pathname === '/login';
+  const isHostPage   = pathname.startsWith('/host');
+  const isApiAuth    = pathname.startsWith('/api/auth');
+  const isCoHost     = pathname.startsWith('/cohost');   // ← FIX: allow co-host pages through
 
-  // Allow auth API routes through always
-  if (isApiAuth) return NextResponse.next();
+  // Always allow: auth API routes and co-host invite pages
+  if (isApiAuth || isCoHost) return NextResponse.next();
 
   // Redirect logged-in users away from login page
   if (isLoggedIn && isLoginPage) {
