@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from '@/components/ThemeContext';
+import IntroWrapper from '@/components/IntroWrapper';
 
 const FEATURES = [
   { icon: '⚡', title: 'Instant streams', desc: 'One click to go live. Share a link. Done.' },
@@ -52,6 +53,7 @@ export default function HomePage() {
   };
 
   return (
+    <IntroWrapper>
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200"
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
 
@@ -218,5 +220,6 @@ export default function HomePage() {
         </div>
       </footer>
     </div>
+    </IntroWrapper>
   );
 }
