@@ -7,16 +7,21 @@ interface IntroWrapperProps {
 }
 
 // Bump this key version whenever you want all users to see the intro again
-const INTRO_KEY = 'sv-intro-seen-v2';
+const INTRO_KEY = 'sv-intro-seen-v3';
 
 export default function IntroWrapper({ children }: IntroWrapperProps) {
-  const [showIntro, setShowIntro] = useState(false);
-  const [checked, setChecked] = useState(false);
+  // Start as true so the intro shows immediately on first render (no flicker)
+  // We'll hide it after checking localStorage if already seen
+  const [showIntro, setShowIntro] = useState(true);
+  const [checked,   setChecked]   = useState(false);
 
   useEffect(() => {
-    // Show intro only once per key version
     const seen = localStorage.getItem(INTRO_KEY);
-    if (!seen) setShowIntro(true);
+    if (seen) {
+      // Already seen — skip animation immediately
+      setShowIntro(false);
+    }
+    // else: leave showIntro=true so animation plays
     setChecked(true);
   }, []);
 
@@ -25,8 +30,11 @@ export default function IntroWrapper({ children }: IntroWrapperProps) {
     setShowIntro(false);
   };
 
-  // Don't render anything until we've checked localStorage (avoids SSR flash)
-  if (!checked) return null;
+  // While we haven't checked localStorage yet, show the intro overlay
+  // (this avoids the blank flash and also means first-timers see it instantly)
+  if (!checked) {
+    return <IntroAnimation onComplete={handleComplete} />;
+  }
 
   return (
     <>
