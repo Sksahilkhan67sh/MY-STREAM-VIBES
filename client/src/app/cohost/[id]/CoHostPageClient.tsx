@@ -39,6 +39,8 @@ export default function CoHostPageClient() {
       .then(({ ok, d }) => {
         if (!ok) { setError(d.error || 'Failed to join'); return; }
         setData(d);
+        // Remove token from URL so it doesn't appear in browser history or server logs
+        window.history.replaceState({}, '', `/cohost/${roomId}`);
       })
       .catch(() => setError('Cannot connect to server.'))
       .finally(() => setLoading(false));
