@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -11,36 +11,37 @@ interface PollData {
 
 interface PollCreatorProps {
   roomId: string; hostToken: string;
+  socket: Socket | null;   // reuse existing socket — no duplicate connections
   activePoll: PollData | null;
   onPollCreated: (p: PollData) => void;
   onPollClosed:  () => void;
 }
 
-export default function PollCreator({ roomId, hostToken, activePoll, onPollCreated, onPollClosed }: PollCreatorProps) {
+export default function PollCreator({ roomId, hostToken, socket, activePoll, onPollCreated, onPollClosed }: PollCreatorProps) {
   const [question, setQuestion] = useState('');
   const [options, setOptions]   = useState(['', '']);
   const [duration, setDuration] = useState(60);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [livePoll, setLivePoll] = useState<PollData | null>(activePoll);
-  const socketRef = useRef<Socket | null>(null);
-
   useEffect(() => { setLivePoll(activePoll); }, [activePoll]);
 
-  // Subscribe to real-time vote updates so host sees votes as they come in
+  // Use the socket passed from parent — no duplicate connections
   useEffect(() => {
-    if (!roomId) return;
-    const sock = io(API, { transports: ['websocket', 'polling'] });
-    socketRef.current = sock;
-    sock.on('connect', () => sock.emit('join-room', { roomId, nickname: 'Host' }));
-    sock.on('poll-updated', ({ id, votes, totalVotes }: { id: string; votes: number[]; totalVotes: number }) => {
+    if (!socket) return;
+    const onUpdated = ({ id, votes, totalVotes }: { id: string; votes: number[]; totalVotes: number }) => {
       setLivePoll(prev => prev?.id === id ? { ...prev, votes, totalVotes } as PollData : prev);
-    });
-    sock.on('poll-closed', ({ id, votes, totalVotes }: { id: string; votes: number[]; totalVotes: number }) => {
+    };
+    const onClosed = ({ id, votes, totalVotes }: { id: string; votes: number[]; totalVotes: number }) => {
       setLivePoll(prev => prev?.id === id ? { ...prev, status: 'closed', votes, totalVotes } as PollData : prev);
-    });
-    return () => { sock.disconnect(); socketRef.current = null; };
-  }, [roomId]);
+    };
+    socket.on('poll-updated', onUpdated);
+    socket.on('poll-closed', onClosed);
+    return () => {
+      socket.off('poll-updated', onUpdated);
+      socket.off('poll-closed', onClosed);
+    };
+  }, [socket]);
 
   const addOption    = () => { if (options.length < 6) setOptions([...options, '']); };
   const removeOption = (i: number) => { if (options.length > 2) setOptions(options.filter((_, idx) => idx !== i)); };
