@@ -12,8 +12,9 @@ interface PollData {
 
 function getVoterId(): string {
   if (typeof window === 'undefined') return Math.random().toString(36).slice(2);
-  let id = sessionStorage.getItem('sv-voter-id');
-  if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem('sv-voter-id', id); }
+  // localStorage persists across tabs and socket reconnects — prevents double voting
+  let id = localStorage.getItem('sv-voter-id');
+  if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('sv-voter-id', id); }
   return id;
 }
 
@@ -56,16 +57,13 @@ export default function PollWidget({ roomId, socket }: { roomId: string; socket:
   }, [roomId]);
 
   useEffect(() => {
-    // Use a ref to track dismissed so interval always reads latest value (no stale closure)
-    const dismissedRef = { current: dismissed };
     const iv = setInterval(() => {
-      if (dismissedRef.current) return;
+      if (dismissed) return;
       fetch(`${API}/api/polls/${roomId}/active`)
         .then(r => r.ok ? r.json() : null)
         .then((d: PollData | null) => { if (d && d.id !== currentId.current) showPoll(d); })
         .catch(() => {});
     }, 3000);
-    dismissedRef.current = dismissed;
     return () => clearInterval(iv);
   }, [roomId, dismissed]);
 
