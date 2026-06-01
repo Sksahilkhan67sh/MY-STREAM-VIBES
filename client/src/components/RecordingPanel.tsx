@@ -216,7 +216,7 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
               <div className="flex items-center gap-2">
                 {r.exists && (
                   <a
-                    href={`${API}${r.downloadUrl}`}
+                    href={`${API}${r.downloadUrl}${r.downloadUrl?.includes('?') ? '&' : '?'}hostToken=${encodeURIComponent(hostToken)}`}
                     download={r.fileName}
                     className="flex-1 text-center py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800 transition-colors"
                   >
