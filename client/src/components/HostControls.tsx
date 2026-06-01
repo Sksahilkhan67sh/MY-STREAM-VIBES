@@ -11,6 +11,7 @@ import CoHostManager from './CoHostManager';
 import RtmpModal from './RtmpModal';
 import RecordingPanel from './RecordingPanel';
 import PollCreator from './PollCreator';
+import { useStreamStore } from '../store/stream';
 import ColorGrading, { ColorSettings, DEFAULT_SETTINGS, buildFilter, buildVignette } from './ColorGrading';
 import ResolutionPicker, { Resolution, DEFAULT_RESOLUTION } from './ResolutionPicker';
 import { ThemeToggle } from './ThemeContext';
@@ -268,6 +269,15 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const bothOn       = cameraOn && screenOn;
   const remoteParticipants = useRemoteParticipants();
   const coHostPresent = remoteParticipants.some(p => p.identity.startsWith('cohost-'));
+
+  // Sync global store so other components can read stream state without prop drilling
+  const { setStream, setLive, setRecording, setViewerCount, reset } = useStreamStore();
+  useEffect(() => {
+    setStream(stream.roomId, stream.hostToken, stream.livekitToken);
+    return () => reset();
+  }, [stream.roomId]);
+  useEffect(() => { setLive(isLive); }, [isLive]);
+  useEffect(() => { setRecording(isRecording); }, [isRecording]);
   const isConnected  = roomState === ConnectionState.Connected;
   const isConnecting = roomState === ConnectionState.Connecting || roomState === ConnectionState.Reconnecting;
 
@@ -920,7 +930,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                   {activePanel === 'resolution' && <ResolutionPicker value={resolution} onChange={setResolution} disabled={isLive} />}
                   {activePanel === 'color'      && <ColorGrading settings={colorSettings} onChange={setColorSettings} />}
                   {activePanel === 'recording'  && <RecordingPanel roomId={stream.roomId} hostToken={stream.hostToken} streams={activeStreams} />}
-                  {activePanel === 'poll'       && <PollCreator roomId={stream.roomId} hostToken={stream.hostToken} activePoll={activePoll} onPollCreated={setActivePoll} onPollClosed={() => setActivePoll(null)} />}
+                  {activePanel === 'poll'       && <PollCreator roomId={stream.roomId} hostToken={stream.hostToken} socket={socketRef.current} activePoll={activePoll} onPollCreated={setActivePoll} onPollClosed={() => setActivePoll(null)} />}
                   {activePanel === 'social'     && (
                     <div className="space-y-3">
                       {!isLive
