@@ -2,6 +2,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeContext';
+import { SessionProvider } from 'next-auth/react';
 
 export const metadata: Metadata = {
   title: 'StreamVault — Free Private Live Streaming, No Account Needed',
@@ -43,9 +44,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );
