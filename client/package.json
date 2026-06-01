@@ -22,7 +22,8 @@
     "framer-motion": "^11.0.0",
     "date-fns": "^3.3.1",
     "clsx": "^2.1.0",
-    "lucide-react": "^0.344.0"
+    "lucide-react": "^0.344.0",
+    "next-auth": "^5.0.0-beta.28"
   },
   "devDependencies": {
     "@types/node": "^20",
