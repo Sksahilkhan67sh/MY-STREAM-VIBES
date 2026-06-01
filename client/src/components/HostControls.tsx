@@ -230,6 +230,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
   const [roomState, setRoomState]       = useState<ConnectionState>(ConnectionState.Disconnected);
   const [isLive, setIsLive]             = useState(false);
+  const [isRecording, setIsRecording]   = useState(false);
   const [cameraOn, setCameraOn]         = useState(false);
   const [screenOn, setScreenOn]         = useState(false);
   const [micOn, setMicOn]               = useState(false);
