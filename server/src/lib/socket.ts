@@ -56,4 +56,52 @@ export function initSocket(httpServer: HttpServer) {
       if (!message?.trim() || message.length > 500) return;
       if (!roomId) return;
       // Sanitize: strip HTML tags and control characters to prevent XSS/display issues
-      const sanitize = (s: string) => s.replace(/<[^>]*>/g, '').replace(/[
+      const sanitize = (s: string) => s.replace(/<[^>]*>/g, '').replace(/[\u0000-\u001F\u007F]/g, '').trim();
+      const safeNick = sanitize(nickname || 'Anonymous').slice(0, 30) || 'Anonymous';
+      const safeMsg  = sanitize(message).slice(0, 500);
+      if (!safeMsg) return;
+      io.to(roomId).emit('chat-message', {
+        id:        Date.now().toString(),
+        nickname:  safeNick,
+        message:   safeMsg,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    socket.on('reaction', ({ roomId, emoji }) => {
+      const allowed = ['❤️', '😂', '🔥', '👏', '😮', '🎉'];
+      if (!allowed.includes(emoji) || !roomId) return;
+      io.to(roomId).emit('reaction', { emoji, id: Date.now() });
+    });
+
+    socket.on('stream-started', ({ roomId }) => {
+      if (roomId) io.to(roomId).emit('stream-started');
+    });
+
+    socket.on('stream-ended', ({ roomId }) => {
+      if (roomId) io.to(roomId).emit('stream-ended');
+    });
+
+    socket.on('disconnect', async () => {
+      if (currentRoom) {
+        const count = await decrementViewerCount(currentRoom);
+        io.to(currentRoom).emit('viewer-count', Math.max(0, count));
+      }
+    });
+  });
+
+  console.log('✅ Socket.io initialized');
+  return io;
+}
+
+export function getIo() {
+  return io;
+}
+
+export function broadcastToRoom(roomId: string, event: string, data: unknown) {
+  if (io) {
+    io.to(roomId).emit(event, data);
+    return true;
+  }
+  return false;
+}
