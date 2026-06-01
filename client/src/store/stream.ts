@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+// Global stream state — synced by HostControls so other components
+// (e.g. future analytics panel, browser tab title) can read it without prop drilling
 interface StreamState {
   roomId: string | null;
   hostToken: string | null;
