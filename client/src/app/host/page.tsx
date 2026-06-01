@@ -174,4 +174,8 @@ export default function HostPage() {
       </div>
     </div>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 45ed43b (fix: SessionProvider, auth route, type augmentation, image domains)
