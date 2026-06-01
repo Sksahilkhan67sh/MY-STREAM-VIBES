@@ -1,9 +1,12 @@
+// client/src/app/host/page.tsx
 'use client';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import HostControls from '@/components/HostControls';
 import { ThemeToggle } from '@/components/ThemeContext';
-import { AuthGuard, useAuth } from '@/components/AuthGuard';
 
 const API     = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:4000';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL  || 'http://localhost:3000';
@@ -13,14 +16,29 @@ interface StreamData {
   viewerUrl: string; expiresAt: string;
 }
 
-function HostPageInner() {
-  const { logout } = useAuth();
+export default function HostPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
   const [title, setTitle]       = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [stream, setStream]     = useState<StreamData | null>(null);
   const [copied, setCopied]     = useState(false);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') router.replace('/login');
+  }, [status, router]);
+
+  if (status === 'loading' || status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
+        <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-gray-900 animate-spin" />
+      </div>
+    );
+  }
 
   const createStream = async () => {
     if (!title.trim()) { setError('Enter a stream title'); return; }
@@ -61,9 +79,20 @@ function HostPageInner() {
           <span className="font-bold text-base tracking-tight text-gray-900 dark:text-gray-100">StreamVault</span>
         </a>
         <div className="flex items-center gap-3">
+          {/* User avatar */}
+          {session?.user?.image && (
+            <img
+              src={session.user.image}
+              alt={session.user.name || ''}
+              className="w-7 h-7 rounded-full border border-gray-200 dark:border-gray-700"
+            />
+          )}
+          <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:block">
+            {session?.user?.name}
+          </span>
           <ThemeToggle />
           <button
-            onClick={logout}
+            onClick={() => signOut({ callbackUrl: '/login' })}
             className="text-xs font-semibold text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           >
             Sign out
@@ -79,7 +108,7 @@ function HostPageInner() {
           transition={{ duration: 0.4 }}
           className="w-full max-w-sm"
         >
-          <h1 className="text-2xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1 tracking-tight"
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1 tracking-tight"
             style={{ letterSpacing: '-0.02em' }}>
             Create a stream
           </h1>
@@ -101,7 +130,7 @@ function HostPageInner() {
                 className="w-full px-4 py-3.5 sm:py-3 text-sm border border-gray-200 dark:border-gray-700 rounded-xl sm:rounded-lg
                   focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 transition-colors
                   placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-gray-100
-                  bg-white dark:bg-gray-900 text-base sm:text-sm"
+                  bg-white dark:bg-gray-900"
                 style={{ fontSize: '16px' }}
               />
             </div>
@@ -143,13 +172,5 @@ function HostPageInner() {
         </motion.div>
       </div>
     </div>
-  );
-}
-
-export default function HostPage() {
-  return (
-    <AuthGuard>
-      <HostPageInner />
-    </AuthGuard>
   );
 }
