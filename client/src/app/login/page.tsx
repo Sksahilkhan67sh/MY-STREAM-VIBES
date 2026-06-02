@@ -48,11 +48,11 @@ export default function LoginPage() {
       >
         {/* Logo */}
         <div className="flex items-center gap-2 mb-8 justify-center">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-          <span className="font-bold text-lg tracking-tight text-gray-900 dark:text-gray-100">
-            StreamVault
-          </span>
-        </div>
+  <img src="/logo.png" alt="StreamVault" className="w-8 h-8 object-contain" />
+  <span className="font-bold text-lg tracking-tight text-gray-900 dark:text-gray-100">
+    StreamVault
+  </span>
+</div>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
           <div className="mb-6">
