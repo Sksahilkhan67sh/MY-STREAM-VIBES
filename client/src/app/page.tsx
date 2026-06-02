@@ -213,9 +213,9 @@ export default function HomePage() {
       <footer className="border-t border-gray-100 dark:border-gray-800 py-6 sm:py-8 px-4 sm:px-8 transition-colors duration-200">
         <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-2 sm:gap-0 justify-between text-xs text-gray-400 dark:text-gray-600">
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-            <span>StreamVault</span>
-          </div>
+  <img src="/logo.png" alt="StreamVault" className="w-5 h-5 object-contain" />
+  <span>StreamVault</span>
+</div>
           <span>Private live streaming · Free forever</span>
         </div>
       </footer>
