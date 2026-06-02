@@ -372,9 +372,9 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
       <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="font-bold text-sm text-gray-900 dark:text-gray-100">StreamVault</span>
-          </div>
+  <img src="/logo.png" alt="StreamVault" className="w-6 h-6 object-contain" />
+  <span className="font-bold text-sm text-gray-900 dark:text-gray-100">StreamVault</span>
+</div>
           <span className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-100 dark:border-blue-500/20">
             🎙 Co-Host
           </span>
