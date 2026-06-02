@@ -254,10 +254,9 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const viewerLink   = `${appUrl}${stream.viewerUrl}`;
   const bothOn       = cameraOn && screenOn;
   const remoteParticipants = useRemoteParticipants();
-  // Count unique co-host identities (prefix cohost-)
   const coHostParticipants = remoteParticipants.filter(p => p.identity.startsWith('cohost-'));
-  const coHostCount  = coHostParticipants.length; // 0, 1, 2, or 3
-  const totalCount   = 1 + coHostCount; // host + cohosts
+  const coHostCount  = coHostParticipants.length;
+  const totalCount   = 1 + coHostCount;
 
   const { setStream, setLive, setRecording, reset } = useStreamStore();
   useEffect(() => {
@@ -278,15 +277,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     return () => { room.off('connectionStateChanged', update); };
   }, [room]);
 
-  // ── Graded canvas ──────────────────────────────────────────
-  // Builds ONLY primitive CSS filter functions — NO svg url() which taints canvas
   const buildSafeCtxFilter = () => {
     const cs = colorSettingsRef.current;
     const bright = 1 + cs.brightness / 100;
     const cont   = 1 + cs.contrast   / 100;
     const sat    = Math.max(0, 1 + cs.saturation / 100);
     const hueRot = cs.hue + cs.warmth * 0.08;
-    // Sharpness: approximate with contrast boost (no SVG convolution = no canvas taint)
     const sharpBoost = cs.sharpness > 0 ? 1 + cs.sharpness * 0.004 : 1;
     return [
       `brightness(${bright.toFixed(3)})`,
@@ -300,7 +296,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     const srcVideo = cameraVideoRef.current;
     if (!srcVideo) return;
 
-    // Wait for video to have real dimensions
     await new Promise<void>(resolve => {
       if (srcVideo.videoWidth > 0) { resolve(); return; }
       const h = () => { resolve(); srcVideo.removeEventListener('loadedmetadata', h); };
@@ -308,7 +303,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       setTimeout(resolve, 2000);
     });
 
-    // Stop any previous loop
     cancelAnimationFrame(gradedRafRef.current);
 
     const canvas = document.createElement('canvas');
@@ -319,11 +313,9 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
     const drawFrame = () => {
       if (srcVideo.readyState >= 2 && srcVideo.videoWidth > 0) {
-        // Resize canvas if video dimensions changed (clears ctx state — must reapply filter)
         if (canvas.width  !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
         if (canvas.height !== srcVideo.videoHeight) canvas.height = srcVideo.videoHeight;
 
-        // Apply safe primitive-only filter (no SVG url() = no canvas taint)
         ctx.filter = buildSafeCtxFilter();
 
         if ((window as any).__cameraFlipped) {
@@ -336,7 +328,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
         }
 
-        // Vignette overlay — drawn with filter:'none' so it doesn't get double-filtered
         const cs = colorSettingsRef.current;
         if (cs.vignette > 0) {
           ctx.filter = 'none';
@@ -353,14 +344,11 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       }
     };
 
-    // Draw one real frame before captureStream so viewers never get a blank first frame
     drawFrame();
 
-    // Start the RAF draw loop
     const loop = () => { drawFrame(); gradedRafRef.current = requestAnimationFrame(loop); };
     gradedRafRef.current = requestAnimationFrame(loop);
 
-    // Capture stream AFTER first frame is drawn
     const ms = (canvas as any).captureStream(30) as MediaStream;
     const vt = ms.getVideoTracks()[0];
     if (!vt) { cancelAnimationFrame(gradedRafRef.current); return; }
@@ -368,7 +356,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     const { LocalVideoTrack: LVT } = await import('livekit-client');
     const lvt = new LVT(vt, undefined, false);
 
-    // Publish canvas track first so there's never a gap for viewers
     try {
       await localParticipant.publishTrack(lvt, { source: Track.Source.Camera });
     } catch (e) {
@@ -376,13 +363,10 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       return;
     }
 
-    // Unpublish raw camera track — stopOnUnpublish=false keeps MediaStreamTrack alive
-    // so canvas drawImage loop keeps reading live frames
     if (cameraTrackRef.current) {
       try { await localParticipant.unpublishTrack(cameraTrackRef.current, false); } catch {}
     }
 
-    // Clean up any previous graded track
     if (gradedTrackRef.current && gradedTrackRef.current !== lvt) {
       try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
     }
@@ -391,8 +375,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     gradedActiveRef.current = true;
   };
 
-  // Watch colorSettings — start/stop canvas grading as needed
-  // colorSettingsRef always has the latest value so the RAF loop picks it up immediately
   useEffect(() => {
     if (!cameraOn) return;
 
@@ -401,7 +383,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     );
 
     if (isDefault) {
-      // Back to no grading — tear down canvas, republish raw track
       if (gradedActiveRef.current) {
         gradedActiveRef.current = false;
         cancelAnimationFrame(gradedRafRef.current);
@@ -411,14 +392,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           gradedTrackRef.current = null;
         }
 
-        // Republish raw camera track (recreate if its MediaStreamTrack was stopped)
         if (cameraTrackRef.current) {
           const mst = cameraTrackRef.current.mediaStreamTrack;
           if (mst && mst.readyState === 'ended') {
             const stream = cameraVideoRef.current?.srcObject as MediaStream | null;
             const liveTracks = stream?.getVideoTracks().filter(t => t.readyState === 'live');
             if (liveTracks?.length) {
-              // eslint-disable-next-line @typescript-eslint/no-var-requires
               cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
             }
           }
@@ -426,13 +405,9 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         }
       }
     } else {
-      // Non-default settings — ensure canvas is running
       if (!gradedActiveRef.current) {
-        // Not yet running — start it (sets gradedActiveRef.current=true when ready)
         startGradedCanvas();
       }
-      // If already running, colorSettingsRef is already updated so the RAF loop
-      // will pick up the new values on the very next frame — no restart needed
     }
   }, [colorSettings, cameraOn]);
 
@@ -590,9 +565,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     { id: 'cohost',     label: 'Co-Hosts',      badge: coHostCount > 0 ? `${coHostCount}` : null },
   ];
 
-  // ── Render the preview area based on participant count ───────
   const renderPreviewArea = () => {
-    // 1 host only
     if (coHostCount === 0) {
       return (
         <div className="flex-1 flex flex-col min-h-0 bg-zinc-950 overflow-hidden">
@@ -607,7 +580,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       );
     }
 
-    // 2 participants (host + 1 cohost) — stacked
     if (totalCount === 2) {
       return (
         <div className="flex-1 flex flex-col min-h-0 bg-zinc-950 overflow-hidden">
@@ -627,7 +599,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       );
     }
 
-    // 3 participants (host + 2 cohosts) — host top, 2 cohosts below side by side
     if (totalCount === 3) {
       return (
         <div className="flex-1 flex flex-col min-h-0 bg-zinc-950 overflow-hidden">
@@ -651,12 +622,10 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       );
     }
 
-    // 4 participants (host + 3 cohosts) — 2x2 grid or stacked based on layoutMode
     if (totalCount >= 4) {
       if (layoutMode === 'grid2x2') {
         return (
           <div className="flex-1 grid grid-cols-2 grid-rows-2 min-h-0 bg-zinc-950 overflow-hidden gap-px bg-zinc-800">
-            {/* Host top-left */}
             <div className="bg-zinc-950 overflow-hidden flex flex-col min-h-0">
               <HostStreamSection
                 cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
@@ -666,7 +635,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                 colorSettings={colorSettings} isConnecting={isConnecting} isConnected={isConnected}
               />
             </div>
-            {/* Co-hosts fill remaining 3 slots */}
             {[0,1,2].map((i) => (
               <div key={i} className="bg-zinc-950 overflow-hidden flex flex-col min-h-0">
                 {coHostParticipants[i] ? (
@@ -679,7 +647,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           </div>
         );
       }
-      // Default stack layout for 4 — host full top, cohosts in row below
       return (
         <div className="flex-1 flex flex-col min-h-0 bg-zinc-950 overflow-hidden">
           <div className="flex-[2] min-h-0 overflow-hidden flex flex-col">
@@ -713,9 +680,9 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
       <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-  <img src="/logo.png" alt="StreamVault" className="w-6 h-6 object-contain" />
-  <span className="font-bold text-sm text-gray-900 dark:text-gray-100">StreamVault</span>
-</div>
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span className="font-bold text-sm text-gray-900 dark:text-gray-100">StreamVault</span>
+          </div>
           {coHostCount > 0 && (
             <span className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-100 dark:border-blue-500/20">
               🎙 Co-Host
@@ -943,16 +910,18 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                 ))}
               </div>
             )}
+
             {activePanel && (
               <div>
                 <button onClick={() => setActivePanel(null)}
                   className="flex items-center gap-2 px-4 py-3.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 border-b border-gray-100 dark:border-gray-800 w-full transition-colors">
                   {Icons.back} Back to tools
                 </button>
+
+                {/* ── ALL NON-RECORDING PANELS ── */}
                 <div className="p-4">
                   {activePanel === 'resolution' && <ResolutionPicker value={resolution} onChange={setResolution} disabled={isLive} />}
                   {activePanel === 'color'      && <ColorGrading settings={colorSettings} onChange={setColorSettings} />}
-                  {activePanel === 'recording'  && <RecordingPanel roomId={stream.roomId} hostToken={stream.hostToken} streams={activeStreams} />}
                   {activePanel === 'poll'       && <PollCreator roomId={stream.roomId} hostToken={stream.hostToken} socket={socketRef.current} activePoll={activePoll} onPollCreated={setActivePoll} onPollClosed={() => setActivePoll(null)} />}
                   {activePanel === 'social'     && (
                     <div className="space-y-3">
@@ -998,6 +967,20 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                 </div>
               </div>
             )}
+
+            {/*
+              ── RECORDING PANEL — ALWAYS MOUNTED, NEVER DESTROYED ──
+              This stays in the DOM at all times so the MediaRecorder
+              is never killed when the user closes the panel or switches tabs.
+              It is simply hidden/shown with CSS visibility.
+            */}
+            <div className={activePanel === 'recording' ? 'block p-4' : 'hidden'}>
+              <RecordingPanel
+                roomId={stream.roomId}
+                hostToken={stream.hostToken}
+                streams={activeStreams}
+              />
+            </div>
           </div>
         )}
       </Panel>
