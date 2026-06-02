@@ -7,6 +7,12 @@ export const metadata: Metadata = {
   title: 'StreamVault — Free Private Live Streaming, No Account Needed',
   description: 'Create a private live stream in seconds. Share a link instantly. No sign-up, no downloads. Stream to YouTube & Instagram simultaneously. Free forever.',
   keywords: 'free live streaming, private live stream, stream without account, stream share link, browser live stream',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/apple-icon.png',
+    other: [{ rel: 'icon', url: '/icon.png', sizes: '32x32', type: 'image/png' }],
+  },
   openGraph: {
     title: 'StreamVault — Free Private Live Streaming',
     description: 'Go live in one click. Share a link. No account needed.',
