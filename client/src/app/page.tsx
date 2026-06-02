@@ -66,9 +66,9 @@ export default function HomePage() {
       {/* Nav */}
       <nav className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 border-b border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="font-bold text-base sm:text-lg tracking-tight">StreamVault</span>
-        </div>
+  <img src="/logo.png" alt="StreamVault" className="w-7 h-7 object-contain" />
+  <span className="font-bold text-base sm:text-lg tracking-tight">StreamVault</span>
+  </div>
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
           <button
