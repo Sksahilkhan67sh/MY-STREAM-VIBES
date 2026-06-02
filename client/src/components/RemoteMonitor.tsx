@@ -1,8 +1,10 @@
 'use client';
 /**
- * RemoteMonitor — shows all remote participants' tracks as clickable tiles.
- * Click any tile to swap it into the main preview area.
- * Used by both HostControls (to see co-hosts) and CoHostStudio (to see host).
+ * RemoteMonitor — shows remote participants' tracks as a main view + optional PiP.
+ * Supports:
+ *   filterPrefix  — match participants whose identity STARTS WITH this string
+ *   filterExact   — match participants whose identity IS exactly this string
+ * Used by HostControls (to see co-hosts) and CoHostStudio (to see host/other co-hosts).
  */
 import { useState, useRef, useEffect } from 'react';
 import { useTracks, VideoTrack, useLocalParticipant } from '@livekit/components-react';
@@ -10,47 +12,36 @@ import { Track } from 'livekit-client';
 
 interface RemoteMonitorProps {
   filterPrefix?: string;
+  filterExact?:  string;
   label?: string;
 }
 
-export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: RemoteMonitorProps) {
+export default function RemoteMonitor({ filterPrefix, filterExact, label = 'Participants' }: RemoteMonitorProps) {
   const [mainKey, setMainKey] = useState<string | null>(null);
-  const { localParticipant } = useLocalParticipant();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [videoHeight, setVideoHeight] = useState(180);
-
-  // Measure actual rendered width and derive 16:9 height — works in all contexts
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(entries => {
-      const width = entries[0].contentRect.width;
-      if (width > 0) setVideoHeight(Math.round(width * 9 / 16));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const { localParticipant }  = useLocalParticipant();
+  const containerRef          = useRef<HTMLDivElement>(null);
 
   const tracks = useTracks(
     [Track.Source.Camera, Track.Source.ScreenShare],
     { onlySubscribed: true }
   );
 
-  // Exclude own tracks + filter by prefix
+  // Exclude own tracks + apply filter
   const remoteTracks = tracks.filter(t => {
     if (t.participant.identity === localParticipant.identity) return false;
+    if (filterExact)  return t.participant.identity === filterExact;
     if (filterPrefix) return t.participant.identity.startsWith(filterPrefix);
     return true;
   });
 
-  // Deduplicate — one track per participant per source
+  // Deduplicate — one entry per participant per source
   const seen = new Map<string, typeof tracks[0]>();
   remoteTracks.forEach(t => seen.set(`${t.participant.identity}:${t.source}`, t));
   const dedupedTracks = Array.from(seen.values());
 
   if (dedupedTracks.length === 0) return null;
 
-  // Stable mainKey — if it no longer exists fall back to screen share, then first track
+  // Stable mainKey fallback
   const keyExists = mainKey
     ? dedupedTracks.some(t => `${t.participant.identity}:${t.source}` === mainKey)
     : false;
@@ -75,6 +66,7 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
 
   return (
     <div ref={containerRef} className="flex-1 min-h-0 flex flex-col bg-zinc-950 overflow-hidden">
+      {/* Label bar */}
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
           <span className="text-purple-400">👥</span> {label}
@@ -82,18 +74,18 @@ export default function RemoteMonitor({ filterPrefix, label = 'Participants' }: 
         {thumbTracks.length > 0 && <p className="text-[10px] text-zinc-500">Click to swap POV</p>}
       </div>
 
-      {/* Main preview — fills remaining height of its 50% flex slot */}
+      {/* Main preview */}
       <div className="flex-1 min-h-0 w-full bg-black relative overflow-hidden">
         <VideoTrack trackRef={mainTrack} className="w-full h-full object-contain" />
 
-        {/* Name badge bottom-left */}
+        {/* Name badge */}
         <div className="absolute bottom-2 left-2 z-10">
           <span className="text-[10px] bg-black/70 text-white px-2 py-0.5 rounded-full font-semibold">
             {mainTrack.source === Track.Source.ScreenShare ? '🖥' : '📷'} {displayName(mainTrack)}
           </span>
         </div>
 
-        {/* PiP corner — show secondary track bottom-right */}
+        {/* PiP corner — secondary track */}
         {thumbTracks.length > 0 && (
           <div
             className="absolute bottom-2 right-2 z-10 w-28 h-16 sm:w-36 sm:h-20 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl cursor-pointer hover:border-white/50 transition-all group"
