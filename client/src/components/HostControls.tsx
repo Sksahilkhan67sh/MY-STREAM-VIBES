@@ -1,10 +1,15 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { LiveKitRoom, useLocalParticipant, useRoomContext, useTracks, useRemoteParticipants, VideoTrack } from '@livekit/components-react';
+import {
+  LiveKitRoom, useLocalParticipant, useRoomContext, useRemoteParticipants,
+} from '@livekit/components-react';
 import { io as socketIo } from 'socket.io-client';
 import RemoteMonitor from './RemoteMonitor';
 import '@livekit/components-styles';
-import { Track, createLocalVideoTrack, createLocalScreenTracks, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack, ConnectionState } from 'livekit-client';
+import {
+  Track, createLocalVideoTrack, createLocalScreenTracks, createLocalAudioTrack,
+  LocalVideoTrack, LocalAudioTrack, ConnectionState,
+} from 'livekit-client';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatPanel from './ChatPanel';
 import CoHostManager from './CoHostManager';
@@ -21,7 +26,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 interface StreamData { roomId: string; hostToken: string; livekitToken: string; viewerUrl: string; expiresAt: string; }
 interface HostControlsProps { stream: StreamData; appUrl: string; onCopy: () => void; copied: boolean; }
 
-// ── Icon SVGs ──────────────────────────────────────────────────
+// ── SVG Icons ─────────────────────────────────────────────────
 const Icons = {
   camera: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" /></svg>,
   screen: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>,
@@ -38,19 +43,21 @@ const Icons = {
   check:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>,
   tools:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
   chat:   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
+  grid1:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={1.5}/></svg>,
+  grid2:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h18v18H3V3zm9 0v18"/></svg>,
+  grid3:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h18v18H3V3zm0 9h18m-9-9v18"/></svg>,
 };
 
-// ── Control button ─────────────────────────────────────────────
+// ── Control Button ─────────────────────────────────────────────
 function CtrlBtn({ active, disabled, onClick, children, danger, full }: {
   active?: boolean; disabled?: boolean; onClick: () => void;
   children: React.ReactNode; danger?: boolean; full?: boolean;
 }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
-        disabled:opacity-30 disabled:cursor-not-allowed ${full ? 'w-full' : ''}
+      className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed ${full ? 'w-full' : ''}
         ${danger
-          ? 'bg-red-500/10 dark:bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20'
+          ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20'
           : active
             ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border border-transparent'
             : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'}`}>
@@ -59,7 +66,7 @@ function CtrlBtn({ active, disabled, onClick, children, danger, full }: {
   );
 }
 
-// ── Slide panel (from right on desktop, from bottom on mobile) ─
+// ── Slide panel (right drawer) ─────────────────────────────────
 function Panel({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   return (
     <AnimatePresence>
@@ -67,19 +74,16 @@ function Panel({ open, onClose, children }: { open: boolean; onClose: () => void
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose} className="fixed inset-0 bg-black/30 z-40" />
-          {/* Desktop: slide from right */}
           <motion.div
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 320 }}
             className="hidden sm:flex fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800 z-50 flex-col shadow-2xl">
             {children}
           </motion.div>
-          {/* Mobile: slide from bottom */}
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 320 }}
             className="sm:hidden fixed left-0 right-0 bottom-0 max-h-[85vh] bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800 z-50 flex flex-col shadow-2xl rounded-t-2xl">
-            {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
               <div className="w-10 h-1 bg-gray-200 dark:bg-gray-700 rounded-full" />
             </div>
@@ -91,7 +95,7 @@ function Panel({ open, onClose, children }: { open: boolean; onClose: () => void
   );
 }
 
-// ── Video preview ──────────────────────────────────────────────
+// ── Video Preview (local) ──────────────────────────────────────
 function VideoPreview({ cameraRef, screenRef, cameraOn, screenOn, mainIsCam, colorSettings, flipped }: {
   cameraRef: React.RefObject<HTMLVideoElement | null>;
   screenRef: React.RefObject<HTMLVideoElement | null>;
@@ -108,10 +112,8 @@ function VideoPreview({ cameraRef, screenRef, cameraOn, screenOn, mainIsCam, col
     if (s !== dst.srcObject) dst.srcObject = s;
   });
   if (!cameraOn && !screenOn) return null;
-  const filter = buildFilter(colorSettings);
-  const transform = (mainIsCam && flipped) ? 'scaleX(-1)' : undefined;
   return <video ref={ref} autoPlay muted playsInline className="w-full h-full object-contain"
-    style={{ filter, transform }} />;
+    style={{ filter: buildFilter(colorSettings), transform: (mainIsCam && flipped) ? 'scaleX(-1)' : undefined }} />;
 }
 
 function PipVideo({ cameraRef, screenRef, mainIsCam, colorSettings, flipped }: {
@@ -128,13 +130,11 @@ function PipVideo({ cameraRef, screenRef, mainIsCam, colorSettings, flipped }: {
     if (s !== dst.srcObject) dst.srcObject = s;
   });
   const isShowingCam = !mainIsCam;
-  const transform = (isShowingCam && flipped) ? 'scaleX(-1)' : undefined;
   return <video ref={ref} autoPlay muted playsInline className="w-full h-full object-cover"
-    style={{ filter: buildFilter(colorSettings), transform }} />;
+    style={{ filter: buildFilter(colorSettings), transform: (isShowingCam && flipped) ? 'scaleX(-1)' : undefined }} />;
 }
 
-
-// ── HostStreamSection: labeled 16:9 box for host's own preview ──
+// ── Host Stream Section ────────────────────────────────────────
 function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn, bothOn,
   pipSwapped, setPipSwapped, cameraFlipped, facingMode, colorSettings, isConnecting, isConnected }: {
   cameraVideoRef: React.RefObject<HTMLVideoElement | null>;
@@ -144,23 +144,8 @@ function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn,
   cameraFlipped: boolean; facingMode: string;
   colorSettings: ColorSettings; isConnecting: boolean; isConnected: boolean;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [videoHeight, setVideoHeight] = useState(180);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(entries => {
-      const w = entries[0].contentRect.width;
-      if (w > 0) setVideoHeight(Math.round(w * 9 / 16));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-zinc-950 overflow-hidden">
-      {/* Label row */}
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
           <span className="text-blue-400">👤</span> Host Stream (You)
@@ -172,15 +157,13 @@ function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn,
           </button>
         )}
       </div>
-      {/* Video fills remaining height */}
-      <div ref={containerRef} className="flex-1 min-h-0 w-full bg-black relative overflow-hidden">
+      <div className="flex-1 min-h-0 w-full bg-black relative overflow-hidden">
         <VideoPreview
           cameraRef={cameraVideoRef} screenRef={screenVideoRef}
           cameraOn={cameraOn} screenOn={screenOn}
           mainIsCam={pipSwapped} colorSettings={colorSettings}
           flipped={cameraFlipped}
         />
-        {/* PiP */}
         {bothOn && (
           <div className="absolute bottom-2 right-2 w-24 h-14 sm:w-32 sm:h-20 rounded-xl overflow-hidden border-2 border-white/20 cursor-pointer hover:border-white/50 transition-all shadow-xl group"
             onClick={() => setPipSwapped(s => !s)}>
@@ -191,9 +174,7 @@ function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn,
             </div>
           </div>
         )}
-        {/* Vignette */}
         {(cameraOn || screenOn) && colorSettings.vignette > 0 && <div style={buildVignette(colorSettings.vignette)} />}
-        {/* Placeholder */}
         {!cameraOn && !screenOn && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
             <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center mb-2">
@@ -207,15 +188,12 @@ function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn,
             </p>
           </div>
         )}
-        {/* Camera badge */}
         {cameraOn && (
           <div className="absolute top-2 left-2 flex items-center gap-1.5">
             <span className="text-xs bg-black/50 text-white px-2 py-0.5 rounded-full">
               {facingMode === 'user' ? '📷 Front' : '🔄 Rear'}
             </span>
-            {cameraFlipped && (
-              <span className="text-xs bg-black/50 text-white px-2 py-0.5 rounded-full hidden sm:inline">⟺ Mirrored</span>
-            )}
+            {cameraFlipped && <span className="text-xs bg-black/50 text-white px-2 py-0.5 rounded-full hidden sm:inline">⟺ Mirrored</span>}
           </div>
         )}
       </div>
@@ -223,36 +201,45 @@ function HostStreamSection({ cameraVideoRef, screenVideoRef, cameraOn, screenOn,
   );
 }
 
-// ── Host Studio ────────────────────────────────────────────────
+// ── Co-host Stream Label Box ───────────────────────────────────
+function CoHostStreamBox({ identity, filterPrefix }: { identity: string; filterPrefix: string }) {
+  return (
+    <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-zinc-800">
+      <RemoteMonitor filterPrefix={filterPrefix} label={`${identity} stream`} />
+    </div>
+  );
+}
+
+// ── Grid layout for 4-up view ──────────────────────────────────
+type LayoutMode = 'stack' | 'grid2x2' | 'sidebyside';
+
+// ── Host Studio (1–4 participants) ────────────────────────────
 function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const { localParticipant } = useLocalParticipant();
   const room = useRoomContext();
 
-  const [roomState, setRoomState]       = useState<ConnectionState>(ConnectionState.Disconnected);
-  const [isLive, setIsLive]             = useState(false);
-  const [isRecording, setIsRecording]   = useState(false);
-  const [cameraOn, setCameraOn]         = useState(false);
-  const [screenOn, setScreenOn]         = useState(false);
-  const [micOn, setMicOn]               = useState(false);
-  const [pipSwapped, setPipSwapped]     = useState(false);
+  const [roomState, setRoomState]         = useState<ConnectionState>(ConnectionState.Disconnected);
+  const [isLive, setIsLive]               = useState(false);
+  const [isRecording, setIsRecording]     = useState(false);
+  const [cameraOn, setCameraOn]           = useState(false);
+  const [screenOn, setScreenOn]           = useState(false);
+  const [micOn, setMicOn]                 = useState(false);
+  const [pipSwapped, setPipSwapped]       = useState(false);
   const [cameraFlipped, setCameraFlipped] = useState(false);
-  const [facingMode, setFacingMode]     = useState<'user' | 'environment'>('user');
-  const [error, setError]               = useState('');
-  const [panelOpen, setPanelOpen]       = useState(false);
-  const [panelTab, setPanelTab]         = useState<'chat' | 'tools'>('chat');
-  const [activePanel, setActivePanel]   = useState<string | null>(null);
-  const [showRtmp, setShowRtmp]         = useState(false);
-  const [rtmpActive, setRtmpActive]     = useState(false);
-  const [activePoll, setActivePoll]     = useState<any>(null);
-  const [activeStreams, setActiveStreams] = useState<MediaStream[]>([]);
+  const [facingMode, setFacingMode]       = useState<'user' | 'environment'>('user');
+  const [error, setError]                 = useState('');
+  const [panelOpen, setPanelOpen]         = useState(false);
+  const [panelTab, setPanelTab]           = useState<'chat' | 'tools'>('chat');
+  const [activePanel, setActivePanel]     = useState<string | null>(null);
+  const [showRtmp, setShowRtmp]           = useState(false);
+  const [rtmpActive, setRtmpActive]       = useState(false);
+  const [activePoll, setActivePoll]       = useState<any>(null);
+  const [activeStreams, setActiveStreams]  = useState<MediaStream[]>([]);
+  const [layoutMode, setLayoutMode]       = useState<LayoutMode>('stack');
   const [colorSettings, setColorSettingsState] = useState<ColorSettings>(DEFAULT_SETTINGS);
-  // Always keep ref in sync so the canvas draw loop reads the latest values
-  // without needing to restart the loop on every slider change
-  const setColorSettings = (s: ColorSettings) => {
-    colorSettingsRef.current = s;
-    setColorSettingsState(s);
-  };
-  const [resolution, setResolution]     = useState<Resolution>(DEFAULT_RESOLUTION);
+  const colorSettingsRef = useRef<ColorSettings>(DEFAULT_SETTINGS);
+  const setColorSettings = (s: ColorSettings) => { colorSettingsRef.current = s; setColorSettingsState(s); };
+  const [resolution, setResolution]       = useState<Resolution>(DEFAULT_RESOLUTION);
 
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -262,23 +249,24 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const gradedCanvasRef  = useRef<HTMLCanvasElement | null>(null);
   const gradedRafRef     = useRef<number>(0);
   const gradedTrackRef   = useRef<LocalVideoTrack | null>(null);
-  // Keep a ref so the canvas draw loop always reads the LATEST settings
-  // without needing to restart the RAF loop on every slider change
-  const colorSettingsRef = useRef<ColorSettings>(DEFAULT_SETTINGS);
+  const gradedActiveRef  = useRef(false);
 
   const viewerLink   = `${appUrl}${stream.viewerUrl}`;
   const bothOn       = cameraOn && screenOn;
   const remoteParticipants = useRemoteParticipants();
-  const coHostPresent = remoteParticipants.some(p => p.identity.startsWith('cohost-'));
+  // Count unique co-host identities (prefix cohost-)
+  const coHostParticipants = remoteParticipants.filter(p => p.identity.startsWith('cohost-'));
+  const coHostCount  = coHostParticipants.length; // 0, 1, 2, or 3
+  const totalCount   = 1 + coHostCount; // host + cohosts
 
-  // Sync global store so other components can read stream state without prop drilling
-  const { setStream, setLive, setRecording, setViewerCount, reset } = useStreamStore();
+  const { setStream, setLive, setRecording, reset } = useStreamStore();
   useEffect(() => {
     setStream(stream.roomId, stream.hostToken, stream.livekitToken);
     return () => reset();
   }, [stream.roomId]);
   useEffect(() => { setLive(isLive); }, [isLive]);
   useEffect(() => { setRecording(isRecording); }, [isRecording]);
+
   const isConnected  = roomState === ConnectionState.Connected;
   const isConnecting = roomState === ConnectionState.Connecting || roomState === ConnectionState.Reconnecting;
 
@@ -290,164 +278,84 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     return () => { room.off('connectionStateChanged', update); };
   }, [room]);
 
+  // ── Graded canvas ──────────────────────────────────────────
   const startGradedCanvas = async () => {
     const srcVideo = cameraVideoRef.current;
     if (!srcVideo) return;
-
-    // Wait for video dimensions to be available
     await new Promise<void>(resolve => {
       if (srcVideo.videoWidth > 0) { resolve(); return; }
       const h = () => { resolve(); srcVideo.removeEventListener('loadedmetadata', h); };
       srcVideo.addEventListener('loadedmetadata', h);
       setTimeout(resolve, 2000);
     });
-
     cancelAnimationFrame(gradedRafRef.current);
-
     const canvas = document.createElement('canvas');
     canvas.width  = srcVideo.videoWidth  || 1280;
     canvas.height = srcVideo.videoHeight || 720;
     gradedCanvasRef.current = canvas;
-
     const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
-
-    // CORRECT APPROACH: use ctx.filter (baked into canvas pixels, captured by captureStream).
-    // canvas.style.filter is NOT captured — it's a compositor effect applied after pixel read.
-    // CRITICAL: canvas.width = x resets the entire canvas state including ctx.filter.
-    //           So we MUST reapply ctx.filter after every resize, before every drawImage.
     const buildCtxFilter = () => {
       const cs = colorSettingsRef.current;
       const bright = 1 + cs.brightness / 100;
       const cont   = 1 + cs.contrast   / 100;
       const sat    = Math.max(0, 1 + cs.saturation / 100);
       const hueRot = cs.hue + cs.warmth * 0.08;
-      // Use only primitive CSS filter functions — no SVG url() which taints the canvas
-      // Sharpness approximated with contrast boost instead of convolution
       const sharpContrast = cs.sharpness > 0 ? cont * (1 + cs.sharpness * 0.003) : cont;
-      return [
-        `brightness(${bright.toFixed(3)})`,
-        `contrast(${sharpContrast.toFixed(3)})`,
-        `saturate(${sat.toFixed(3)})`,
-        `hue-rotate(${hueRot.toFixed(1)}deg)`,
-      ].join(' ');
+      return [`brightness(${bright.toFixed(3)})`, `contrast(${sharpContrast.toFixed(3)})`, `saturate(${sat.toFixed(3)})`, `hue-rotate(${hueRot.toFixed(1)}deg)`].join(' ');
     };
-
     const drawFrame = () => {
       if (srcVideo.readyState >= 2 && srcVideo.videoWidth > 0) {
-        // Resize if needed — this CLEARS canvas state, so filter must be reapplied below
         if (canvas.width !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
         if (canvas.height !== srcVideo.videoHeight) canvas.height = srcVideo.videoHeight;
-
-        // Apply color filter — MUST be set after any canvas resize (resize resets ctx state)
         ctx.filter = buildCtxFilter();
-
         if ((window as any).__cameraFlipped) {
-          ctx.save();
-          ctx.translate(canvas.width, 0);
-          ctx.scale(-1, 1);
-          ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
-          ctx.restore();
-        } else {
-          ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
-        }
-
-        // Vignette overlay — drawn WITHOUT filter so it doesn't get double-filtered
+          ctx.save(); ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
+          ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height); ctx.restore();
+        } else { ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height); }
         const cs = colorSettingsRef.current;
         if (cs.vignette > 0) {
           ctx.filter = 'none';
           const a = cs.vignette / 100 * 0.75;
-          const g = ctx.createRadialGradient(
-            canvas.width/2, canvas.height/2, canvas.width * 0.3,
-            canvas.width/2, canvas.height/2, canvas.width * 0.8,
-          );
-          g.addColorStop(0, 'rgba(0,0,0,0)');
-          g.addColorStop(1, `rgba(0,0,0,${a.toFixed(3)})`);
-          ctx.fillStyle = g;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          const g = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width * 0.3, canvas.width/2, canvas.height/2, canvas.width * 0.8);
+          g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${a.toFixed(3)})`);
+          ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
       }
     };
-
-    // Draw first frame immediately so captureStream gets a real coloured frame
     drawFrame();
-
-    // Start the RAF loop
     const loop = () => { drawFrame(); gradedRafRef.current = requestAnimationFrame(loop); };
     gradedRafRef.current = requestAnimationFrame(loop);
-
-    // Capture stream AFTER first frame is drawn
     const ms = (canvas as any).captureStream(30) as MediaStream;
     const vt = ms.getVideoTracks()[0];
     if (!vt) return;
-
-    const lp = localParticipant;
     const { LocalVideoTrack: LVT } = await import('livekit-client');
     const lvt = new LVT(vt, undefined, false);
-
-    // Publish canvas track as Camera source so viewer's useTracks picks it up.
-    try {
-      await lp.publishTrack(lvt, { source: Track.Source.Camera });
-    } catch (e) {
-      console.warn('graded publish failed', e);
-      return;
-    }
-
-    // Unpublish raw camera track — stopOnUnpublish=false is CRITICAL.
-    // By default LiveKit stops the MediaStreamTrack on unpublish, which kills
-    // the camera feed that the canvas drawImage loop reads from.
-    // We pass false so the camera stays physically active as the canvas source.
-    if (cameraTrackRef.current) {
-      try { await lp.unpublishTrack(cameraTrackRef.current, false); } catch {}
-    }
-
-    // Also remove any previous graded track
-    if (gradedTrackRef.current && gradedTrackRef.current !== lvt) {
-      try { await lp.unpublishTrack(gradedTrackRef.current); } catch {}
-    }
+    try { await localParticipant.publishTrack(lvt, { source: Track.Source.Camera }); } catch (e) { return; }
+    if (cameraTrackRef.current) { try { await localParticipant.unpublishTrack(cameraTrackRef.current, false); } catch {} }
+    if (gradedTrackRef.current && gradedTrackRef.current !== lvt) { try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {} }
     gradedTrackRef.current = lvt;
   };
-
-  // Track whether graded canvas is currently active so we only start/stop it
-  // when crossing the default ↔ non-default boundary, not on every slider move
-  const gradedActiveRef = useRef(false);
 
   useEffect(() => {
     if (!cameraOn) return;
     const isDefault = Object.entries(colorSettings).every(([k,v]) => v === DEFAULT_SETTINGS[k as keyof ColorSettings]);
     if (isDefault) {
-      // Switching back to no grading — stop canvas, republish raw track
       if (gradedActiveRef.current) {
         gradedActiveRef.current = false;
         cancelAnimationFrame(gradedRafRef.current);
-        if (gradedTrackRef.current) {
-          localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {});
-          gradedTrackRef.current = null;
-        }
-        // Republish raw track — if it was stopped, recreate it first
+        if (gradedTrackRef.current) { localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {}); gradedTrackRef.current = null; }
         if (cameraTrackRef.current) {
           const mst = cameraTrackRef.current.mediaStreamTrack;
           if (mst && mst.readyState === 'ended') {
-            // Track was stopped — need to get a fresh one from the existing stream
-            const stream = cameraVideoRef.current?.srcObject as MediaStream | null;
-            const liveTracks = stream?.getVideoTracks().filter(t => t.readyState === 'live');
-            if (liveTracks && liveTracks.length > 0) {
-              cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
-            }
+            const str = cameraVideoRef.current?.srcObject as MediaStream | null;
+            const liveTracks = str?.getVideoTracks().filter(t => t.readyState === 'live');
+            if (liveTracks && liveTracks.length > 0) cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
           }
           if (cameraTrackRef.current) localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
         }
       }
-      // If already not graded, do nothing — sliders at default, raw track already published
     } else {
-      // Non-default settings — start canvas only if not already running
-      if (!gradedActiveRef.current) {
-        gradedActiveRef.current = true;
-        // NOTE: we do NOT unpublish cameraTrack here — startGradedCanvas publishes
-        // the new canvas track first, then unpublishes the raw track inside itself,
-        // so viewers never see a blank frame gap.
-        startGradedCanvas();
-      }
-      // If canvas already running, the draw loop reads colorSettingsRef automatically — no restart needed
+      if (!gradedActiveRef.current) { gradedActiveRef.current = true; startGradedCanvas(); }
     }
   }, [colorSettings, cameraOn]);
 
@@ -482,7 +390,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   };
 
   const socketRef = useRef<ReturnType<typeof socketIo> | null>(null);
-
   useEffect(() => {
     const sock = socketIo(API, { transports: ['websocket', 'polling'] });
     sock.on('connect', () => sock.emit('join-room', { roomId: stream.roomId, nickname: 'Host' }));
@@ -493,8 +400,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const updateLive = async (live: boolean) => {
     try {
       await fetch(`${API}/api/streams/${stream.roomId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hostToken: stream.hostToken, isLive: live }),
       });
       socketRef.current?.emit(live ? 'stream-started' : 'stream-ended', { roomId: stream.roomId, hostToken: stream.hostToken });
@@ -504,34 +410,22 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const startCamera = async (facing: 'user' | 'environment') => {
     if (cameraTrackRef.current) {
       try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {}
-      cameraTrackRef.current.stop();
-      cameraTrackRef.current = null;
+      cameraTrackRef.current.stop(); cameraTrackRef.current = null;
     }
-    const t = await createLocalVideoTrack({
-      resolution: { width: resolution.width, height: resolution.height, frameRate: resolution.frameRate },
-      facingMode: facing,
-    });
+    const t = await createLocalVideoTrack({ resolution: { width: resolution.width, height: resolution.height, frameRate: resolution.frameRate }, facingMode: facing });
     cameraTrackRef.current = t;
     attach(t, cameraVideoRef);
     const isDefault = Object.entries(colorSettings).every(([k,v]) => v === DEFAULT_SETTINGS[k as keyof ColorSettings]);
-    if (isDefault) {
-      await localParticipant.publishTrack(t);
-    }
+    if (isDefault) await localParticipant.publishTrack(t);
     setTimeout(syncStreams, 300);
   };
 
   const toggleCamera = async () => {
     setError('');
     if (cameraOn) {
-      if (cameraTrackRef.current) {
-        try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {}
-        cameraTrackRef.current.stop(); cameraTrackRef.current = null;
-      }
+      if (cameraTrackRef.current) { try { await localParticipant.unpublishTrack(cameraTrackRef.current); } catch {} cameraTrackRef.current.stop(); cameraTrackRef.current = null; }
       cancelAnimationFrame(gradedRafRef.current);
-      if (gradedTrackRef.current) {
-        try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
-        gradedTrackRef.current = null;
-      }
+      if (gradedTrackRef.current) { try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {} gradedTrackRef.current = null; }
       gradedActiveRef.current = false;
       if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
       setCameraOn(false);
@@ -552,24 +446,15 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     const newFacing = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newFacing);
     setCameraFlipped(false);
-    if (cameraOn) {
-      try { await startCamera(newFacing); }
-      catch { setFacingMode(facingMode); }
-    }
+    if (cameraOn) { try { await startCamera(newFacing); } catch { setFacingMode(facingMode); } }
   };
 
-  const mirrorCamera = () => setCameraFlipped(f => {
-    (window as any).__cameraFlipped = !f;
-    return !f;
-  });
+  const mirrorCamera = () => setCameraFlipped(f => { (window as any).__cameraFlipped = !f; return !f; });
 
   const toggleScreen = async () => {
     setError('');
     if (screenOn) {
-      if (screenTrackRef.current) {
-        try { await localParticipant.unpublishTrack(screenTrackRef.current); } catch {}
-        screenTrackRef.current.stop(); screenTrackRef.current = null;
-      }
+      if (screenTrackRef.current) { try { await localParticipant.unpublishTrack(screenTrackRef.current); } catch {} screenTrackRef.current.stop(); screenTrackRef.current = null; }
       if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
       setScreenOn(false);
       if (!cameraOn) { setIsLive(false); await updateLive(false); }
@@ -584,9 +469,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         attach(t, screenVideoRef);
         await localParticipant.publishTrack(t);
         const screenAudioTrack = tracks.find(t => t.kind === Track.Kind.Audio);
-        if (screenAudioTrack) {
-          try { await localParticipant.publishTrack(screenAudioTrack); } catch {}
-        }
+        if (screenAudioTrack) { try { await localParticipant.publishTrack(screenAudioTrack); } catch {} }
         await ensureMic();
         setScreenOn(true);
         if (!isLive) { setIsLive(true); await updateLive(true); }
@@ -609,15 +492,9 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
   const stopAll = async () => {
     for (const ref of [cameraTrackRef, screenTrackRef]) {
-      if (ref.current) {
-        try { await localParticipant.unpublishTrack(ref.current); } catch {}
-        ref.current.stop(); ref.current = null;
-      }
+      if (ref.current) { try { await localParticipant.unpublishTrack(ref.current); } catch {} ref.current.stop(); ref.current = null; }
     }
-    if (audioTrackRef.current) {
-      try { await localParticipant.unpublishTrack(audioTrackRef.current); } catch {}
-      audioTrackRef.current.stop(); audioTrackRef.current = null;
-    }
+    if (audioTrackRef.current) { try { await localParticipant.unpublishTrack(audioTrackRef.current); } catch {} audioTrackRef.current.stop(); audioTrackRef.current = null; }
     if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
     if (screenVideoRef.current)  screenVideoRef.current.srcObject  = null;
     setCameraOn(false); setScreenOn(false); setMicOn(false);
@@ -633,8 +510,123 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     { id: 'poll',       label: 'Live poll',     badge: activePoll ? 'Active' : null },
     { id: 'social',     label: 'Go social',     badge: rtmpActive ? 'Live' : null },
     { id: 'link',       label: 'Viewer link',   badge: null },
-    { id: 'cohost',     label: 'Co-Hosts',      badge: null },
+    { id: 'cohost',     label: 'Co-Hosts',      badge: coHostCount > 0 ? `${coHostCount}` : null },
   ];
+
+  // ── Render the preview area based on participant count ───────
+  const renderPreviewArea = () => {
+    // 1 host only
+    if (coHostCount === 0) {
+      return (
+        <div className="flex-1 flex flex-col min-h-0 bg-zinc-950 overflow-hidden">
+          <HostStreamSection
+            cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
+            cameraOn={cameraOn} screenOn={screenOn} bothOn={bothOn}
+            pipSwapped={pipSwapped} setPipSwapped={setPipSwapped}
+            cameraFlipped={cameraFlipped} facingMode={facingMode}
+            colorSettings={colorSettings} isConnecting={isConnecting} isConnected={isConnected}
+          />
+        </div>
+      );
+    }
+
+    // 2 participants (host + 1 cohost) — stacked
+    if (totalCount === 2) {
+      return (
+        <div className="flex-1 flex flex-col min-h-0 bg-zinc-950 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <HostStreamSection
+              cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
+              cameraOn={cameraOn} screenOn={screenOn} bothOn={bothOn}
+              pipSwapped={pipSwapped} setPipSwapped={setPipSwapped}
+              cameraFlipped={cameraFlipped} facingMode={facingMode}
+              colorSettings={colorSettings} isConnecting={isConnecting} isConnected={isConnected}
+            />
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-zinc-800">
+            <RemoteMonitor filterPrefix="cohost-" label="Co-host stream" />
+          </div>
+        </div>
+      );
+    }
+
+    // 3 participants (host + 2 cohosts) — host top, 2 cohosts below side by side
+    if (totalCount === 3) {
+      return (
+        <div className="flex-1 flex flex-col min-h-0 bg-zinc-950 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <HostStreamSection
+              cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
+              cameraOn={cameraOn} screenOn={screenOn} bothOn={bothOn}
+              pipSwapped={pipSwapped} setPipSwapped={setPipSwapped}
+              cameraFlipped={cameraFlipped} facingMode={facingMode}
+              colorSettings={colorSettings} isConnecting={isConnecting} isConnected={isConnected}
+            />
+          </div>
+          <div className="flex-1 min-h-0 flex flex-row border-t border-zinc-800">
+            {coHostParticipants.map((p, i) => (
+              <div key={p.identity} className={`flex-1 min-w-0 overflow-hidden flex flex-col ${i > 0 ? 'border-l border-zinc-800' : ''}`}>
+                <RemoteMonitor filterPrefix={p.identity} label={p.identity.replace('cohost-','').replace(/-[a-z0-9]{6,}$/,'') || `Co-host ${i+1}`} />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 4 participants (host + 3 cohosts) — 2x2 grid or stacked based on layoutMode
+    if (totalCount >= 4) {
+      if (layoutMode === 'grid2x2') {
+        return (
+          <div className="flex-1 grid grid-cols-2 grid-rows-2 min-h-0 bg-zinc-950 overflow-hidden gap-px bg-zinc-800">
+            {/* Host top-left */}
+            <div className="bg-zinc-950 overflow-hidden flex flex-col min-h-0">
+              <HostStreamSection
+                cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
+                cameraOn={cameraOn} screenOn={screenOn} bothOn={bothOn}
+                pipSwapped={pipSwapped} setPipSwapped={setPipSwapped}
+                cameraFlipped={cameraFlipped} facingMode={facingMode}
+                colorSettings={colorSettings} isConnecting={isConnecting} isConnected={isConnected}
+              />
+            </div>
+            {/* Co-hosts fill remaining 3 slots */}
+            {[0,1,2].map((i) => (
+              <div key={i} className="bg-zinc-950 overflow-hidden flex flex-col min-h-0">
+                {coHostParticipants[i] ? (
+                  <RemoteMonitor filterPrefix={coHostParticipants[i].identity} label={`Co-host ${i+1}`} />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-zinc-700 text-xs">Empty slot</div>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      }
+      // Default stack layout for 4 — host full top, cohosts in row below
+      return (
+        <div className="flex-1 flex flex-col min-h-0 bg-zinc-950 overflow-hidden">
+          <div className="flex-[2] min-h-0 overflow-hidden flex flex-col">
+            <HostStreamSection
+              cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
+              cameraOn={cameraOn} screenOn={screenOn} bothOn={bothOn}
+              pipSwapped={pipSwapped} setPipSwapped={setPipSwapped}
+              cameraFlipped={cameraFlipped} facingMode={facingMode}
+              colorSettings={colorSettings} isConnecting={isConnecting} isConnected={isConnected}
+            />
+          </div>
+          <div className="flex-1 min-h-0 flex flex-row border-t border-zinc-800">
+            {coHostParticipants.slice(0, 3).map((p, i) => (
+              <div key={p.identity} className={`flex-1 min-w-0 overflow-hidden flex flex-col ${i > 0 ? 'border-l border-zinc-800' : ''}`}>
+                <RemoteMonitor filterPrefix={p.identity} label={`Co-host ${i+1}`} />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-950 transition-colors duration-200 overflow-hidden"
@@ -647,6 +639,11 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
             <span className="w-2 h-2 rounded-full bg-red-500" />
             <span className="font-bold text-sm text-gray-900 dark:text-gray-100">StreamVault</span>
           </div>
+          {coHostCount > 0 && (
+            <span className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-100 dark:border-blue-500/20">
+              🎙 Co-Host
+            </span>
+          )}
           {isLive && (
             <span className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-2 sm:px-2.5 py-1 rounded-full border border-red-100 dark:border-red-500/20">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />LIVE
@@ -660,163 +657,113 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           )}
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {totalCount >= 4 && (
+            <div className="hidden sm:flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              {(['stack', 'grid2x2', 'sidebyside'] as LayoutMode[]).map((mode, i) => (
+                <button key={mode} onClick={() => setLayoutMode(mode)}
+                  title={mode === 'stack' ? 'Stacked' : mode === 'grid2x2' ? '2×2 Grid' : 'Side by side'}
+                  className={`p-1.5 rounded-md transition-colors ${layoutMode === mode ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+                  {i === 0 ? Icons.grid1 : i === 1 ? Icons.grid3 : Icons.grid2}
+                </button>
+              ))}
+            </div>
+          )}
           <ThemeToggle />
           <button onClick={() => { setPanelTab('chat'); setPanelOpen(true); }}
             className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
-            {Icons.chat}
-            <span className="hidden xs:inline sm:inline">Chat</span>
+            {Icons.chat}<span className="hidden xs:inline sm:inline">Chat</span>
           </button>
           <button onClick={() => { setPanelTab('tools'); setPanelOpen(true); }}
             className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
-            {Icons.tools}
-            <span className="hidden xs:inline sm:inline">Tools</span>
+            {Icons.tools}<span className="hidden xs:inline sm:inline">Tools</span>
           </button>
         </div>
       </div>
 
-      {/* ── Body: on mobile stack vertically, on desktop side by side ── */}
-      <div className="flex flex-col sm:flex-row flex-1 min-h-0 gap-0">
-
-        {/* Hidden source video elements — kept outside overflow-hidden so they are never clipped */}
+      {/* ── Body ── */}
+      <div className="flex flex-col sm:flex-row flex-1 min-h-0">
+        {/* Hidden source video elements */}
         <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
         <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: 'fixed', width: 0, height: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
 
-        {/* ── Preview area: full when alone, 50/50 when co-host present ── */}
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-zinc-950 overflow-hidden">
+        {/* Preview area */}
+        {renderPreviewArea()}
 
-          {/* ── HOST STREAM — full height solo, top 50% with co-host ── */}
-          <div className={coHostPresent ? "flex-1 min-h-0 overflow-hidden flex flex-col" : "flex-1 min-h-0 overflow-hidden flex flex-col"}>
-            <HostStreamSection
-              cameraVideoRef={cameraVideoRef} screenVideoRef={screenVideoRef}
-              cameraOn={cameraOn} screenOn={screenOn}
-              bothOn={bothOn} pipSwapped={pipSwapped} setPipSwapped={setPipSwapped}
-              cameraFlipped={cameraFlipped} facingMode={facingMode}
-              colorSettings={colorSettings} isConnecting={isConnecting}
-              isConnected={isConnected}
-            />
-          </div>
-
-          {/* ── CO-HOST STREAM — only visible when co-host is present ── */}
-          {coHostPresent && (
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-zinc-800">
-              <RemoteMonitor filterPrefix="cohost-" label="Co-host streams" />
-            </div>
-          )}
-        </div>
-
-        {/* ── Controls: horizontal bar on mobile, sidebar on desktop ── */}
+        {/* ── Controls sidebar ── */}
         <div className="sm:w-56 sm:flex-shrink-0 bg-white dark:bg-gray-900 border-t sm:border-t-0 sm:border-l border-gray-100 dark:border-gray-800 flex flex-row sm:flex-col overflow-x-auto sm:overflow-y-auto sm:overflow-x-hidden">
-
-          {/* Error — full width on mobile */}
           {error && (
-            <div className="sm:mx-3 mx-2 my-2 sm:mt-3 text-xs text-red-500 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg border border-red-100 dark:border-red-500/20 flex-shrink-0 sm:w-auto">
+            <div className="sm:mx-3 mx-2 my-2 sm:mt-3 text-xs text-red-500 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg border border-red-100 dark:border-red-500/20 flex-shrink-0">
               {error}
             </div>
           )}
 
-          {/* Mobile: horizontal button strip */}
+          {/* Mobile horizontal strip */}
           <div className="flex sm:hidden items-center gap-2 px-3 py-2.5 w-full overflow-x-auto">
-            {/* Camera toggle */}
-            <button
-              disabled={!isConnected}
-              onClick={toggleCamera}
+            <button disabled={!isConnected} onClick={toggleCamera}
               className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all min-w-[60px] disabled:opacity-30
                 ${cameraOn ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-transparent' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
-              {Icons.camera}
-              {cameraOn ? 'On' : 'Cam'}
+              {Icons.camera}{cameraOn ? 'On' : 'Cam'}
             </button>
-
-            {/* Flip camera (mobile only — front/rear) */}
             {cameraOn && (
               <button onClick={flipCamera}
                 className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 transition-colors min-w-[60px]">
-                {Icons.flip}
-                Flip
+                {Icons.flip}Flip
               </button>
             )}
-
-            {/* Mirror */}
             {cameraOn && (
               <button onClick={mirrorCamera}
                 className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors min-w-[60px]
                   ${cameraFlipped ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20' : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'}`}>
-                <span className="text-sm">⟺</span>
-                Mirror
+                <span className="text-sm">⟺</span>Mirror
               </button>
             )}
-
-            {/* Screen */}
-            <button
-              disabled={!isConnected}
-              onClick={toggleScreen}
+            <button disabled={!isConnected} onClick={toggleScreen}
               className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all min-w-[60px] disabled:opacity-30
                 ${screenOn ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-transparent' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
-              {Icons.screen}
-              {screenOn ? 'On' : 'Screen'}
+              {Icons.screen}{screenOn ? 'On' : 'Screen'}
             </button>
-
-            {/* Mic */}
-            <button
-              disabled={!audioTrackRef.current}
-              onClick={toggleMic}
+            <button disabled={!audioTrackRef.current} onClick={toggleMic}
               className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all min-w-[60px] disabled:opacity-30
                 ${micOn ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-transparent' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
-              {micOn ? Icons.micOn : Icons.micOff}
-              {micOn ? 'Mic' : 'Mute'}
+              {micOn ? Icons.micOn : Icons.micOff}{micOn ? 'Mic' : 'Mute'}
             </button>
-
-            {/* Swap PiP */}
             {bothOn && (
               <button onClick={() => setPipSwapped(s => !s)}
                 className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 transition-colors min-w-[60px]">
-                {Icons.swap}
-                Swap
+                {Icons.swap}Swap
               </button>
             )}
-
-            {/* Copy link */}
             <button onClick={onCopy}
               className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all min-w-[60px]
                 ${copied ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-100 dark:border-green-500/20' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
-              {copied ? Icons.check : Icons.copy}
-              {copied ? 'Copied' : 'Link'}
+              {copied ? Icons.check : Icons.copy}{copied ? 'Copied' : 'Link'}
             </button>
-
-            {/* End stream */}
             {isLive && (
               <button onClick={stopAll}
                 className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 transition-colors min-w-[60px]">
-                {Icons.stop}
-                End
+                {Icons.stop}End
               </button>
             )}
           </div>
 
-          {/* Desktop: vertical sidebar layout (unchanged from original) */}
+          {/* Desktop vertical sidebar */}
           <div className="hidden sm:flex sm:flex-col sm:flex-1">
-            {/* Camera controls group */}
+            {/* CAMERA */}
             <div className="p-3 border-b border-gray-50 dark:border-gray-800">
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Camera</p>
               <div className="space-y-2">
                 <CtrlBtn active={cameraOn} disabled={!isConnected} onClick={toggleCamera} full>
-                  {Icons.camera}
-                  {cameraOn ? 'Camera on' : 'Camera off'}
+                  {Icons.camera}{cameraOn ? 'Camera on' : 'Camera off'}
                 </CtrlBtn>
-
                 {cameraOn && (
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={flipCamera}
-                      title="Switch front/rear camera"
                       className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-100 dark:border-blue-500/20 transition-colors">
-                      {Icons.flip}
-                      Flip
+                      {Icons.flip}Flip
                     </button>
                     <button onClick={mirrorCamera}
-                      title="Mirror camera horizontally"
                       className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold border transition-colors
-                        ${cameraFlipped
-                          ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20'
-                          : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                        ${cameraFlipped ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20' : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                       ⟺ Mirror
                     </button>
                   </div>
@@ -824,20 +771,18 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
               </div>
             </div>
 
+            {/* SOURCES */}
             <div className="p-3 border-b border-gray-50 dark:border-gray-800 space-y-2">
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Sources</p>
               <CtrlBtn active={screenOn} disabled={!isConnected} onClick={toggleScreen} full>
-                {Icons.screen}
-                {screenOn ? 'Screen on' : 'Screen off'}
+                {Icons.screen}{screenOn ? 'Screen on' : 'Screen off'}
               </CtrlBtn>
               <CtrlBtn active={micOn} disabled={!audioTrackRef.current} onClick={toggleMic} full>
-                {micOn ? Icons.micOn : Icons.micOff}
-                {micOn ? 'Mic on' : 'Mic off'}
+                {micOn ? Icons.micOn : Icons.micOff}{micOn ? 'Mic on' : 'Mic off'}
               </CtrlBtn>
               {bothOn && (
                 <CtrlBtn onClick={() => setPipSwapped(s => !s)} full>
-                  {Icons.swap}
-                  Swap view
+                  {Icons.swap}Swap view
                 </CtrlBtn>
               )}
             </div>
@@ -845,12 +790,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
             {isLive && (
               <div className="p-3 border-b border-gray-50 dark:border-gray-800">
                 <CtrlBtn danger onClick={stopAll} full>
-                  {Icons.stop}
-                  End stream
+                  {Icons.stop}End stream
                 </CtrlBtn>
               </div>
             )}
 
+            {/* VIEWER LINK */}
             <div className="p-3 border-b border-gray-50 dark:border-gray-800">
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Viewer link</p>
               <p className="text-xs font-mono text-gray-500 dark:text-gray-400 truncate mb-2 bg-gray-50 dark:bg-gray-800 px-2 py-1.5 rounded-lg">
@@ -865,6 +810,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
               </button>
             </div>
 
+            {/* STATUS */}
             <div className="p-3">
               <div className={`flex items-center justify-center gap-2 text-xs font-medium rounded-lg py-2
                 ${isLive ? 'text-red-500' : isConnected ? 'text-green-500' : 'text-gray-400 dark:text-gray-500'}`}>
@@ -920,7 +866,6 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                 ))}
               </div>
             )}
-
             {activePanel && (
               <div>
                 <button onClick={() => setActivePanel(null)}
@@ -971,10 +916,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                     </div>
                   )}
                   {activePanel === 'cohost' && (
-                    <CoHostManager
-                      roomId={stream.roomId}
-                      hostToken={stream.hostToken}
-                    />
+                    <CoHostManager roomId={stream.roomId} hostToken={stream.hostToken} />
                   )}
                 </div>
               </div>
