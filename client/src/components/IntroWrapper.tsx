@@ -6,40 +6,27 @@ interface IntroWrapperProps {
   children: React.ReactNode;
 }
 
-// Bump this key version whenever you want all users to see the intro again
-const INTRO_KEY = 'sv-intro-seen-v3';
-
 export default function IntroWrapper({ children }: IntroWrapperProps) {
-  // Start as true so the intro shows immediately on first render (no flicker)
-  // We'll hide it after checking localStorage if already seen
+  // Show intro on EVERY page load — no localStorage gate
+  // Use a "mounted" flag to avoid SSR hydration mismatch
+  const [mounted,   setMounted]   = useState(false);
   const [showIntro, setShowIntro] = useState(true);
-  const [checked,   setChecked]   = useState(false);
 
   useEffect(() => {
-    const seen = localStorage.getItem(INTRO_KEY);
-    if (seen) {
-      // Already seen — skip animation immediately
-      setShowIntro(false);
-    }
-    // else: leave showIntro=true so animation plays
-    setChecked(true);
+    setMounted(true);
   }, []);
 
   const handleComplete = () => {
-    localStorage.setItem(INTRO_KEY, '1');
     setShowIntro(false);
   };
 
-  // While we haven't checked localStorage yet, show the intro overlay
-  // (this avoids the blank flash and also means first-timers see it instantly)
-  if (!checked) {
-    return <IntroAnimation onComplete={handleComplete} />;
-  }
+  // During SSR / before mount: render nothing so there's no hydration mismatch
+  if (!mounted) return null;
 
   return (
     <>
       {showIntro && <IntroAnimation onComplete={handleComplete} />}
-      {/* Render children underneath so the page is ready when intro exits */}
+      {/* Page content rendered underneath — visible only after intro exits */}
       <div style={{ visibility: showIntro ? 'hidden' : 'visible' }}>
         {children}
       </div>
