@@ -108,9 +108,9 @@ export default function ViewerPage() {
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
       <nav className="flex items-center justify-between px-8 py-5 border-b border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-red-500" />
-          <span className="font-bold text-base tracking-tight text-gray-900 dark:text-gray-100">StreamVault</span>
-        </div>
+  <img src="/logo.png" alt="StreamVault" className="w-7 h-7 object-contain" />
+  <span className="font-bold text-base tracking-tight text-gray-900 dark:text-gray-100">StreamVault</span>
+</div>
         <ThemeToggle />
       </nav>
 
