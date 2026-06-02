@@ -279,83 +279,160 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   }, [room]);
 
   // ── Graded canvas ──────────────────────────────────────────
+  // Builds ONLY primitive CSS filter functions — NO svg url() which taints canvas
+  const buildSafeCtxFilter = () => {
+    const cs = colorSettingsRef.current;
+    const bright = 1 + cs.brightness / 100;
+    const cont   = 1 + cs.contrast   / 100;
+    const sat    = Math.max(0, 1 + cs.saturation / 100);
+    const hueRot = cs.hue + cs.warmth * 0.08;
+    // Sharpness: approximate with contrast boost (no SVG convolution = no canvas taint)
+    const sharpBoost = cs.sharpness > 0 ? 1 + cs.sharpness * 0.004 : 1;
+    return [
+      `brightness(${bright.toFixed(3)})`,
+      `contrast(${(cont * sharpBoost).toFixed(3)})`,
+      `saturate(${sat.toFixed(3)})`,
+      `hue-rotate(${hueRot.toFixed(1)}deg)`,
+    ].join(' ');
+  };
+
   const startGradedCanvas = async () => {
     const srcVideo = cameraVideoRef.current;
     if (!srcVideo) return;
+
+    // Wait for video to have real dimensions
     await new Promise<void>(resolve => {
       if (srcVideo.videoWidth > 0) { resolve(); return; }
       const h = () => { resolve(); srcVideo.removeEventListener('loadedmetadata', h); };
       srcVideo.addEventListener('loadedmetadata', h);
       setTimeout(resolve, 2000);
     });
+
+    // Stop any previous loop
     cancelAnimationFrame(gradedRafRef.current);
+
     const canvas = document.createElement('canvas');
     canvas.width  = srcVideo.videoWidth  || 1280;
     canvas.height = srcVideo.videoHeight || 720;
     gradedCanvasRef.current = canvas;
     const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
-    const buildCtxFilter = () => {
-      const cs = colorSettingsRef.current;
-      const bright = 1 + cs.brightness / 100;
-      const cont   = 1 + cs.contrast   / 100;
-      const sat    = Math.max(0, 1 + cs.saturation / 100);
-      const hueRot = cs.hue + cs.warmth * 0.08;
-      const sharpContrast = cs.sharpness > 0 ? cont * (1 + cs.sharpness * 0.003) : cont;
-      return [`brightness(${bright.toFixed(3)})`, `contrast(${sharpContrast.toFixed(3)})`, `saturate(${sat.toFixed(3)})`, `hue-rotate(${hueRot.toFixed(1)}deg)`].join(' ');
-    };
+
     const drawFrame = () => {
       if (srcVideo.readyState >= 2 && srcVideo.videoWidth > 0) {
-        if (canvas.width !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
+        // Resize canvas if video dimensions changed (clears ctx state — must reapply filter)
+        if (canvas.width  !== srcVideo.videoWidth)  canvas.width  = srcVideo.videoWidth;
         if (canvas.height !== srcVideo.videoHeight) canvas.height = srcVideo.videoHeight;
-        ctx.filter = buildCtxFilter();
+
+        // Apply safe primitive-only filter (no SVG url() = no canvas taint)
+        ctx.filter = buildSafeCtxFilter();
+
         if ((window as any).__cameraFlipped) {
-          ctx.save(); ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
-          ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height); ctx.restore();
-        } else { ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height); }
+          ctx.save();
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        } else {
+          ctx.drawImage(srcVideo, 0, 0, canvas.width, canvas.height);
+        }
+
+        // Vignette overlay — drawn with filter:'none' so it doesn't get double-filtered
         const cs = colorSettingsRef.current;
         if (cs.vignette > 0) {
           ctx.filter = 'none';
-          const a = cs.vignette / 100 * 0.75;
-          const g = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width * 0.3, canvas.width/2, canvas.height/2, canvas.width * 0.8);
-          g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${a.toFixed(3)})`);
-          ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          const a = (cs.vignette / 100) * 0.75;
+          const g = ctx.createRadialGradient(
+            canvas.width / 2, canvas.height / 2, canvas.width * 0.3,
+            canvas.width / 2, canvas.height / 2, canvas.width * 0.8,
+          );
+          g.addColorStop(0, 'rgba(0,0,0,0)');
+          g.addColorStop(1, `rgba(0,0,0,${a.toFixed(3)})`);
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
       }
     };
+
+    // Draw one real frame before captureStream so viewers never get a blank first frame
     drawFrame();
+
+    // Start the RAF draw loop
     const loop = () => { drawFrame(); gradedRafRef.current = requestAnimationFrame(loop); };
     gradedRafRef.current = requestAnimationFrame(loop);
+
+    // Capture stream AFTER first frame is drawn
     const ms = (canvas as any).captureStream(30) as MediaStream;
     const vt = ms.getVideoTracks()[0];
-    if (!vt) return;
+    if (!vt) { cancelAnimationFrame(gradedRafRef.current); return; }
+
     const { LocalVideoTrack: LVT } = await import('livekit-client');
     const lvt = new LVT(vt, undefined, false);
-    try { await localParticipant.publishTrack(lvt, { source: Track.Source.Camera }); } catch (e) { return; }
-    if (cameraTrackRef.current) { try { await localParticipant.unpublishTrack(cameraTrackRef.current, false); } catch {} }
-    if (gradedTrackRef.current && gradedTrackRef.current !== lvt) { try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {} }
+
+    // Publish canvas track first so there's never a gap for viewers
+    try {
+      await localParticipant.publishTrack(lvt, { source: Track.Source.Camera });
+    } catch (e) {
+      cancelAnimationFrame(gradedRafRef.current);
+      return;
+    }
+
+    // Unpublish raw camera track — stopOnUnpublish=false keeps MediaStreamTrack alive
+    // so canvas drawImage loop keeps reading live frames
+    if (cameraTrackRef.current) {
+      try { await localParticipant.unpublishTrack(cameraTrackRef.current, false); } catch {}
+    }
+
+    // Clean up any previous graded track
+    if (gradedTrackRef.current && gradedTrackRef.current !== lvt) {
+      try { await localParticipant.unpublishTrack(gradedTrackRef.current); } catch {}
+    }
+
     gradedTrackRef.current = lvt;
+    gradedActiveRef.current = true;
   };
 
+  // Watch colorSettings — start/stop canvas grading as needed
+  // colorSettingsRef always has the latest value so the RAF loop picks it up immediately
   useEffect(() => {
     if (!cameraOn) return;
-    const isDefault = Object.entries(colorSettings).every(([k,v]) => v === DEFAULT_SETTINGS[k as keyof ColorSettings]);
+
+    const isDefault = Object.entries(colorSettings).every(
+      ([k, v]) => v === DEFAULT_SETTINGS[k as keyof ColorSettings]
+    );
+
     if (isDefault) {
+      // Back to no grading — tear down canvas, republish raw track
       if (gradedActiveRef.current) {
         gradedActiveRef.current = false;
         cancelAnimationFrame(gradedRafRef.current);
-        if (gradedTrackRef.current) { localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {}); gradedTrackRef.current = null; }
+
+        if (gradedTrackRef.current) {
+          localParticipant.unpublishTrack(gradedTrackRef.current).catch(() => {});
+          gradedTrackRef.current = null;
+        }
+
+        // Republish raw camera track (recreate if its MediaStreamTrack was stopped)
         if (cameraTrackRef.current) {
           const mst = cameraTrackRef.current.mediaStreamTrack;
           if (mst && mst.readyState === 'ended') {
-            const str = cameraVideoRef.current?.srcObject as MediaStream | null;
-            const liveTracks = str?.getVideoTracks().filter(t => t.readyState === 'live');
-            if (liveTracks && liveTracks.length > 0) cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
+            const stream = cameraVideoRef.current?.srcObject as MediaStream | null;
+            const liveTracks = stream?.getVideoTracks().filter(t => t.readyState === 'live');
+            if (liveTracks?.length) {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
+            }
           }
           if (cameraTrackRef.current) localParticipant.publishTrack(cameraTrackRef.current).catch(() => {});
         }
       }
     } else {
-      if (!gradedActiveRef.current) { gradedActiveRef.current = true; startGradedCanvas(); }
+      // Non-default settings — ensure canvas is running
+      if (!gradedActiveRef.current) {
+        // Not yet running — start it (sets gradedActiveRef.current=true when ready)
+        startGradedCanvas();
+      }
+      // If already running, colorSettingsRef is already updated so the RAF loop
+      // will pick up the new values on the very next frame — no restart needed
     }
   }, [colorSettings, cameraOn]);
 
