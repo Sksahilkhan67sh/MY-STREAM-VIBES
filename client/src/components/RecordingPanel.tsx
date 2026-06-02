@@ -49,6 +49,25 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
     } catch {}
   };
 
+  // Retry fetching until at least one recording has exists=true (server still writing)
+  const fetchRecordingsWithRetry = async (attempts = 6, delayMs = 2000) => {
+    for (let i = 0; i < attempts; i++) {
+      await new Promise(r => setTimeout(r, delayMs));
+      try {
+        const res = await fetch(
+          `${API}/api/egress/recordings/${roomId}?hostToken=${hostToken}`
+        );
+        if (res.ok) {
+          const data: Recording[] = await res.json();
+          setRecordings(data);
+          if (data.some(r => r.exists)) return; // file is ready — stop retrying
+        }
+      } catch {}
+    }
+    // Final fallback fetch
+    fetchRecordings();
+  };
+
   const flushChunks = async () => {
     if (chunksRef.current.length === 0) return;
     const blob = new Blob(chunksRef.current, { type: 'video/webm' });
@@ -115,15 +134,26 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
 
   const stopRecording = async () => {
     setLoading(true);
-    if (mrRef.current && mrRef.current.state !== 'inactive') {
-      mrRef.current.stop();
-    }
-    mrRef.current = null;
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    if (elapsedRef.current) { clearInterval(elapsedRef.current); elapsedRef.current = null; }
 
+    // 1. Wait for MediaRecorder to fully stop before flushing (fixes missing last chunk)
+    await new Promise<void>((resolve) => {
+      if (mrRef.current && mrRef.current.state !== 'inactive') {
+        mrRef.current.onstop = () => resolve();
+        mrRef.current.stop();
+      } else {
+        resolve();
+      }
+    });
+    mrRef.current = null;
+
+    // 2. Clear all timers
+    if (timerRef.current)  { clearInterval(timerRef.current);  timerRef.current  = null; }
+    if (elapsedRef.current){ clearInterval(elapsedRef.current); elapsedRef.current = null; }
+
+    // 3. Flush remaining chunks AFTER recorder has stopped (all data is available now)
     await flushChunks();
 
+    // 4. Tell server to finalize the file
     try {
       await fetch(`${API}/api/egress/stop`, {
         method: 'POST',
@@ -135,7 +165,9 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
     setRecording(false);
     setElapsed(0);
     setLoading(false);
-    await fetchRecordings();
+
+    // 5. Poll until server finishes writing the file (fixes download not working)
+    fetchRecordingsWithRetry();
   };
 
   const deleteRecording = async (id: string) => {
@@ -209,19 +241,26 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
                   <p className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate">{r.fileName}</p>
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                     {formatDur(r.durationSec)} · {formatSize(r.fileSize)}
-                    {!r.exists && <span className="text-red-400 ml-1">· file missing</span>}
+                    {!r.exists && <span className="text-amber-400 ml-1">· processing...</span>}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {r.exists && (
+                {r.exists ? (
                   <a
                     href={`${API}${r.downloadUrl}${r.downloadUrl?.includes('?') ? '&' : '?'}hostToken=${encodeURIComponent(hostToken)}`}
                     download={r.fileName}
-                    className="flex-1 text-center py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800 transition-colors"
+                    className="flex-1 text-center py-1.5 text-xs font-semibold text-white bg-gray-900 dark:bg-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    Download
+                    ⬇ Download
                   </a>
+                ) : (
+                  <button
+                    onClick={fetchRecordings}
+                    className="flex-1 text-center py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-800 transition-colors"
+                  >
+                    ↻ Refresh
+                  </button>
                 )}
                 <button
                   onClick={() => deleteRecording(r.id)}
