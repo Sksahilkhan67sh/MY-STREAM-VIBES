@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   LiveKitRoom, useLocalParticipant, useRoomContext, useRemoteParticipants,
 } from '@livekit/components-react';
@@ -259,8 +260,13 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const totalCount   = 1 + coHostCount;
 
   const { setStream, setLive, setRecording, reset } = useStreamStore();
+  const router = useRouter();
   useEffect(() => {
     setStream(stream.roomId, stream.hostToken, stream.livekitToken);
+    // Persist hostToken so analytics dashboard can authenticate
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`hostToken_${stream.roomId}`, stream.hostToken);
+    }
     return () => reset();
   }, [stream.roomId]);
   useEffect(() => { setLive(isLive); }, [isLive]);
@@ -563,6 +569,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     { id: 'social',     label: 'Go social',     badge: rtmpActive ? 'Live' : null },
     { id: 'link',       label: 'Viewer link',   badge: null },
     { id: 'cohost',     label: 'Co-Hosts',      badge: coHostCount > 0 ? `${coHostCount}` : null },
+    { id: 'analytics',  label: 'Analytics',     badge: null },
   ];
 
   const renderPreviewArea = () => {
@@ -923,6 +930,23 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                   {activePanel === 'resolution' && <ResolutionPicker value={resolution} onChange={setResolution} disabled={isLive} />}
                   {activePanel === 'color'      && <ColorGrading settings={colorSettings} onChange={setColorSettings} />}
                   {activePanel === 'poll'       && <PollCreator roomId={stream.roomId} hostToken={stream.hostToken} socket={socketRef.current} activePoll={activePoll} onPollCreated={setActivePoll} onPollClosed={() => setActivePoll(null)} />}
+                  {activePanel === 'analytics'  && (
+                    <div className="space-y-3 py-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        View detailed analytics for this stream — viewers, retention, engagement, and more.
+                      </p>
+                      <button
+                        onClick={() => router.push(`/dashboard/${stream.roomId}`)}
+                        className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2"
+                        style={{ background: 'linear-gradient(135deg, #ff3520, #c81405)' }}
+                      >
+                        Open Analytics Dashboard →
+                      </button>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
+                        Opens in a new view. Your stream stays active.
+                      </p>
+                    </div>
+                  )}
                   {activePanel === 'social'     && (
                     <div className="space-y-3">
                       {!isLive
