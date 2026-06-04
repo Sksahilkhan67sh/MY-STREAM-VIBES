@@ -23,10 +23,19 @@ model Stream {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  reminders  Reminder[]
-  recordings Recording[]
-  polls      Poll[]
-  coHosts    CoHost[]
+  // Phase 1: owner link (nullable for backward compat)
+  userId       String?
+  user         User?     @relation("UserStreams", fields: [userId], references: [id], onDelete: SetNull)
+
+  reminders        Reminder[]
+  recordings       Recording[]
+  polls            Poll[]
+  coHosts          CoHost[]
+  analyticsEvents  AnalyticsEvent[]
+  analytics        StreamAnalytics?
+  concurrentSnaps  ConcurrentViewerSnapshot[]
+
+  @@index([userId])
 }
 
 model CoHost {
@@ -86,4 +95,101 @@ model PollVote {
   createdAt   DateTime @default(now())
 
   @@unique([pollId, voterId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// PHASE 1: ANALYTICS SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  image         String?
+  provider      String   @default("github")
+  providerId    String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  streams       Stream[]        @relation("UserStreams")
+  analyticsEvents AnalyticsEvent[]
+
+  @@unique([provider, providerId])
+  @@index([email])
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  streamId   String
+  stream     Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  event      String   // join | leave | chat | poll_vote | reaction | donate
+  viewerId   String   // anonymous fingerprint or userId
+  sessionId  String   // unique per browser session
+
+  // Device & geo
+  deviceType String?  // desktop | mobile | tablet
+  browser    String?
+  os         String?
+  country    String?
+  region     String?
+  city       String?
+
+  // Timing
+  watchSeconds Int    @default(0)
+  timestamp    DateTime @default(now())
+
+  @@index([streamId])
+  @@index([viewerId])
+  @@index([timestamp])
+  @@index([event])
+}
+
+model StreamAnalytics {
+  id                    String   @id @default(cuid())
+  streamId              String   @unique
+  stream                Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  // Viewer metrics
+  totalJoins            Int      @default(0)
+  uniqueViewers         Int      @default(0)
+  peakConcurrent        Int      @default(0)
+  totalWatchSeconds     BigInt   @default(0)
+  avgWatchSeconds       Int      @default(0)
+
+  // Engagement
+  totalChatMessages     Int      @default(0)
+  totalReactions        Int      @default(0)
+  totalPollVotes        Int      @default(0)
+  chatEngagementRate    Float    @default(0)
+
+  // Device breakdown (JSON)
+  deviceBreakdown       Json     @default("{}")
+  browserBreakdown      Json     @default("{}")
+  countryBreakdown      Json     @default("{}")
+
+  // Retention (JSON array of percentages per minute)
+  retentionCurve        Json     @default("[]")
+
+  // Concurrent viewers timeline (JSON array {ts, count})
+  concurrentTimeline    Json     @default("[]")
+
+  // Stream meta
+  durationSeconds       Int      @default(0)
+  startedAt             DateTime?
+  endedAt               DateTime?
+
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+}
+
+model ConcurrentViewerSnapshot {
+  id        String   @id @default(cuid())
+  streamId  String
+  count     Int
+  timestamp DateTime @default(now())
+
+  @@index([streamId, timestamp])
 }
