@@ -46,6 +46,11 @@ export function getRedis() {
   return available ? client : null;
 }
 
+// Alias used by analytics service
+export function getRedisClient() {
+  return available ? client : null;
+}
+
 export async function setViewerCount(roomId: string, count: number) {
   if (!available || !client) return;
   try { await client.set(`viewers:${roomId}`, count, { EX: 3600 }); } catch { available = false; }
