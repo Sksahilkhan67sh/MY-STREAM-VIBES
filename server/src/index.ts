@@ -16,6 +16,7 @@ import egressRouter    from './routes/egress';
 import remindersRouter, { recoverReminders } from './routes/reminders';
 import pollsRouter, { recoverActivePolls } from './routes/polls';
 import coHostsRouter   from './routes/cohosts';
+import analyticsRouter from './routes/analytics';
 import { startScheduler } from './jobs/scheduler';
 
 const app        = express();
@@ -69,11 +70,12 @@ app.use('/api', limiter);
 
 // ── Routes ────────────────────────────────────────────────────
 app.use('/api/streams',   streamsRouter);
-app.use('/api/token',     tokenLimiter, tokenRouter);   // relaxed — viewers joining
+app.use('/api/token',     tokenLimiter, tokenRouter);
 app.use('/api/egress',    egressRouter);
 app.use('/api/reminders', remindersRouter);
 app.use('/api/polls',     pollsRouter);
 app.use('/api/cohosts',   coHostsRouter);
+app.use('/api/analytics', analyticsRouter);
 
 // ── Health check (keeps Render free tier alive via UptimeRobot) ─
 app.get('/health', (_req, res) => {
