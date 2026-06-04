@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import StreamPlayer from '@/components/StreamPlayer';
 import ChatPanel from '@/components/ChatPanel';
 import PollWidget from '@/components/PollWidget';
+import StreamSchedulerBanner from '@/components/StreamSchedulerBanner';
 import { ThemeToggle } from '@/components/ThemeContext';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -30,7 +31,7 @@ export default function ViewerPage() {
   const nicknameRef = useRef(nickname);
   nicknameRef.current = nickname;
 
-  useEffect(() => {
+  const fetchStream = () =>
     fetch(`${API}/api/streams/${roomId}`)
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: StreamInfo) => { setStream(data); setStep('join'); })
@@ -38,7 +39,8 @@ export default function ViewerPage() {
         setError(code === 404 ? 'Stream not found.' : code === 410 ? 'This stream has expired.' : 'Failed to load stream.');
         setStep('error');
       });
-  }, [roomId]);
+
+  useEffect(() => { fetchStream(); }, [roomId]);
 
   useEffect(() => {
     if (step !== 'watching') return;
@@ -48,6 +50,8 @@ export default function ViewerPage() {
       setSocketReady(true);
     });
     s.on('disconnect', () => setSocketReady(false));
+    s.on('stream-started', () => setStream(prev => prev ? { ...prev, isLive: true } : prev));
+    s.on('stream-ended',   () => setStream(prev => prev ? { ...prev, isLive: false } : prev));
     setSocket(s);
     return () => { s.disconnect(); setSocket(null); setSocketReady(false); };
   }, [step, roomId]);
@@ -103,42 +107,51 @@ export default function ViewerPage() {
     </div>
   );
 
+  // ── Join / Scheduled view ──────────────────────────────────
+  const isScheduled = stream?.scheduledAt && !stream.isLive;
+
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col transition-colors duration-200"
-      style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
-      <nav className="flex items-center justify-between px-8 py-5 border-b border-gray-100 dark:border-gray-800">
+    <div className="min-h-screen flex flex-col transition-colors duration-200"
+      style={{ background: '#09090b', fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+      <nav className="flex items-center justify-between px-8 py-5 border-b border-zinc-800/60">
         <div className="flex items-center gap-2">
-  <img src="/logo.png" alt="StreamVault" className="w-7 h-7 object-contain" />
-  <span className="font-bold text-base tracking-tight text-gray-900 dark:text-gray-100">StreamVault</span>
-</div>
+          <img src="/logo.png" alt="StreamVault" className="w-7 h-7 object-contain" />
+          <span className="font-bold text-base tracking-tight text-zinc-100">StreamVault</span>
+        </div>
         <ThemeToggle />
       </nav>
 
       <div className="flex-1 flex items-center justify-center px-6 py-16">
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="w-full max-w-sm"
+          className="w-full max-w-sm space-y-4"
         >
-          <div className="mb-8">
+          {/* Title area */}
+          <div className="mb-2">
             {stream?.isLive && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-500/10 px-2.5 py-1 rounded-full mb-3">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full mb-3">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
               </span>
             )}
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight"
-              style={{ letterSpacing: '-0.02em' }}>
+            <h1 className="text-2xl font-bold text-zinc-100 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
               {stream?.title}
             </h1>
-            {stream?.scheduledAt && !stream.isLive && (
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                Scheduled for {new Date(stream.scheduledAt).toLocaleString()}
-              </p>
-            )}
           </div>
 
-          <div className="space-y-4">
+          {/* Scheduled banner — replaces old static text */}
+          {isScheduled && stream?.scheduledAt && (
+            <StreamSchedulerBanner
+              scheduledAt={stream.scheduledAt}
+              roomId={roomId}
+              title={stream.title}
+              onStreamLive={() => fetchStream()}
+            />
+          )}
+
+          {/* Join form */}
+          <div className="space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+              <label className="block text-xs font-semibold text-zinc-500 mb-1.5 uppercase tracking-wider">
                 Your name
               </label>
               <input
@@ -147,16 +160,14 @@ export default function ViewerPage() {
                 onKeyDown={e => e.key === 'Enter' && joinStream()}
                 placeholder="Anonymous"
                 autoFocus
-                className="w-full px-4 py-3 text-sm border border-gray-200 dark:border-gray-700 rounded-lg
-                  focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 transition-colors
-                  placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-gray-100
-                  bg-white dark:bg-gray-900"
+                className="w-full px-4 py-3 text-sm rounded-xl focus:outline-none transition-colors placeholder-zinc-600 text-zinc-100"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '16px' }}
               />
             </div>
 
             {stream?.hasPassword && (
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-zinc-500 mb-1.5 uppercase tracking-wider">
                   Password
                 </label>
                 <input
@@ -164,24 +175,22 @@ export default function ViewerPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Enter stream password"
-                  className="w-full px-4 py-3 text-sm border border-gray-200 dark:border-gray-700 rounded-lg
-                    focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 transition-colors
-                    placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-gray-100
-                    bg-white dark:bg-gray-900"
+                  className="w-full px-4 py-3 text-sm rounded-xl focus:outline-none transition-colors placeholder-zinc-600 text-zinc-100"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '16px' }}
                 />
               </div>
             )}
 
             {error && (
-              <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 px-4 py-2.5 rounded-lg">{error}</p>
+              <p className="text-sm text-red-400 bg-red-500/10 px-4 py-2.5 rounded-xl">{error}</p>
             )}
 
             <button
               onClick={joinStream}
-              className="w-full py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold
-                rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors"
+              className="w-full py-3 text-sm font-semibold rounded-xl transition-colors text-zinc-100 hover:opacity-90"
+              style={{ background: isScheduled ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #ff3520, #c81405)' }}
             >
-              Watch stream →
+              {isScheduled ? 'Enter waiting room →' : 'Watch stream →'}
             </button>
           </div>
         </motion.div>
