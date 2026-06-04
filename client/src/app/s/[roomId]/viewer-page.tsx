@@ -7,6 +7,8 @@ import { io, Socket } from 'socket.io-client';
 import StreamPlayer from '@/components/StreamPlayer';
 import ChatPanel from '@/components/ChatPanel';
 import PollWidget from '@/components/PollWidget';
+import StreamSchedulerBanner from '@/components/StreamSchedulerBanner';
+import { useAnalytics } from '@/hooks/useAnalytics';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -32,6 +34,12 @@ export default function ViewerPage() {
   const [socket, setSocket]       = useState<Socket | null>(null);
   const [socketReady, setSocketReady] = useState(false);
   const [chatOpen, setChatOpen]   = useState(false);
+
+  // ── Analytics: auto-tracks join/leave/watch-time ──
+  const { trackEvent: trackAnalytics } = useAnalytics({
+    roomId,
+    enabled: step === 'watching',
+  });
   const nicknameRef               = useRef(nickname);
   nicknameRef.current             = nickname;
 
@@ -191,10 +199,7 @@ export default function ViewerPage() {
           <div className="min-w-0">
             <h1 className="font-bold text-base leading-tight truncate">{stream?.title}</h1>
             {stream?.scheduledAt && !stream.isLive && (
-              <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
-                <Clock className="w-3 h-3 flex-shrink-0" />
-                Scheduled: {new Date(stream.scheduledAt).toLocaleString()}
-              </p>
+              <p className="text-xs text-zinc-500 mt-0.5">Stream is scheduled</p>
             )}
           </div>
         </div>
