@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { snapshotConcurrent, finalizeStreamAnalytics } from '../services/analytics.service';
 
 const prisma = new PrismaClient();
 
@@ -91,6 +92,22 @@ export function startScheduler() {
   });
 
   console.log('✅ Scheduler started (5-min reminders + hourly cleanup)');
+
+  // ── Every 30 seconds: snapshot concurrent viewers for live streams ──
+  // node-cron doesn't support sub-minute intervals natively, use setInterval
+  setInterval(async () => {
+    try {
+      const liveStreams = await prisma.stream.findMany({
+        where:  { isLive: true },
+        select: { roomId: true },
+      });
+      await Promise.allSettled(
+        liveStreams.map(s => snapshotConcurrent(s.roomId))
+      );
+    } catch (err) {
+      console.error('Concurrent snapshot error:', err);
+    }
+  }, 30_000);
 }
 
 async function sendReminder(type: string, contact: string, title: string, roomId: string) {
