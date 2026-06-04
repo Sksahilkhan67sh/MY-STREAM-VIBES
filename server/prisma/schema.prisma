@@ -23,7 +23,6 @@ model Stream {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  // Phase 1: owner link (nullable for backward compat)
   userId       String?
   user         User?     @relation("UserStreams", fields: [userId], references: [id], onDelete: SetNull)
 
@@ -97,10 +96,6 @@ model PollVote {
   @@unique([pollId, voterId])
 }
 
-// ═══════════════════════════════════════════════════════════
-// PHASE 1: ANALYTICS SYSTEM
-// ═══════════════════════════════════════════════════════════
-
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
@@ -111,7 +106,7 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  streams       Stream[]        @relation("UserStreams")
+  streams         Stream[]         @relation("UserStreams")
   analyticsEvents AnalyticsEvent[]
 
   @@unique([provider, providerId])
@@ -125,20 +120,18 @@ model AnalyticsEvent {
   userId     String?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  event      String   // join | leave | chat | poll_vote | reaction | donate
-  viewerId   String   // anonymous fingerprint or userId
-  sessionId  String   // unique per browser session
+  event        String
+  viewerId     String
+  sessionId    String
 
-  // Device & geo
-  deviceType String?  // desktop | mobile | tablet
-  browser    String?
-  os         String?
-  country    String?
-  region     String?
-  city       String?
+  deviceType   String?
+  browser      String?
+  os           String?
+  country      String?
+  region       String?
+  city         String?
 
-  // Timing
-  watchSeconds Int    @default(0)
+  watchSeconds Int      @default(0)
   timestamp    DateTime @default(now())
 
   @@index([streamId])
@@ -152,31 +145,24 @@ model StreamAnalytics {
   streamId              String   @unique
   stream                Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
 
-  // Viewer metrics
   totalJoins            Int      @default(0)
   uniqueViewers         Int      @default(0)
   peakConcurrent        Int      @default(0)
   totalWatchSeconds     BigInt   @default(0)
   avgWatchSeconds       Int      @default(0)
 
-  // Engagement
   totalChatMessages     Int      @default(0)
   totalReactions        Int      @default(0)
   totalPollVotes        Int      @default(0)
   chatEngagementRate    Float    @default(0)
 
-  // Device breakdown (JSON)
   deviceBreakdown       Json     @default("{}")
   browserBreakdown      Json     @default("{}")
   countryBreakdown      Json     @default("{}")
 
-  // Retention (JSON array of percentages per minute)
   retentionCurve        Json     @default("[]")
-
-  // Concurrent viewers timeline (JSON array {ts, count})
   concurrentTimeline    Json     @default("[]")
 
-  // Stream meta
   durationSeconds       Int      @default(0)
   startedAt             DateTime?
   endedAt               DateTime?
@@ -188,6 +174,7 @@ model StreamAnalytics {
 model ConcurrentViewerSnapshot {
   id        String   @id @default(cuid())
   streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   count     Int
   timestamp DateTime @default(now())
 
