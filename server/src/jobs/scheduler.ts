@@ -10,15 +10,16 @@ const RECORDINGS_DIR = process.env.NODE_ENV === 'production'
   : path.join(process.cwd(), 'recordings');
 
 export function startScheduler() {
-  // Every minute: send reminders 15 min before scheduled streams
+  // ── Every minute: send reminders 5 min before scheduled streams ──
   cron.schedule('* * * * *', async () => {
     try {
       const now     = new Date();
-      const in15Min = new Date(now.getTime() + 15 * 60 * 1000);
-      const in16Min = new Date(now.getTime() + 16 * 60 * 1000);
+      const in5Min  = new Date(now.getTime() + 5 * 60 * 1000);
+      const in6Min  = new Date(now.getTime() + 6 * 60 * 1000);
 
+      // Find streams starting in the next 5–6 minute window
       const streams = await prisma.stream.findMany({
-        where:   { scheduledAt: { gte: in15Min, lte: in16Min } },
+        where:   { scheduledAt: { gte: in5Min, lte: in6Min } },
         include: { reminders: { where: { sent: false } } },
       });
 
@@ -33,17 +34,39 @@ export function startScheduler() {
     }
   });
 
-  // Every hour: clean up expired streams and their recording files
+  // ── Every minute: send "starting now" reminders ────────────────
+  cron.schedule('* * * * *', async () => {
+    try {
+      const now    = new Date();
+      const in1Min = new Date(now.getTime() + 60 * 1000);
+
+      const streams = await prisma.stream.findMany({
+        where:   { scheduledAt: { gte: now, lte: in1Min }, isLive: false },
+        include: { reminders: { where: { sent: false } } },
+      });
+
+      for (const stream of streams) {
+        // Only send "starting now" if there are unsent reminders (5-min ones already sent)
+        // For streams that had no prior reminders, skip
+        for (const reminder of stream.reminders) {
+          await sendStartingNowReminder(reminder.type, reminder.contact, stream.title, stream.roomId);
+          await prisma.reminder.update({ where: { id: reminder.id }, data: { sent: true } });
+        }
+      }
+    } catch (err) {
+      console.error('Scheduler starting-now error:', err);
+    }
+  });
+
+  // ── Every hour: clean up expired streams ───────────────────────
   cron.schedule('0 * * * *', async () => {
     try {
-      // Find expired streams with their recordings before deleting
       const expiredStreams = await prisma.stream.findMany({
         where: { expiresAt: { lt: new Date() } },
         include: { recordings: true },
       });
 
       for (const stream of expiredStreams) {
-        // Delete physical recording files
         for (const rec of stream.recordings) {
           try {
             if (fs.existsSync(rec.filePath)) {
@@ -56,7 +79,6 @@ export function startScheduler() {
         }
       }
 
-      // Now delete DB records (cascade deletes recordings, polls, etc.)
       const deleted = await prisma.stream.deleteMany({
         where: { expiresAt: { lt: new Date() } },
       });
@@ -68,14 +90,24 @@ export function startScheduler() {
     }
   });
 
-  console.log('✅ Scheduler started');
+  console.log('✅ Scheduler started (5-min reminders + hourly cleanup)');
 }
 
 async function sendReminder(type: string, contact: string, title: string, roomId: string) {
-  // Use CLIENT_URL (server env var), not NEXT_PUBLIC_APP_URL
   const appUrl  = process.env.CLIENT_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const message = `"${title}" starts in 15 minutes! Join here: ${appUrl}/s/${roomId}`;
+  const message = `"${title}" starts in 5 minutes! Join here: ${appUrl}/s/${roomId}`;
+  const subject = `"${title}" starts in 5 minutes!`;
+  await dispatchNotification(type, contact, subject, message);
+}
 
+async function sendStartingNowReminder(type: string, contact: string, title: string, roomId: string) {
+  const appUrl  = process.env.CLIENT_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const message = `"${title}" is starting NOW! Watch here: ${appUrl}/s/${roomId}`;
+  const subject = `"${title}" is LIVE now!`;
+  await dispatchNotification(type, contact, subject, message);
+}
+
+async function dispatchNotification(type: string, contact: string, subject: string, message: string) {
   if (type === 'email' && process.env.RESEND_API_KEY) {
     try {
       const { Resend } = await import('resend');
@@ -83,13 +115,15 @@ async function sendReminder(type: string, contact: string, title: string, roomId
       await resend.emails.send({
         from:    'StreamVault <reminders@streamvault.app>',
         to:      contact,
-        subject: `"${title}" starts soon!`,
+        subject,
         text:    message,
       });
-      console.log(`📧 Email reminder sent to ${contact}`);
+      console.log(`📧 Email reminder sent to ${contact}: ${subject}`);
     } catch (err) {
       console.error('Email reminder failed:', err);
     }
+  } else if (type === 'email') {
+    console.log(`📧 [MOCK EMAIL] to ${contact}: ${subject}`);
   }
 
   if (type === 'sms' && process.env.TWILIO_ACCOUNT_SID) {
@@ -105,5 +139,7 @@ async function sendReminder(type: string, contact: string, title: string, roomId
     } catch (err) {
       console.error('SMS reminder failed:', err);
     }
+  } else if (type === 'sms') {
+    console.log(`📱 [MOCK SMS] to ${contact}: ${message}`);
   }
 }
