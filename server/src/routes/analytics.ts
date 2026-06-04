@@ -19,21 +19,20 @@ const router = Router();
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const TrackSchema = z.object({
-  event:       z.enum(['join', 'leave', 'chat', 'poll_vote', 'reaction', 'donate']),
-  viewerId:    z.string().min(1).max(128),
-  sessionId:   z.string().min(1).max(128),
+  event:        z.enum(['join', 'leave', 'chat', 'poll_vote', 'reaction', 'donate']),
+  viewerId:     z.string().min(1).max(128),
+  sessionId:    z.string().min(1).max(128),
   watchSeconds: z.number().int().min(0).optional(),
-  deviceType:  z.enum(['desktop', 'mobile', 'tablet']).optional(),
-  browser:     z.string().max(64).optional(),
-  os:          z.string().max(64).optional(),
-  country:     z.string().max(64).optional(),
-  region:      z.string().max(64).optional(),
-  city:        z.string().max(64).optional(),
-  userId:      z.string().optional(),
+  deviceType:   z.enum(['desktop', 'mobile', 'tablet']).optional(),
+  browser:      z.string().max(64).optional(),
+  os:           z.string().max(64).optional(),
+  country:      z.string().max(64).optional(),
+  region:       z.string().max(64).optional(),
+  city:         z.string().max(64).optional(),
+  userId:       z.string().optional(),
 });
 
 // ─── POST /api/analytics/:roomId/track ───────────────────────────────────────
-// Public — any viewer can track events. Rate-limited upstream.
 
 router.post('/:roomId/track', async (req: Request, res: Response) => {
   try {
@@ -42,7 +41,21 @@ router.post('/:roomId/track', async (req: Request, res: Response) => {
       return res.status(400).json({ error: parsed.error.flatten() });
     }
 
-    await trackEvent({ streamId: req.params.roomId, ...parsed.data });
+    await trackEvent({
+      streamId:     req.params.roomId,
+      event:        parsed.data.event,
+      viewerId:     parsed.data.viewerId,
+      sessionId:    parsed.data.sessionId,
+      watchSeconds: parsed.data.watchSeconds,
+      deviceType:   parsed.data.deviceType,
+      browser:      parsed.data.browser,
+      os:           parsed.data.os,
+      country:      parsed.data.country,
+      region:       parsed.data.region,
+      city:         parsed.data.city,
+      userId:       parsed.data.userId,
+    });
+
     res.json({ ok: true });
   } catch (err) {
     console.error('[analytics/track]', err);
@@ -51,7 +64,6 @@ router.post('/:roomId/track', async (req: Request, res: Response) => {
 });
 
 // ─── GET /api/analytics/:roomId/live ─────────────────────────────────────────
-// Real-time stats — host only (token required)
 
 router.get('/:roomId/live', async (req: Request, res: Response) => {
   try {
@@ -75,7 +87,6 @@ router.get('/:roomId/live', async (req: Request, res: Response) => {
 });
 
 // ─── GET /api/analytics/:roomId/dashboard ────────────────────────────────────
-// Full analytics dashboard — host only
 
 router.get('/:roomId/dashboard', async (req: Request, res: Response) => {
   try {
@@ -93,13 +104,10 @@ router.get('/:roomId/dashboard', async (req: Request, res: Response) => {
 });
 
 // ─── GET /api/analytics/creator/:userId ──────────────────────────────────────
-// Aggregated stats for a creator's homepage
 
 router.get('/creator/:userId', async (req: Request, res: Response) => {
   try {
     const { hostToken } = req.query as { hostToken: string };
-
-    // Lightweight auth: verify at least one stream belongs to this user+token
     if (!hostToken) return res.status(401).json({ error: 'hostToken required' });
 
     const stream = await prisma.stream.findFirst({
@@ -116,7 +124,6 @@ router.get('/creator/:userId', async (req: Request, res: Response) => {
 });
 
 // ─── POST /api/analytics/:roomId/finalize ────────────────────────────────────
-// Called when stream ends to persist final analytics
 
 router.post('/:roomId/finalize', async (req: Request, res: Response) => {
   try {
