@@ -1,501 +1,65 @@
-generator client {
-  provider = "prisma-client-js"
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 5: MULTI-PLATFORM STREAMING (Restream-like)
+// ADD THESE MODELS TO server/prisma/schema.prisma
+// Run: npx prisma migrate dev --name phase5_multistream
+// ═══════════════════════════════════════════════════════════════════════════
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+/// One saved RTMP destination belonging to a user
+model RtmpDestination {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-model Stream {
-  id           String    @id @default(cuid())
-  roomId       String    @unique
-  title        String
-  hostToken    String    @unique
-  passwordHash String?
-  isLive       Boolean   @default(false)
-  isRecording  Boolean   @default(false)
-  scheduledAt  DateTime?
-  expiresAt    DateTime
-  viewerCount  Int       @default(0)
-  recordingUrl String?
-  rtmpUrl      String?
+  platform    String   // youtube | twitch | facebook | linkedin | custom
+  label       String   // user-defined nickname e.g. "My YouTube Gaming"
+  rtmpUrl     String   // full rtmp://... url  (base + key merged)
+  streamKey   String   // stored separately for display masking
+  isEnabled   Boolean  @default(true)
 
-  // Phase 4: PPV
-  isPPV        Boolean   @default(false)
-  ppvPrice     Int?      // lowest tier price in paise/cents (for display)
+  // Stats rollup
+  totalStreams Int      @default(0)
+  totalMinutes Int     @default(0)
+  lastUsedAt   DateTime?
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // Phase 1: owner link (nullable for backward compat)
-  userId       String?
-  user         User?     @relation("UserStreams", fields: [userId], references: [id], onDelete: SetNull)
-
-  reminders        Reminder[]
-  recordings       Recording[]
-  polls            Poll[]
-  coHosts          CoHost[]
-  analyticsEvents  AnalyticsEvent[]
-  analytics        StreamAnalytics?
-  concurrentSnaps  ConcurrentViewerSnapshot[]
-  donations        Donation[]
-  leaderboard      DonationLeaderboard?
-  ticketTiers      TicketTier[]
-  tickets          Ticket[]
-  ppvConfig        PPVConfig?
+  streamSessions MultiStreamSession[]
 
   @@index([userId])
 }
 
-model CoHost {
-  id          String   @id @default(cuid())
-  streamId    String
-  stream      Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  name        String
-  coHostToken String   @unique
-  joinUrl     String
-  isActive    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-}
-
-model Reminder {
-  id        String   @id @default(cuid())
-  streamId  String
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  type      String
-  contact   String
-  sent      Boolean  @default(false)
-  createdAt DateTime @default(now())
-}
-
-model Recording {
-  id          String    @id @default(cuid())
-  streamId    String
-  stream      Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  fileName    String
-  filePath    String
-  fileSize    Int       @default(0)
-  durationSec Int       @default(0)
-  startedAt   DateTime
-  endedAt     DateTime?
-  createdAt   DateTime  @default(now())
-}
-
-model Poll {
-  id        String     @id @default(cuid())
-  streamId  String
-  stream    Stream     @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  question  String
-  options   String
-  votes     String
-  status    String     @default("active")
-  endsAt    DateTime?
-  createdAt DateTime   @default(now())
-
-  pollVotes PollVote[]
-}
-
-model PollVote {
-  id          String   @id @default(cuid())
-  pollId      String
-  poll        Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  voterId     String
-  optionIndex Int
-  createdAt   DateTime @default(now())
-
-  @@unique([pollId, voterId])
-}
-
-// ═══════════════════════════════════════════════════════════
-// PHASE 1: ANALYTICS SYSTEM
-// ═══════════════════════════════════════════════════════════
-
-model User {
+/// One multistream session — a stream pushed to multiple destinations simultaneously
+model MultiStreamSession {
   id            String   @id @default(cuid())
-  email         String   @unique
-  name          String?
-  image         String?
-  provider      String   @default("github")
-  providerId    String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  streams           Stream[]        @relation("UserStreams")
-  analyticsEvents   AnalyticsEvent[]
-  donationConfig    DonationConfig?
-  receivedDonations Donation[]      @relation("ReceivedDonations")
-  subscriptions     Subscription[]
-  invoices          Invoice[]
-  usageRecords      UsageRecord[]
-
-  @@unique([provider, providerId])
-  @@index([email])
-}
-
-model AnalyticsEvent {
-  id         String   @id @default(cuid())
-  streamId   String
-  stream     Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  event      String   // join | leave | chat | poll_vote | reaction | donate
-  viewerId   String   // anonymous fingerprint or userId
-  sessionId  String   // unique per browser session
-
-  // Device & geo
-  deviceType String?  // desktop | mobile | tablet
-  browser    String?
-  os         String?
-  country    String?
-  region     String?
-  city       String?
-
-  // Timing
-  watchSeconds Int    @default(0)
-  timestamp    DateTime @default(now())
-
-  @@index([streamId])
-  @@index([viewerId])
-  @@index([timestamp])
-  @@index([event])
-}
-
-model StreamAnalytics {
-  id                    String   @id @default(cuid())
-  streamId              String   @unique
-  stream                Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-
-  // Viewer metrics
-  totalJoins            Int      @default(0)
-  uniqueViewers         Int      @default(0)
-  peakConcurrent        Int      @default(0)
-  totalWatchSeconds     BigInt   @default(0)
-  avgWatchSeconds       Int      @default(0)
-
-  // Engagement
-  totalChatMessages     Int      @default(0)
-  totalReactions        Int      @default(0)
-  totalPollVotes        Int      @default(0)
-  chatEngagementRate    Float    @default(0)
-
-  // Device breakdown (JSON)
-  deviceBreakdown       Json     @default("{}")
-  browserBreakdown      Json     @default("{}")
-  countryBreakdown      Json     @default("{}")
-
-  // Retention (JSON array of percentages per minute)
-  retentionCurve        Json     @default("[]")
-
-  // Concurrent viewers timeline (JSON array {ts, count})
-  concurrentTimeline    Json     @default("[]")
-
-  // Stream meta
-  durationSeconds       Int      @default(0)
-  startedAt             DateTime?
-  endedAt               DateTime?
-
-  updatedAt             DateTime @updatedAt
-  createdAt             DateTime @default(now())
-}
-
-model ConcurrentViewerSnapshot {
-  id        String   @id @default(cuid())
-  streamId  String
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  count     Int
-  timestamp DateTime @default(now())
-
-  @@index([streamId, timestamp])
-}
-
-// ═══════════════════════════════════════════════════════════
-// PHASE 2: DONATION SYSTEM
-// ═══════════════════════════════════════════════════════════
-
-model DonationConfig {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Razorpay
-  razorpayKeyId     String?
-  razorpayKeySecret String?  // encrypted at rest
-
-  // Stripe
-  stripePublishableKey String?
-  stripeSecretKey      String? // encrypted at rest
-  stripeWebhookSecret  String?
-
-  // UPI
-  upiId           String?
-  upiName         String?
-
-  // Settings
-  minimumAmount   Int      @default(10)   // in INR paise / USD cents
-  currency        String   @default("INR")
-  alertDuration   Int      @default(7)    // seconds
-  alertSound      Boolean  @default(true)
-  thankYouMessage String   @default("Thank you for your support! 🙏")
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
-
-model Donation {
-  id              String   @id @default(cuid())
-  streamId        String
-  stream          Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  userId          String?  // creator who received it
-  user            User?    @relation("ReceivedDonations", fields: [userId], references: [id], onDelete: SetNull)
-
-  // Donor info
-  donorName       String   @default("Anonymous")
-  donorEmail      String?
-  message         String?  @db.Text
-
-  // Payment
-  amount          Int      // in smallest currency unit (paise/cents)
-  currency        String   @default("INR")
-  gateway         String   // razorpay | stripe | upi
-  gatewayOrderId  String?
-  gatewayPaymentId String? @unique
-  gatewaySignature String?
-  status          String   @default("pending") // pending | completed | failed | refunded
-
-  // Display
-  displayAmount   Float    // human-readable (amount / 100)
-  isAnonymous     Boolean  @default(false)
-  isHighlighted   Boolean  @default(false) // top donation
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([streamId])
-  @@index([userId])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model DonationLeaderboard {
-  id          String   @id @default(cuid())
-  streamId    String   @unique
-  stream      Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  entries     Json     @default("[]") // [{donorName, totalAmount, count}]
-  updatedAt   DateTime @updatedAt
-}
-
-// ═══════════════════════════════════════════════════════════
-// PHASE 3: SUBSCRIPTION SYSTEM
-// ═══════════════════════════════════════════════════════════
-
-model Plan {
-  id              String   @id @default(cuid())
-  name            String   @unique  // free | basic | premium | enterprise
-  displayName     String
-  description     String?
-  priceMonthlyINR Int      @default(0)   // paise
-  priceYearlyINR  Int      @default(0)   // paise
-  priceMonthlyUSD Int      @default(0)   // cents
-  priceYearlyUSD  Int      @default(0)   // cents
-
-  // Feature limits
-  maxStreamsPerMonth   Int   @default(5)
-  maxViewersPerStream  Int   @default(100)
-  maxStreamDuration    Int   @default(120)   // minutes
-  maxStorageGB         Float @default(5)
-  maxCoHosts           Int   @default(1)
-  canRecord            Boolean @default(false)
-  canGoRTMP            Boolean @default(false)
-  canRunPolls          Boolean @default(true)
-  canAccessAnalytics   Boolean @default(false)
-  canAcceptDonations   Boolean @default(false)
-  canCustomBranding    Boolean @default(false)
-  canScheduleStreams   Boolean @default(true)
-  hasAIFeatures        Boolean @default(false)
-  hasPrioritySupport   Boolean @default(false)
-  hasWhiteLabel        Boolean @default(false)
-  isActive             Boolean @default(true)
-  sortOrder            Int     @default(0)
-
-  // Razorpay plan IDs
-  razorpayMonthlyPlanId String?
-  razorpayYearlyPlanId  String?
-
-  // Stripe price IDs
-  stripeMonthlyPriceId  String?
-  stripeYearlyPriceId   String?
-
-  subscriptions Subscription[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([name])
-}
-
-model Subscription {
-  id              String   @id @default(cuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planId          String
-  plan            Plan     @relation(fields: [planId], references: [id])
-
-  status          String   @default("active")
-  // active | trialing | past_due | canceled | paused | expired
-
-  billingCycle    String   @default("monthly") // monthly | yearly
-  currency        String   @default("INR")
-  currentPeriodStart DateTime
-  currentPeriodEnd   DateTime
-  cancelAtPeriodEnd  Boolean @default(false)
-  canceledAt         DateTime?
-  trialEndsAt        DateTime?
-
-  // Gateway references
-  gateway               String?  // stripe | razorpay
-  gatewaySubscriptionId String?  @unique
-  gatewayCustomerId     String?
-
-  // Metadata
-  autoRenew       Boolean  @default(true)
-  notes           String?
-
-  invoices        Invoice[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([userId])
-  @@index([status])
-  @@index([currentPeriodEnd])
-}
-
-model Invoice {
-  id               String   @id @default(cuid())
-  subscriptionId   String
-  subscription     Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  amount           Int      // in paise/cents
-  currency         String   @default("INR")
-  status           String   @default("pending") // pending | paid | failed | refunded | void
-  billingPeriodStart DateTime
-  billingPeriodEnd   DateTime
-
-  // Gateway
-  gateway          String?
-  gatewayInvoiceId String?  @unique
-  gatewayPaymentId String?
-  pdfUrl           String?
-
-  paidAt           DateTime?
-  dueAt            DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@index([userId])
-  @@index([subscriptionId])
-  @@index([status])
-}
-
-model UsageRecord {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  month     String   // "2025-01"
-  streamsUsed     Int @default(0)
-  storageUsedGB   Float @default(0)
-  streamMinutes   Int   @default(0)
-  updatedAt DateTime @updatedAt
-  createdAt DateTime @default(now())
-
-  @@unique([userId, month])
-  @@index([userId])
-}
-
-// ═══════════════════════════════════════════════════════════
-// PHASE 4: PAY-PER-VIEW SYSTEM
-// ═══════════════════════════════════════════════════════════
-
-model TicketTier {
-  id          String   @id @default(cuid())
-  streamId    String
-  stream      Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-
-  name        String   // e.g. "Early Bird", "Standard", "VIP"
-  description String?
-  price       Int      // in paise/cents
-  currency    String   @default("INR")
-  maxQuantity Int?     // null = unlimited
-  soldCount   Int      @default(0)
-  isActive    Boolean  @default(true)
-  validUntil  DateTime?
-
-  tickets     Ticket[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([streamId])
-}
-
-model Ticket {
-  id            String      @id @default(cuid())
-  tierId        String
-  tier          TicketTier  @relation(fields: [tierId], references: [id], onDelete: Cascade)
   streamId      String
-  stream        Stream      @relation(fields: [streamId], references: [id], onDelete: Cascade)
-
-  // Buyer info
-  buyerName     String
-  buyerEmail    String
-  buyerUserId   String?     // if logged in
-
-  // Ticket details
-  ticketCode    String      @unique  // short alphanumeric access code
-  qrData        String?     // JSON for QR code
-  status        String      @default("active") // active | used | refunded | expired | canceled
-
-  // Payment
-  amount        Int         // actual paid amount
-  currency      String      @default("INR")
-  gateway       String      // razorpay | stripe | upi | free
-  gatewayOrderId   String?
-  gatewayPaymentId String?  @unique
-  paidAt        DateTime?
-
-  // Access control
-  accessToken   String      @unique  // JWT-like token for stream entry
-  accessedAt    DateTime?
-  expiresAt     DateTime?
-
-  // Refund
-  refundedAt    DateTime?
-  refundReason  String?
-
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  @@index([streamId])
-  @@index([buyerEmail])
-  @@index([ticketCode])
-  @@index([accessToken])
-  @@index([status])
-}
-
-model PPVConfig {
-  id            String   @id @default(cuid())
-  streamId      String   @unique
   stream        Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  destinationId String
+  destination   RtmpDestination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
 
-  isEnabled     Boolean  @default(true)
-  allowRefunds  Boolean  @default(true)
-  refundWindowHours Int  @default(24)  // hours before stream start
-  maxTicketsPerBuyer Int @default(5)
-  requireEmail  Boolean  @default(true)
-  thankYouMessage String @default("Your ticket is confirmed! See you at the stream. 🎉")
-  reminderEnabled Boolean @default(true)
+  status        String   @default("idle")
+  // idle | connecting | live | error | stopped
+
+  startedAt     DateTime?
+  stoppedAt     DateTime?
+  errorMessage  String?
+
+  // Health metrics (updated every 30s)
+  bitrateKbps   Int      @default(0)
+  droppedFrames Int      @default(0)
+  latencyMs     Int      @default(0)
+  health        String   @default("unknown") // good | degraded | poor | unknown
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([streamId])
+  @@index([destinationId])
 }
+
+// ─── ADD TO Stream model (new relation fields) ────────────────
+// rtmpDestinations  RtmpDestination[]   — via userId join
+// multiStreamSessions MultiStreamSession[]
+
+// ─── ADD TO User model ────────────────────────────────────────
+// rtmpDestinations  RtmpDestination[]
