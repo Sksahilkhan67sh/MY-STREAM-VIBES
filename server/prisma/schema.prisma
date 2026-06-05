@@ -203,6 +203,7 @@ model StreamAnalytics {
 model ConcurrentViewerSnapshot {
   id        String   @id @default(cuid())
   streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   count     Int
   timestamp DateTime @default(now())
 
