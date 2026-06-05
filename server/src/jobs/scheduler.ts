@@ -1,10 +1,8 @@
 import cron from 'node-cron';
-import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import { snapshotConcurrent, finalizeStreamAnalytics } from '../services/analytics.service';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 const RECORDINGS_DIR = process.env.NODE_ENV === 'production'
   ? path.join('/tmp', 'recordings')
