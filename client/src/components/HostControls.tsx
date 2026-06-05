@@ -572,6 +572,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     { id: 'analytics',  label: 'Analytics',     badge: null },
     { id: 'earnings',   label: 'Earnings',      badge: null },
     { id: 'billing',    label: 'Plan & Billing', badge: null },
+    { id: 'ppv',        label: 'Pay-Per-View',  badge: null },
   ];
 
   const renderPreviewArea = () => {
@@ -985,6 +986,23 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                       >
                         View all plans
                       </button>
+                    </div>
+                  )}
+                  {activePanel === 'ppv' && (
+                    <div className="space-y-3 py-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Sell tickets to this stream. Create pricing tiers, track revenue, and manage refunds.
+                      </p>
+                      <button
+                        onClick={() => router.push(`/host/ppv/${stream.roomId}`)}
+                        className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2"
+                        style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
+                      >
+                        🎫 Open PPV Manager →
+                      </button>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
+                        Create tiers, set prices, and viewers will see a ticket gate before entering.
+                      </p>
                     </div>
                   )}
                   {activePanel === 'social'     && (
