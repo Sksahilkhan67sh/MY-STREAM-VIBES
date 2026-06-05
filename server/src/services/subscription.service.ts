@@ -210,7 +210,7 @@ export async function createStripeSubscription(
     expand:            ['latest_invoice.payment_intent'],
   });
 
-  const invoice     = subscription.latest_invoice as Record<string, unknown>;
+  const invoice     = subscription.latest_invoice as unknown as Record<string, unknown>;
   const intent      = invoice?.payment_intent as Record<string, unknown>;
 
   // Persist subscription record
