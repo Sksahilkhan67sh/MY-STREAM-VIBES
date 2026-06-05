@@ -1,11 +1,10 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { customAlphabet } from 'nanoid';
 import { createViewerToken, createHostToken } from '../lib/livekit-server';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8);
 
 // POST /api/token/viewer
