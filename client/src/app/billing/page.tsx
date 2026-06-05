@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSession } from 'next-auth/react';
@@ -63,6 +64,18 @@ const fmtAmt = (n: number, cur: string) =>
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function BillingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+      </div>
+    }>
+      <BillingContent />
+    </Suspense>
+  );
+}
+
+function BillingContent() {
   const router         = useRouter();
   const params         = useSearchParams();
   const { data: session, status: authStatus } = useSession();
