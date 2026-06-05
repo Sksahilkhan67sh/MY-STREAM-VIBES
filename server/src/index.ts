@@ -16,8 +16,9 @@ import egressRouter    from './routes/egress';
 import remindersRouter, { recoverReminders } from './routes/reminders';
 import pollsRouter, { recoverActivePolls } from './routes/polls';
 import coHostsRouter   from './routes/cohosts';
-import analyticsRouter from './routes/analytics';
-import donationsRouter from './routes/donations';
+import analyticsRouter      from './routes/analytics';
+import donationsRouter      from './routes/donations';
+import subscriptionsRouter  from './routes/subscriptions';
 import { startScheduler } from './jobs/scheduler';
 
 const app        = express();
@@ -76,8 +77,9 @@ app.use('/api/egress',    egressRouter);
 app.use('/api/reminders', remindersRouter);
 app.use('/api/polls',     pollsRouter);
 app.use('/api/cohosts',   coHostsRouter);
-app.use('/api/analytics', analyticsRouter);
-app.use('/api/donations', donationsRouter);
+app.use('/api/analytics',     analyticsRouter);
+app.use('/api/donations',     donationsRouter);
+app.use('/api/subscriptions', subscriptionsRouter);
 
 // ── Health check (keeps Render free tier alive via UptimeRobot) ─
 app.get('/health', (_req, res) => {
