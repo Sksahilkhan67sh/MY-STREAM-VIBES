@@ -84,8 +84,7 @@ export async function createStripePaymentIntent(
   donationId: string
 ) {
   const Stripe = (await import('stripe')).default;
-  const stripe = new Stripe(secretKey, { apiVersion: '2024-06-20' });
-  const intent = await stripe.paymentIntents.create({
+  const stripe = new Stripe(secretKey, { apiVersion: '2023-10-16' });
     amount,
     currency: currency.toLowerCase(),
     metadata: { donationId },
@@ -100,7 +99,7 @@ export async function verifyStripeWebhook(
   webhookSecret: string
 ) {
   const Stripe = (await import('stripe')).default;
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2023-10-16' });
   return stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
 }
 
