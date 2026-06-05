@@ -12,17 +12,20 @@ import { useAnalytics } from '@/hooks/useAnalytics';
 import DonationAlert from '@/components/donations/DonationAlert';
 import DonationModal from '@/components/donations/DonationModal';
 import { DonateButton, DonationLeaderboard } from '@/components/donations/DonationLeaderboard';
+import PPVGate from '@/components/ppv/PPVGate';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 interface StreamInfo {
-  roomId: string;
-  title: string;
-  isLive: boolean;
-  hasPassword: boolean;
-  scheduledAt: string | null;
-  expiresAt: string;
-  viewerCount: number;
+  roomId:       string;
+  title:        string;
+  isLive:       boolean;
+  hasPassword:  boolean;
+  scheduledAt:  string | null;
+  expiresAt:    string;
+  viewerCount:  number;
+  isPPV:        boolean;
+  ppvPrice:     number | null;
 }
 
 export default function ViewerPage() {
@@ -142,6 +145,13 @@ export default function ViewerPage() {
   );
 
   if (step === 'watching' && stream && token) return (
+    <PPVGate
+      roomId={roomId}
+      streamTitle={stream.title}
+      isPPV={stream.isPPV ?? false}
+      ppvPrice={stream.ppvPrice ?? undefined}
+      currency="INR"
+    >
     <div className="fixed inset-0 flex bg-zinc-950 overflow-hidden">
 
       {/* ── Donation Alert overlay (all viewports) ── */}
@@ -212,6 +222,7 @@ export default function ViewerPage() {
       </div>
 
     </div>
+    </PPVGate>
   );
 
   return (
