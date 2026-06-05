@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // ── Simple in-process reminder scheduler ─────────────────────
 // Schedules a one-shot timer to "send" a reminder at the right time.
