@@ -187,7 +187,7 @@ router.post(
       const event  = stripe.webhooks.constructEvent(req.body as Buffer, sig, secret);
 
       await handleStripeSubscriptionWebhook(
-        event as { type: string; data: { object: Record<string, unknown> } }
+        event as unknown as { type: string; data: { object: Record<string, unknown> } }
       );
       res.json({ received: true });
     } catch (err) {
