@@ -24,7 +24,8 @@
     "clsx": "^2.1.0",
     "lucide-react": "^0.344.0",
     "next-auth": "^5.0.0-beta.28",
-    "recharts": "^2.15.0"
+    "recharts": "^2.15.0",
+    "@stripe/stripe-js": "^3.3.0"
   },
   "devDependencies": {
     "@types/node": "^20",
