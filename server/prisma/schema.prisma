@@ -23,6 +23,7 @@ model Stream {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  // Phase 1: owner link (nullable for backward compat)
   userId       String?
   user         User?     @relation("UserStreams", fields: [userId], references: [id], onDelete: SetNull)
 
@@ -33,6 +34,8 @@ model Stream {
   analyticsEvents  AnalyticsEvent[]
   analytics        StreamAnalytics?
   concurrentSnaps  ConcurrentViewerSnapshot[]
+  donations        Donation[]
+  leaderboard      DonationLeaderboard?
 
   @@index([userId])
 }
@@ -96,6 +99,10 @@ model PollVote {
   @@unique([pollId, voterId])
 }
 
+// ═══════════════════════════════════════════════════════════
+// PHASE 1: ANALYTICS SYSTEM
+// ═══════════════════════════════════════════════════════════
+
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
@@ -106,8 +113,10 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  streams         Stream[]         @relation("UserStreams")
+  streams       Stream[]        @relation("UserStreams")
   analyticsEvents AnalyticsEvent[]
+  donationConfig  DonationConfig?
+  receivedDonations Donation[]  @relation("ReceivedDonations")
 
   @@unique([provider, providerId])
   @@index([email])
@@ -120,18 +129,20 @@ model AnalyticsEvent {
   userId     String?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  event        String
-  viewerId     String
-  sessionId    String
+  event      String   // join | leave | chat | poll_vote | reaction | donate
+  viewerId   String   // anonymous fingerprint or userId
+  sessionId  String   // unique per browser session
 
-  deviceType   String?
-  browser      String?
-  os           String?
-  country      String?
-  region       String?
-  city         String?
+  // Device & geo
+  deviceType String?  // desktop | mobile | tablet
+  browser    String?
+  os         String?
+  country    String?
+  region     String?
+  city       String?
 
-  watchSeconds Int      @default(0)
+  // Timing
+  watchSeconds Int    @default(0)
   timestamp    DateTime @default(now())
 
   @@index([streamId])
@@ -145,24 +156,31 @@ model StreamAnalytics {
   streamId              String   @unique
   stream                Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
 
+  // Viewer metrics
   totalJoins            Int      @default(0)
   uniqueViewers         Int      @default(0)
   peakConcurrent        Int      @default(0)
   totalWatchSeconds     BigInt   @default(0)
   avgWatchSeconds       Int      @default(0)
 
+  // Engagement
   totalChatMessages     Int      @default(0)
   totalReactions        Int      @default(0)
   totalPollVotes        Int      @default(0)
   chatEngagementRate    Float    @default(0)
 
+  // Device breakdown (JSON)
   deviceBreakdown       Json     @default("{}")
   browserBreakdown      Json     @default("{}")
   countryBreakdown      Json     @default("{}")
 
+  // Retention (JSON array of percentages per minute)
   retentionCurve        Json     @default("[]")
+
+  // Concurrent viewers timeline (JSON array {ts, count})
   concurrentTimeline    Json     @default("[]")
 
+  // Stream meta
   durationSeconds       Int      @default(0)
   startedAt             DateTime?
   endedAt               DateTime?
@@ -174,9 +192,84 @@ model StreamAnalytics {
 model ConcurrentViewerSnapshot {
   id        String   @id @default(cuid())
   streamId  String
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   count     Int
   timestamp DateTime @default(now())
 
   @@index([streamId, timestamp])
+}
+
+// ═══════════════════════════════════════════════════════════
+// PHASE 2: DONATION SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+model DonationConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Razorpay
+  razorpayKeyId     String?
+  razorpayKeySecret String?  // encrypted at rest
+
+  // Stripe
+  stripePublishableKey String?
+  stripeSecretKey      String? // encrypted at rest
+  stripeWebhookSecret  String?
+
+  // UPI
+  upiId           String?
+  upiName         String?
+
+  // Settings
+  minimumAmount   Int      @default(10)   // in INR paise / USD cents
+  currency        String   @default("INR")
+  alertDuration   Int      @default(7)    // seconds
+  alertSound      Boolean  @default(true)
+  thankYouMessage String   @default("Thank you for your support! 🙏")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Donation {
+  id              String   @id @default(cuid())
+  streamId        String
+  stream          Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  userId          String?  // creator who received it
+  user            User?    @relation("ReceivedDonations", fields: [userId], references: [id], onDelete: SetNull)
+
+  // Donor info
+  donorName       String   @default("Anonymous")
+  donorEmail      String?
+  message         String?  @db.Text
+
+  // Payment
+  amount          Int      // in smallest currency unit (paise/cents)
+  currency        String   @default("INR")
+  gateway         String   // razorpay | stripe | upi
+  gatewayOrderId  String?
+  gatewayPaymentId String? @unique
+  gatewaySignature String?
+  status          String   @default("pending") // pending | completed | failed | refunded
+
+  // Display
+  displayAmount   Float    // human-readable (amount / 100)
+  isAnonymous     Boolean  @default(false)
+  isHighlighted   Boolean  @default(false) // top donation
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([streamId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model DonationLeaderboard {
+  id          String   @id @default(cuid())
+  streamId    String   @unique
+  stream      Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  entries     Json     @default("[]") // [{donorName, totalAmount, count}]
+  updatedAt   DateTime @updatedAt
 }
