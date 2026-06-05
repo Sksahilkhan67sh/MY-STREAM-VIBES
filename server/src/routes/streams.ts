@@ -5,7 +5,8 @@ import { customAlphabet } from 'nanoid';
 import { createHostToken } from '../lib/livekit-server';
 import prisma from '../lib/prisma';
 
-const router = Router(); = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
+const router = Router();
+const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
 
 const CreateStreamSchema = z.object({
   title: z.string().min(1).max(100),
