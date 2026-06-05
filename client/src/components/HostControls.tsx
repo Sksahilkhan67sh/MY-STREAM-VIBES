@@ -570,6 +570,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     { id: 'link',       label: 'Viewer link',   badge: null },
     { id: 'cohost',     label: 'Co-Hosts',      badge: coHostCount > 0 ? `${coHostCount}` : null },
     { id: 'analytics',  label: 'Analytics',     badge: null },
+    { id: 'earnings',   label: 'Earnings',      badge: null },
   ];
 
   const renderPreviewArea = () => {
@@ -944,6 +945,23 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                       </button>
                       <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
                         Opens in a new view. Your stream stays active.
+                      </p>
+                    </div>
+                  )}
+                  {activePanel === 'earnings' && (
+                    <div className="space-y-3 py-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Manage payment gateways (Razorpay, Stripe, UPI) and view your donation earnings.
+                      </p>
+                      <button
+                        onClick={() => router.push('/earnings')}
+                        className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2"
+                        style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
+                      >
+                        Open Earnings Dashboard →
+                      </button>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
+                        Set up Razorpay, Stripe &amp; UPI in Settings tab.
                       </p>
                     </div>
                   )}
