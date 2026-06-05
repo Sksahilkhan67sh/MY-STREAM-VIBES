@@ -131,8 +131,14 @@ router.post('/:roomId/order', async (req: Request, res: Response) => {
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
     const { donation, gatewayData } = await createDonation({
-      roomId: req.params.roomId,
-      ...parsed.data,
+      roomId:      req.params.roomId,
+      donorName:   parsed.data.donorName ?? 'Anonymous',
+      amount:      parsed.data.amount ?? 0,
+      currency:    parsed.data.currency ?? 'INR',
+      gateway:     parsed.data.gateway ?? 'upi',
+      donorEmail:  parsed.data.donorEmail,
+      message:     parsed.data.message,
+      isAnonymous: parsed.data.isAnonymous ?? false,
     });
 
     res.json({ donationId: donation.id, ...gatewayData });
@@ -151,7 +157,13 @@ router.post('/verify', async (req: Request, res: Response) => {
     const parsed = VerifySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const success = await completeDonation(parsed.data);
+    const success = await completeDonation({
+      donationId:       parsed.data.donationId ?? '',
+      gatewayOrderId:   parsed.data.gatewayOrderId ?? '',
+      gatewayPaymentId: parsed.data.gatewayPaymentId ?? '',
+      gatewaySignature: parsed.data.gatewaySignature,
+      gateway:          parsed.data.gateway ?? 'upi',
+    });
     if (!success) return res.status(400).json({ error: 'Payment verification failed' });
 
     res.json({ ok: true });
@@ -178,7 +190,7 @@ router.post(
 
       const { verifyStripeWebhook } = await import('../services/donation.service');
       const event = await verifyStripeWebhook(req.body as Buffer, sig, secret);
-      await handleStripeWebhook(event as { type: string; data: { object: Record<string, unknown> } });
+      await handleStripeWebhook(event as unknown as { type: string; data: { object: Record<string, unknown> } });
 
       res.json({ received: true });
     } catch (err) {
