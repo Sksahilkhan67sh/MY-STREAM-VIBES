@@ -85,6 +85,7 @@ export async function createStripePaymentIntent(
 ) {
   const Stripe = (await import('stripe')).default;
   const stripe = new Stripe(secretKey, { apiVersion: '2023-10-16' });
+  const intent = await stripe.paymentIntents.create({
     amount,
     currency: currency.toLowerCase(),
     metadata: { donationId },
