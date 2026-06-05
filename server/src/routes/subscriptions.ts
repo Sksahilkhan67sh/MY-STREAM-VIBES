@@ -183,11 +183,11 @@ router.post(
       const secret = process.env.STRIPE_SUBSCRIPTION_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || '';
 
       const Stripe = (await import('stripe')).default;
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const event  = stripe.webhooks.constructEvent(req.body as Buffer, sig, secret);
 
       await handleStripeSubscriptionWebhook(
-        event as { type: string; data: { object: Record<string, unknown> } }
+        event as unknown as { type: string; data: { object: Record<string, unknown> } }
       );
       res.json({ received: true });
     } catch (err) {

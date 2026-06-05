@@ -170,7 +170,7 @@ export async function createStripeSubscription(
   currency: string = 'usd'
 ) {
   const Stripe    = (await import('stripe')).default;
-  const stripe    = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
+  const stripe    = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
   const plan      = await prisma.plan.findUnique({ where: { id: planId } });
   if (!plan) throw new Error('Plan not found');
@@ -210,8 +210,8 @@ export async function createStripeSubscription(
     expand:            ['latest_invoice.payment_intent'],
   });
 
-  const invoice     = subscription.latest_invoice as Record<string, unknown>;
-  const intent      = invoice?.payment_intent as Record<string, unknown>;
+  const invoice     = subscription.latest_invoice as unknown as Record<string, unknown>;
+  const intent      = invoice?.payment_intent as unknown as Record<string, unknown>;
 
   // Persist subscription record
   const now         = new Date();
@@ -321,7 +321,7 @@ export async function changeSubscriptionPlan(
 
   if (existing.gateway === 'stripe' && existing.gatewaySubscriptionId) {
     const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
     const newPlan = await prisma.plan.findUnique({ where: { id: newPlanId } });
     const priceId = billingCycle === 'yearly'
       ? newPlan?.stripeYearlyPriceId
@@ -356,7 +356,7 @@ export async function cancelSubscription(userId: string, immediately = false) {
 
   if (sub.gateway === 'stripe' && sub.gatewaySubscriptionId) {
     const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
     if (immediately) {
       await stripe.subscriptions.cancel(sub.gatewaySubscriptionId);
