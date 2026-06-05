@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "installCommand": "cd client && npm install --ignore-scripts",
+  "buildCommand": "cd client && npm run build",
+  "outputDirectory": "client/.next",
+  "framework": "nextjs"
+}
