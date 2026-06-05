@@ -571,6 +571,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     { id: 'cohost',     label: 'Co-Hosts',      badge: coHostCount > 0 ? `${coHostCount}` : null },
     { id: 'analytics',  label: 'Analytics',     badge: null },
     { id: 'earnings',   label: 'Earnings',      badge: null },
+    { id: 'billing',    label: 'Plan & Billing', badge: null },
   ];
 
   const renderPreviewArea = () => {
@@ -963,6 +964,27 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                       <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
                         Set up Razorpay, Stripe &amp; UPI in Settings tab.
                       </p>
+                    </div>
+                  )}
+                  {activePanel === 'billing' && (
+                    <div className="space-y-3 py-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        View your current plan, usage limits, billing history, and upgrade options.
+                      </p>
+                      <button
+                        onClick={() => router.push('/billing')}
+                        className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2"
+                        style={{ background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)' }}
+                      >
+                        Manage Subscription →
+                      </button>
+                      <button
+                        onClick={() => router.push('/pricing')}
+                        className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
+                        style={{ border: '1px solid rgba(255,255,255,0.08)', color: '#a1a1aa' }}
+                      >
+                        View all plans
+                      </button>
                     </div>
                   )}
                   {activePanel === 'social'     && (
