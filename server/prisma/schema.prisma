@@ -113,10 +113,13 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  streams       Stream[]        @relation("UserStreams")
-  analyticsEvents AnalyticsEvent[]
-  donationConfig  DonationConfig?
-  receivedDonations Donation[]  @relation("ReceivedDonations")
+  streams           Stream[]        @relation("UserStreams")
+  analyticsEvents   AnalyticsEvent[]
+  donationConfig    DonationConfig?
+  receivedDonations Donation[]      @relation("ReceivedDonations")
+  subscriptions     Subscription[]
+  invoices          Invoice[]
+  usageRecords      UsageRecord[]
 
   @@unique([provider, providerId])
   @@index([email])
@@ -192,7 +195,6 @@ model StreamAnalytics {
 model ConcurrentViewerSnapshot {
   id        String   @id @default(cuid())
   streamId  String
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   count     Int
   timestamp DateTime @default(now())
 
@@ -273,4 +275,132 @@ model DonationLeaderboard {
   stream      Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   entries     Json     @default("[]") // [{donorName, totalAmount, count}]
   updatedAt   DateTime @updatedAt
+}
+
+// ═══════════════════════════════════════════════════════════
+// PHASE 3: SUBSCRIPTION SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+model Plan {
+  id              String   @id @default(cuid())
+  name            String   @unique  // free | basic | premium | enterprise
+  displayName     String
+  description     String?
+  priceMonthlyINR Int      @default(0)   // paise
+  priceYearlyINR  Int      @default(0)   // paise
+  priceMonthlyUSD Int      @default(0)   // cents
+  priceYearlyUSD  Int      @default(0)   // cents
+
+  // Feature limits
+  maxStreamsPerMonth   Int   @default(5)
+  maxViewersPerStream  Int   @default(100)
+  maxStreamDuration    Int   @default(120)   // minutes
+  maxStorageGB         Float @default(5)
+  maxCoHosts           Int   @default(1)
+  canRecord            Boolean @default(false)
+  canGoRTMP            Boolean @default(false)
+  canRunPolls          Boolean @default(true)
+  canAccessAnalytics   Boolean @default(false)
+  canAcceptDonations   Boolean @default(false)
+  canCustomBranding    Boolean @default(false)
+  canScheduleStreams   Boolean @default(true)
+  hasAIFeatures        Boolean @default(false)
+  hasPrioritySupport   Boolean @default(false)
+  hasWhiteLabel        Boolean @default(false)
+  isActive             Boolean @default(true)
+  sortOrder            Int     @default(0)
+
+  // Razorpay plan IDs
+  razorpayMonthlyPlanId String?
+  razorpayYearlyPlanId  String?
+
+  // Stripe price IDs
+  stripeMonthlyPriceId  String?
+  stripeYearlyPriceId   String?
+
+  subscriptions Subscription[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([name])
+}
+
+model Subscription {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId          String
+  plan            Plan     @relation(fields: [planId], references: [id])
+
+  status          String   @default("active")
+  // active | trialing | past_due | canceled | paused | expired
+
+  billingCycle    String   @default("monthly") // monthly | yearly
+  currency        String   @default("INR")
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean @default(false)
+  canceledAt         DateTime?
+  trialEndsAt        DateTime?
+
+  // Gateway references
+  gateway               String?  // stripe | razorpay
+  gatewaySubscriptionId String?  @unique
+  gatewayCustomerId     String?
+
+  // Metadata
+  autoRenew       Boolean  @default(true)
+  notes           String?
+
+  invoices        Invoice[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([currentPeriodEnd])
+}
+
+model Invoice {
+  id               String   @id @default(cuid())
+  subscriptionId   String
+  subscription     Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount           Int      // in paise/cents
+  currency         String   @default("INR")
+  status           String   @default("pending") // pending | paid | failed | refunded | void
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+
+  // Gateway
+  gateway          String?
+  gatewayInvoiceId String?  @unique
+  gatewayPaymentId String?
+  pdfUrl           String?
+
+  paidAt           DateTime?
+  dueAt            DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([status])
+}
+
+model UsageRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month     String   // "2025-01"
+  streamsUsed     Int @default(0)
+  storageUsedGB   Float @default(0)
+  streamMinutes   Int   @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([userId, month])
+  @@index([userId])
 }
