@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Radio, Clock } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import StreamPlayer from '@/components/StreamPlayer';
@@ -9,6 +9,9 @@ import ChatPanel from '@/components/ChatPanel';
 import PollWidget from '@/components/PollWidget';
 import StreamSchedulerBanner from '@/components/StreamSchedulerBanner';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import DonationAlert from '@/components/donations/DonationAlert';
+import DonationModal from '@/components/donations/DonationModal';
+import { DonateButton, DonationLeaderboard } from '@/components/donations/DonationLeaderboard';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -34,6 +37,7 @@ export default function ViewerPage() {
   const [socket, setSocket]       = useState<Socket | null>(null);
   const [socketReady, setSocketReady] = useState(false);
   const [chatOpen, setChatOpen]   = useState(false);
+  const [showDonate, setShowDonate] = useState(false);
 
   // ── Analytics: auto-tracks join/leave/watch-time ──
   const { trackEvent: trackAnalytics } = useAnalytics({
@@ -140,6 +144,20 @@ export default function ViewerPage() {
   if (step === 'watching' && stream && token) return (
     <div className="fixed inset-0 flex bg-zinc-950 overflow-hidden">
 
+      {/* ── Donation Alert overlay (all viewports) ── */}
+      <DonationAlert socket={socket} roomId={roomId} />
+
+      {/* ── Donation Modal ── */}
+      <AnimatePresence>
+        {showDonate && (
+          <DonationModal
+            roomId={roomId}
+            streamerName={stream.title}
+            onClose={() => setShowDonate(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Video area: fills all space left of chat ── */}
       <div className="flex-1 min-w-0 flex flex-col min-h-0">
 
@@ -149,6 +167,10 @@ export default function ViewerPage() {
             <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
           </div>
           {socketReady && <PollWidget roomId={roomId} socket={socket} />}
+          {/* Desktop donate button — bottom-left of video */}
+          <div className="absolute bottom-6 left-6 z-20">
+            <DonateButton onClick={() => setShowDonate(true)} />
+          </div>
         </div>
 
         {/* Mobile: video fills available height, chat toggles below */}
@@ -157,18 +179,21 @@ export default function ViewerPage() {
             <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
             {socketReady && <PollWidget roomId={roomId} socket={socket} />}
           </div>
-          {/* Title bar + chat toggle */}
+          {/* Title bar + chat toggle + donate */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 flex-shrink-0">
             <div className="flex items-center gap-2 text-xs text-zinc-400 min-w-0">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
               <span className="truncate">{stream.title}</span>
             </div>
-            <button
-              onClick={() => setChatOpen(o => !o)}
-              className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors flex-shrink-0 ml-2"
-            >
-              {chatOpen ? 'Hide chat' : 'Chat'}
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+              <DonateButton onClick={() => setShowDonate(true)} />
+              <button
+                onClick={() => setChatOpen(o => !o)}
+                className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors"
+              >
+                {chatOpen ? 'Hide chat' : 'Chat'}
+              </button>
+            </div>
           </div>
           <div className={`${chatOpen ? 'flex' : 'hidden'} flex-col flex-1 min-h-0`}>
             <ChatPanel roomId={roomId} identity={identity} nickname={nickname || 'Anonymous'} socket={socket} />
@@ -179,6 +204,10 @@ export default function ViewerPage() {
 
       {/* ── Chat sidebar (desktop only) ── */}
       <div className="hidden lg:flex w-80 flex-shrink-0 border-l border-zinc-800/60 flex-col">
+        {/* Leaderboard above chat */}
+        <div className="px-3 pt-3">
+          <DonationLeaderboard roomId={roomId} socket={socket} currency="INR" />
+        </div>
         <ChatPanel roomId={roomId} identity={identity} nickname={nickname || 'Anonymous'} socket={socket} />
       </div>
 
