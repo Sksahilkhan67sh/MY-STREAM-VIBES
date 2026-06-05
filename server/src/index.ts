@@ -19,6 +19,7 @@ import coHostsRouter   from './routes/cohosts';
 import analyticsRouter      from './routes/analytics';
 import donationsRouter      from './routes/donations';
 import subscriptionsRouter  from './routes/subscriptions';
+import ppvRouter            from './routes/ppv';
 import { startScheduler } from './jobs/scheduler';
 
 const app        = express();
@@ -80,6 +81,7 @@ app.use('/api/cohosts',   coHostsRouter);
 app.use('/api/analytics',     analyticsRouter);
 app.use('/api/donations',     donationsRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
+app.use('/api/ppv',           ppvRouter);
 
 // ── Health check (keeps Render free tier alive via UptimeRobot) ─
 app.get('/health', (_req, res) => {
