@@ -1,13 +1,11 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { customAlphabet } from 'nanoid';
 import { createHostToken } from '../lib/livekit-server';
+import prisma from '../lib/prisma';
 
-const router = Router();
-const prisma = new PrismaClient();
-const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
+const router = Router(); = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
 
 const CreateStreamSchema = z.object({
   title: z.string().min(1).max(100),
