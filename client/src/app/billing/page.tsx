@@ -2,7 +2,6 @@
 export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
-import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSession } from 'next-auth/react';
