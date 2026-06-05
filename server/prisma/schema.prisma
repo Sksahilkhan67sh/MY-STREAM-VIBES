@@ -7,29 +7,178 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// PHASE 5: MULTI-PLATFORM STREAMING (Restream-like)
-// ADD THESE MODELS TO server/prisma/schema.prisma
-// Run: npx prisma migrate dev --name phase5_multistream
-// ═══════════════════════════════════════════════════════════════════════════
+// ─── User ────────────────────────────────────────────────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-/// One saved RTMP destination belonging to a user
+  streams          Stream[]
+  rtmpDestinations RtmpDestination[]
+  subscription     Subscription?
+}
+
+// ─── Plan ────────────────────────────────────────────────────────────────────
+model Plan {
+  name        String @id
+  displayName String
+  description String
+
+  priceMonthlyINR Int
+  priceYearlyINR  Int
+  priceMonthlyUSD Int
+  priceYearlyUSD  Int
+
+  maxStreamsPerMonth   Int
+  maxViewersPerStream  Int
+  maxStreamDuration    Int
+  maxStorageGB         Int
+  maxCoHosts           Int
+  canRecord            Boolean
+  canGoRTMP            Boolean
+  canRunPolls          Boolean
+  canAccessAnalytics   Boolean
+  canAcceptDonations   Boolean
+  canCustomBranding    Boolean
+  canScheduleStreams   Boolean
+  hasAIFeatures        Boolean
+  hasPrioritySupport   Boolean
+  hasWhiteLabel        Boolean
+  sortOrder            Int
+
+  subscriptions Subscription[]
+}
+
+// ─── Subscription ─────────────────────────────────────────────────────────────
+model Subscription {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planName               String
+  plan                   Plan      @relation(fields: [planName], references: [name])
+  status                 String    @default("active")
+  gatewaySubscriptionId  String?   @unique
+  canceledAt             DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+}
+
+// ─── Stream ──────────────────────────────────────────────────────────────────
+model Stream {
+  id           String    @id @default(cuid())
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  roomId       String    @unique
+  title        String
+  hostToken    String
+  passwordHash String?
+  isLive       Boolean   @default(false)
+  isRecording  Boolean   @default(false)
+  recordingUrl String?
+  rtmpUrl      String?
+  viewerCount  Int       @default(0)
+  scheduledAt  DateTime?
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  recordings          Recording[]
+  polls               Poll[]
+  coHosts             CoHost[]
+  reminders           Reminder[]
+  multiStreamSessions MultiStreamSession[]
+
+  @@index([userId])
+}
+
+// ─── Recording ───────────────────────────────────────────────────────────────
+model Recording {
+  id          String    @id @default(cuid())
+  streamId    String
+  stream      Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  fileName    String
+  filePath    String
+  fileSize    Int       @default(0)
+  durationSec Int?
+  startedAt   DateTime
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([streamId])
+}
+
+// ─── Poll ─────────────────────────────────────────────────────────────────────
+model Poll {
+  id        String   @id @default(cuid())
+  streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  question  String
+  options   String
+  votes     String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pollVotes PollVote[]
+
+  @@index([streamId])
+}
+
+model PollVote {
+  id          String   @id @default(cuid())
+  pollId      String
+  poll        Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  voterId     String
+  optionIndex Int
+  createdAt   DateTime @default(now())
+
+  @@unique([pollId, voterId])
+  @@index([pollId])
+}
+
+// ─── CoHost ───────────────────────────────────────────────────────────────────
+model CoHost {
+  id          String    @id @default(cuid())
+  streamId    String
+  stream      Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  name        String
+  coHostToken String    @unique
+  joinUrl     String
+  joinedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([streamId])
+}
+
+// ─── Reminder ─────────────────────────────────────────────────────────────────
+model Reminder {
+  id        String   @id @default(cuid())
+  streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  type      String
+  contact   String
+  sent      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([streamId])
+}
+
+// ─── RTMP Destination (Phase 5) ───────────────────────────────────────────────
 model RtmpDestination {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  platform    String   // youtube | twitch | facebook | linkedin | custom
-  label       String   // user-defined nickname e.g. "My YouTube Gaming"
-  rtmpUrl     String   // full rtmp://... url  (base + key merged)
-  streamKey   String   // stored separately for display masking
+  platform    String
+  label       String
+  rtmpUrl     String
+  streamKey   String
   isEnabled   Boolean  @default(true)
-
-  // Stats rollup
-  totalStreams Int      @default(0)
+  totalStreams  Int     @default(0)
   totalMinutes Int     @default(0)
-  lastUsedAt   DateTime?
-
+  lastUsedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -38,37 +187,23 @@ model RtmpDestination {
   @@index([userId])
 }
 
-/// One multistream session — a stream pushed to multiple destinations simultaneously
 model MultiStreamSession {
-  id            String   @id @default(cuid())
+  id            String          @id @default(cuid())
   streamId      String
-  stream        Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  stream        Stream          @relation(fields: [streamId], references: [id], onDelete: Cascade)
   destinationId String
   destination   RtmpDestination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
-
-  status        String   @default("idle")
-  // idle | connecting | live | error | stopped
-
+  status        String          @default("idle")
   startedAt     DateTime?
   stoppedAt     DateTime?
   errorMessage  String?
-
-  // Health metrics (updated every 30s)
-  bitrateKbps   Int      @default(0)
-  droppedFrames Int      @default(0)
-  latencyMs     Int      @default(0)
-  health        String   @default("unknown") // good | degraded | poor | unknown
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  bitrateKbps   Int             @default(0)
+  droppedFrames Int             @default(0)
+  latencyMs     Int             @default(0)
+  health        String          @default("unknown")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@index([streamId])
   @@index([destinationId])
 }
-
-// ─── ADD TO Stream model (new relation fields) ────────────────
-// rtmpDestinations  RtmpDestination[]   — via userId join
-// multiStreamSessions MultiStreamSession[]
-
-// ─── ADD TO User model ────────────────────────────────────────
-// rtmpDestinations  RtmpDestination[]
