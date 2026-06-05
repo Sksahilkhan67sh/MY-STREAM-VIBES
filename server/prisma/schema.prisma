@@ -55,7 +55,6 @@ model Reminder {
   id        String   @id @default(cuid())
   streamId  String
   stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   type      String
   contact   String
   sent      Boolean  @default(false)
@@ -79,7 +78,6 @@ model Poll {
   id        String     @id @default(cuid())
   streamId  String
   stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  stream    Stream     @relation(fields: [streamId], references: [id], onDelete: Cascade)
   question  String
   options   String
   votes     String
