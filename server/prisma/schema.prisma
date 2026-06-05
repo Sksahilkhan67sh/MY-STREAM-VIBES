@@ -20,6 +20,11 @@ model Stream {
   viewerCount  Int       @default(0)
   recordingUrl String?
   rtmpUrl      String?
+
+  // Phase 4: PPV
+  isPPV        Boolean   @default(false)
+  ppvPrice     Int?      // lowest tier price in paise/cents (for display)
+
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -36,6 +41,9 @@ model Stream {
   concurrentSnaps  ConcurrentViewerSnapshot[]
   donations        Donation[]
   leaderboard      DonationLeaderboard?
+  ticketTiers      TicketTier[]
+  tickets          Ticket[]
+  ppvConfig        PPVConfig?
 
   @@index([userId])
 }
@@ -77,7 +85,7 @@ model Recording {
 model Poll {
   id        String     @id @default(cuid())
   streamId  String
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  stream    Stream     @relation(fields: [streamId], references: [id], onDelete: Cascade)
   question  String
   options   String
   votes     String
@@ -195,7 +203,6 @@ model StreamAnalytics {
 model ConcurrentViewerSnapshot {
   id        String   @id @default(cuid())
   streamId  String
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   count     Int
   timestamp DateTime @default(now())
 
@@ -404,4 +411,90 @@ model UsageRecord {
 
   @@unique([userId, month])
   @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// PHASE 4: PAY-PER-VIEW SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+model TicketTier {
+  id          String   @id @default(cuid())
+  streamId    String
+  stream      Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  name        String   // e.g. "Early Bird", "Standard", "VIP"
+  description String?
+  price       Int      // in paise/cents
+  currency    String   @default("INR")
+  maxQuantity Int?     // null = unlimited
+  soldCount   Int      @default(0)
+  isActive    Boolean  @default(true)
+  validUntil  DateTime?
+
+  tickets     Ticket[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([streamId])
+}
+
+model Ticket {
+  id            String      @id @default(cuid())
+  tierId        String
+  tier          TicketTier  @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  streamId      String
+  stream        Stream      @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  // Buyer info
+  buyerName     String
+  buyerEmail    String
+  buyerUserId   String?     // if logged in
+
+  // Ticket details
+  ticketCode    String      @unique  // short alphanumeric access code
+  qrData        String?     // JSON for QR code
+  status        String      @default("active") // active | used | refunded | expired | canceled
+
+  // Payment
+  amount        Int         // actual paid amount
+  currency      String      @default("INR")
+  gateway       String      // razorpay | stripe | upi | free
+  gatewayOrderId   String?
+  gatewayPaymentId String?  @unique
+  paidAt        DateTime?
+
+  // Access control
+  accessToken   String      @unique  // JWT-like token for stream entry
+  accessedAt    DateTime?
+  expiresAt     DateTime?
+
+  // Refund
+  refundedAt    DateTime?
+  refundReason  String?
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([streamId])
+  @@index([buyerEmail])
+  @@index([ticketCode])
+  @@index([accessToken])
+  @@index([status])
+}
+
+model PPVConfig {
+  id            String   @id @default(cuid())
+  streamId      String   @unique
+  stream        Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  isEnabled     Boolean  @default(true)
+  allowRefunds  Boolean  @default(true)
+  refundWindowHours Int  @default(24)  // hours before stream start
+  maxTicketsPerBuyer Int @default(5)
+  requireEmail  Boolean  @default(true)
+  thankYouMessage String @default("Your ticket is confirmed! See you at the stream. 🎉")
+  reminderEnabled Boolean @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
