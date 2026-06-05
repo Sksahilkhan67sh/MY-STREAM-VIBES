@@ -80,8 +80,17 @@ router.post('/:roomId/tiers', async (req: Request, res: Response) => {
     const parsed = CreateTierSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const { hostToken, ...tierData } = parsed.data;
-    const tier = await createTicketTier({ roomId: req.params.roomId, hostToken, ...tierData });
+    const { hostToken, name, price, currency, description, maxQuantity, validUntil } = parsed.data;
+    const tier = await createTicketTier({
+      roomId:      req.params.roomId,
+      hostToken,
+      name,
+      price,
+      currency,
+      description,
+      maxQuantity,
+      validUntil,
+    });
     res.status(201).json(tier);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Failed to create tier';
@@ -139,7 +148,15 @@ router.post('/:roomId/purchase', async (req: Request, res: Response) => {
     const parsed = PurchaseSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const result = await initiatePurchase({ roomId: req.params.roomId, ...parsed.data });
+    const { tierId, buyerName, buyerEmail, buyerUserId, gateway } = parsed.data;
+    const result = await initiatePurchase({
+      roomId: req.params.roomId,
+      tierId,
+      buyerName,
+      buyerEmail,
+      buyerUserId,
+      gateway,
+    });
     res.json(result);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Failed to initiate purchase';
@@ -156,7 +173,14 @@ router.post('/verify', async (req: Request, res: Response) => {
     const parsed = VerifySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const result = await completePurchase(parsed.data);
+    const { ticketId, gatewayOrderId, gatewayPaymentId, gatewaySignature, gateway } = parsed.data;
+    const result = await completePurchase({
+      ticketId,
+      gatewayOrderId,
+      gatewayPaymentId,
+      gatewaySignature,
+      gateway,
+    });
     if (!result) return res.status(400).json({ error: 'Payment verification failed' });
 
     res.json(result);
