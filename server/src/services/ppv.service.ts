@@ -225,7 +225,7 @@ async function createRazorpayTicketOrder(ticketId: string, amount: number, curre
 
 async function createStripeTicketIntent(ticketId: string, amount: number, currency: string, streamTitle: string) {
   const Stripe = (await import('stripe')).default;
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
   const intent = await stripe.paymentIntents.create({
     amount,
@@ -387,7 +387,7 @@ export async function refundTicket(ticketId: string, hostToken: string, reason?:
   if (ticket.gateway === 'stripe' && ticket.gatewayPaymentId) {
     try {
       const Stripe = (await import('stripe')).default;
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       await stripe.refunds.create({ payment_intent: ticket.gatewayPaymentId });
     } catch (e) {
       console.error('Stripe refund error:', e);
