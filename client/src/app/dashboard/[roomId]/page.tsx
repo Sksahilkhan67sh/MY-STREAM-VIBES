@@ -112,15 +112,37 @@ export default function AnalyticsDashboardPage() {
   const [error, setError]     = useState('');
   const [isLive, setIsLive]   = useState(false);
 
-  const hostToken = typeof window !== 'undefined'
-    ? sessionStorage.getItem(`hostToken_${roomId}`) ?? ''
-    : '';
+  // ── FIX: hostToken as state (SSR-safe) with fallback to persisted activeStream ──
+  const [hostToken, setHostToken] = useState('');
+  useEffect(() => {
+    let token = sessionStorage.getItem(`hostToken_${roomId}`) ?? '';
+    if (!token) {
+      try {
+        const saved = sessionStorage.getItem('activeStream');
+        if (saved) {
+          const stream = JSON.parse(saved);
+          if (stream.roomId === roomId && stream.hostToken) {
+            token = stream.hostToken;
+            sessionStorage.setItem(`hostToken_${roomId}`, token);
+          }
+        }
+      } catch {}
+    }
+    setHostToken(token);
+  }, [roomId]);
 
   const load = useCallback(async () => {
-    if (!hostToken) { setError('Host token not found. Return to your stream.'); setLoading(false); return; }
+    if (!hostToken) { setError('Host session not found. Please go back to your stream and reopen Analytics.'); setLoading(false); return; }
     try {
       const res = await fetch(`${API}/api/analytics/${roomId}/dashboard?hostToken=${encodeURIComponent(hostToken)}`);
-      if (!res.ok) { setError('Could not load analytics.'); setLoading(false); return; }
+      // ── FIX: surface the actual server error message, not a generic one ──
+      if (!res.ok) {
+        let msg = 'Could not load analytics.';
+        if (res.status === 404) msg = 'No analytics data yet — start streaming to collect data.';
+        else if (res.status === 401 || res.status === 403) msg = 'Authentication failed. Please go back and reopen Analytics.';
+        else { try { const b = await res.json(); if (b.error) msg = b.error; } catch {} }
+        setError(msg); setLoading(false); return;
+      }
       const json = await res.json();
       setData(json);
 
@@ -128,7 +150,7 @@ export default function AnalyticsDashboardPage() {
       const sr = await fetch(`${API}/api/streams/${roomId}`);
       if (sr.ok) { const s = await sr.json(); setIsLive(s.isLive); }
     } catch {
-      setError('Network error.');
+      setError('Network error — please check your connection and try again.');
     } finally { setLoading(false); }
   }, [roomId, hostToken]);
 
