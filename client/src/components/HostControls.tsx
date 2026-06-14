@@ -447,12 +447,23 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     setActiveStreams(s);
   };
 
+  // socketInstance is STATE (not just a ref) so that child components like
+  // PollCreator receive the socket and re-render once it is available.
+  const [socketInstance, setSocketInstance] = useState<ReturnType<typeof socketIo> | null>(null);
   const socketRef = useRef<ReturnType<typeof socketIo> | null>(null);
   useEffect(() => {
     const sock = socketIo(API, { transports: ['websocket', 'polling'] });
-    sock.on('connect', () => sock.emit('join-room', { roomId: stream.roomId, nickname: 'Host' }));
+    sock.on('connect', () => {
+      sock.emit('join-room', { roomId: stream.roomId, nickname: 'Host' });
+      setSocketInstance(sock); // triggers re-render so children get the live socket
+    });
     socketRef.current = sock;
-    return () => { sock.disconnect(); socketRef.current = null; };
+    setSocketInstance(sock); // set immediately too for already-connected sockets
+    return () => {
+      sock.disconnect();
+      socketRef.current = null;
+      setSocketInstance(null);
+    };
   }, [stream.roomId]);
 
   const updateLive = async (live: boolean) => {
@@ -559,6 +570,9 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
     setIsLive(false); setRtmpActive(false); setError('');
     setPipSwapped(false); setCameraFlipped(false); setActiveStreams([]);
     await updateLive(false);
+    // Clear persisted stream so host sees a fresh create-stream form next time
+    sessionStorage.removeItem('activeStream');
+    sessionStorage.removeItem(`hostToken_${stream.roomId}`);
   };
 
   const TOOLS = [
@@ -932,7 +946,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                 <div className="p-4">
                   {activePanel === 'resolution' && <ResolutionPicker value={resolution} onChange={setResolution} disabled={isLive} />}
                   {activePanel === 'color'      && <ColorGrading settings={colorSettings} onChange={setColorSettings} />}
-                  {activePanel === 'poll'       && <PollCreator roomId={stream.roomId} hostToken={stream.hostToken} socket={socketRef.current} activePoll={activePoll} onPollCreated={setActivePoll} onPollClosed={() => setActivePoll(null)} />}
+                  {activePanel === 'poll'       && <PollCreator roomId={stream.roomId} hostToken={stream.hostToken} socket={socketInstance} activePoll={activePoll} onPollCreated={setActivePoll} onPollClosed={() => setActivePoll(null)} />}
                   {activePanel === 'analytics'  && (
                     <div className="space-y-3 py-2">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
