@@ -34,6 +34,24 @@ export default function HostPage() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduledAt, setScheduledAt]   = useState<string | null>(null);
 
+  // Restore stream from sessionStorage so navigating to analytics/billing/ppv
+  // and pressing Back doesn't drop user back to the create-stream form.
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    try {
+      const saved = sessionStorage.getItem('activeStream');
+      if (saved) {
+        const parsed: StreamData = JSON.parse(saved);
+        if (parsed.expiresAt && new Date(parsed.expiresAt) > new Date()) {
+          setStream(parsed);
+          sessionStorage.setItem(`hostToken_${parsed.roomId}`, parsed.hostToken);
+        } else {
+          sessionStorage.removeItem('activeStream');
+        }
+      }
+    } catch { sessionStorage.removeItem('activeStream'); }
+  }, [status]);
+
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
   }, [status, router]);
@@ -64,7 +82,11 @@ export default function HostPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to create stream'); return; }
-      setStream({ ...data, scheduledAt: effectiveSchedule ?? undefined });
+      const newStream: StreamData = { ...data, scheduledAt: effectiveSchedule ?? undefined };
+      // Persist so Back-button returns to HostControls, not the create-stream form
+      sessionStorage.setItem('activeStream', JSON.stringify(newStream));
+      sessionStorage.setItem(`hostToken_${newStream.roomId}`, newStream.hostToken);
+      setStream(newStream);
     } catch {
       setError('Cannot connect to server. Is it running?');
     } finally { setLoading(false); }
