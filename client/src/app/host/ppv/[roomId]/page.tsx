@@ -6,8 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Ticket, Plus, Trash2, RefreshCw,
-  IndianRupee, Users, TrendingUp, Loader2,
-  Check, X, AlertTriangle,
+  IndianRupee, TrendingUp, Loader2, AlertCircle,
 } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -31,27 +30,48 @@ interface Stats {
 }
 
 const sym = (c: string) => c === 'INR' ? '₹' : '$';
-const fmtDate = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const fmtDate = (s: string) =>
+  new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 export default function PPVManagerPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const router     = useRouter();
-  const hostToken  = typeof window !== 'undefined'
-    ? sessionStorage.getItem(`hostToken_${roomId}`) ?? ''
-    : '';
+
+  // ── FIX: hostToken as state so useCallback/useEffect picks up the real value ──
+  // On SSR typeof window === 'undefined', so we initialise to '' and set via effect.
+  const [hostToken, setHostToken] = useState('');
+
+  useEffect(() => {
+    let token = sessionStorage.getItem(`hostToken_${roomId}`) ?? '';
+    if (!token) {
+      // Fallback: read from the persisted activeStream (set by host/page.tsx)
+      try {
+        const saved = sessionStorage.getItem('activeStream');
+        if (saved) {
+          const stream = JSON.parse(saved);
+          if (stream.roomId === roomId && stream.hostToken) {
+            token = stream.hostToken;
+            sessionStorage.setItem(`hostToken_${roomId}`, token);
+          }
+        }
+      } catch {}
+    }
+    setHostToken(token);
+  }, [roomId]);
 
   const [stats, setStats]         = useState<Stats | null>(null);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [saving, setSaving]       = useState(false);
   const [refunding, setRefunding] = useState<string | null>(null);
+  const [tierError, setTierError] = useState(''); // ── FIX: surface API errors to user
 
   // New tier form
-  const [tierName, setTierName]   = useState('Standard');
-  const [tierDesc, setTierDesc]   = useState('');
-  const [tierPrice, setTierPrice] = useState('');
+  const [tierName, setTierName]         = useState('Standard');
+  const [tierDesc, setTierDesc]         = useState('');
+  const [tierPrice, setTierPrice]       = useState('');
   const [tierCurrency, setTierCurrency] = useState('INR');
-  const [tierMax, setTierMax]     = useState('');
+  const [tierMax, setTierMax]           = useState('');
 
   const load = useCallback(async () => {
     if (!hostToken) return;
@@ -64,11 +84,17 @@ export default function PPVManagerPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // ── FIX: createTier now checks res.ok and shows the server error to the user ──
   const createTier = async () => {
     if (!tierName || !tierPrice) return;
+    if (!hostToken) {
+      setTierError('Session expired — please go back and reopen the PPV Manager.');
+      return;
+    }
     setSaving(true);
+    setTierError('');
     try {
-      await fetch(`${API}/api/ppv/${roomId}/tiers`, {
+      const res = await fetch(`${API}/api/ppv/${roomId}/tiers`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
@@ -80,9 +106,21 @@ export default function PPVManagerPage() {
           maxQuantity: tierMax ? parseInt(tierMax) : undefined,
         }),
       });
+
+      let body: Record<string, string> = {};
+      try { body = await res.json(); } catch {}
+
+      if (!res.ok) {
+        setTierError(body.error || `Failed to create tier (HTTP ${res.status}). Please try again.`);
+        return; // keep the form open so the user can correct their input
+      }
+
+      // Success – reset form and reload stats
       setShowForm(false);
       setTierName('Standard'); setTierDesc(''); setTierPrice(''); setTierMax('');
       await load();
+    } catch {
+      setTierError('Network error. Please check your connection and try again.');
     } finally { setSaving(false); }
   };
 
@@ -125,7 +163,7 @@ export default function PPVManagerPage() {
           <button onClick={load} className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors">
             <RefreshCw className="w-4 h-4" />
           </button>
-          <button onClick={() => setShowForm(true)}
+          <button onClick={() => { setTierError(''); setShowForm(true); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
             style={{ background: 'linear-gradient(135deg,#ff3520,#c81405)' }}>
             <Plus className="w-3 h-3" /> Add Tier
@@ -134,6 +172,15 @@ export default function PPVManagerPage() {
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+        {/* hostToken missing warning */}
+        {!loading && !hostToken && (
+          <div className="flex items-center gap-3 p-4 rounded-2xl text-amber-400"
+            style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <p className="text-sm">Host session not found. Please go back and reopen the PPV Manager from your stream dashboard.</p>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-zinc-500" /></div>
@@ -249,6 +296,15 @@ export default function PPVManagerPage() {
               <div className="p-6 space-y-4">
                 <h3 className="font-bold text-zinc-100">New Ticket Tier</h3>
 
+                {/* ── FIX: error banner inside the modal so user sees what went wrong ── */}
+                {tierError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl text-red-400"
+                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <p className="text-xs">{tierError}</p>
+                  </div>
+                )}
+
                 {[
                   { label: 'Tier Name', value: tierName, set: setTierName, placeholder: 'e.g. Standard, VIP, Early Bird' },
                   { label: 'Description (optional)', value: tierDesc, set: setTierDesc, placeholder: 'What does this tier include?' },
@@ -287,7 +343,8 @@ export default function PPVManagerPage() {
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <button onClick={() => setShowForm(false)} className="flex-1 py-3 rounded-xl text-sm font-semibold text-zinc-500"
+                  <button onClick={() => { setShowForm(false); setTierError(''); }}
+                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-zinc-500"
                     style={{ border: '1px solid rgba(255,255,255,0.08)' }}>Cancel</button>
                   <button onClick={createTier} disabled={saving || !tierName || !tierPrice}
                     className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50"
