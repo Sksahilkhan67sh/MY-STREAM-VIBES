@@ -99,10 +99,18 @@ export default function PricingPage() {
   const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
   const [subscribing, setSubscribing] = useState<string | null>(null);
 
-  const hostToken = typeof window !== 'undefined'
-    ? Object.keys(sessionStorage).filter(k => k.startsWith('hostToken_')).map(k => sessionStorage.getItem(k))[0] ?? ''
-    : '';
-  const userId = session?.user?.id ?? '';
+  // ── FIX: read hostToken as state (SSR-safe) so it's always available ──
+  const [hostToken, setHostToken] = useState('');
+  useEffect(() => {
+    const token = Object.keys(sessionStorage)
+      .filter(k => k.startsWith('hostToken_'))
+      .map(k => sessionStorage.getItem(k))
+      .find(Boolean) ?? '';
+    setHostToken(token);
+  }, []);
+
+  // ── FIX: NextAuth doesn't expose session.user.id by default; fall back to email ──
+  const userId = session?.user?.id ?? session?.user?.email ?? '';
 
   useEffect(() => {
     fetch(`${API}/api/subscriptions/plans`)
@@ -114,7 +122,8 @@ export default function PricingPage() {
   const handleSubscribe = async (plan: Plan) => {
     if (plan.name === 'free') return;
     if (!session) { router.push('/login'); return; }
-    if (!userId || !hostToken) { router.push('/host'); return; }
+    // ── FIX: if no hostToken, still allow upgrade (some plans don't need an active stream) ──
+    if (!userId) { router.push('/login'); return; }
 
     setSubscribing(plan.id);
     try {
@@ -125,20 +134,23 @@ export default function PricingPage() {
         body:    JSON.stringify({ userId, hostToken, planId: plan.id, billingCycle: billing, gateway, currency }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
 
       if (gateway === 'razorpay' && data.subscriptionId) {
-        const Razorpay = (window as any).Razorpay;
-        if (!Razorpay) {
-          // Load Razorpay script
-          await new Promise<void>(resolve => {
+        // Load Razorpay script if not already present
+        if (!(window as any).Razorpay) {
+          await new Promise<void>((resolve, reject) => {
             const s = document.createElement('script');
             s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-            s.onload = () => resolve();
+            s.onload  = () => resolve();
+            s.onerror = () => reject(new Error('Failed to load Razorpay. Please check your connection.'));
             document.body.appendChild(s);
           });
         }
-        const rzp = new (window as any).Razorpay({
+        // ── FIX: guard against Razorpay still not available after script load ──
+        const RazorpayClass = (window as any).Razorpay;
+        if (!RazorpayClass) throw new Error('Razorpay payment provider is not available in your region.');
+        const rzp = new RazorpayClass({
           key:             data.razorpayKeyId,
           subscription_id: data.subscriptionId,
           name:            'Stream Vault',
@@ -149,16 +161,21 @@ export default function PricingPage() {
         rzp.open();
       } else if (gateway === 'stripe' && data.clientSecret) {
         const { loadStripe } = await import('@stripe/stripe-js');
-        const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-        if (stripe) {
-          await stripe.confirmPayment({
-            clientSecret:  data.clientSecret,
-            confirmParams: { return_url: `${APP_URL}/billing?success=true` },
-          });
-        }
+        // ── FIX: guard against missing Stripe key to avoid uncaught runtime crash ──
+        const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+        if (!stripeKey) throw new Error('Stripe is not configured. Please contact support.');
+        const stripe = await loadStripe(stripeKey);
+        if (!stripe) throw new Error('Failed to initialize Stripe. Please try again.');
+        await stripe.confirmPayment({
+          clientSecret:  data.clientSecret,
+          confirmParams: { return_url: `${APP_URL}/billing?success=true` },
+        });
+      } else if (!data.subscriptionId && !data.clientSecret) {
+        // Subscription created but no payment step needed (e.g. free upgrade or server redirect)
+        router.push('/billing?success=true');
       }
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to subscribe');
+      alert(e instanceof Error ? e.message : 'Failed to subscribe. Please try again.');
     } finally {
       setSubscribing(null);
     }
