@@ -21,6 +21,13 @@ import { useStreamStore } from '../store/stream';
 import ColorGrading, { ColorSettings, DEFAULT_SETTINGS, buildFilter, buildVignette } from './ColorGrading';
 import ResolutionPicker, { Resolution, DEFAULT_RESOLUTION } from './ResolutionPicker';
 import { ThemeToggle } from './ThemeContext';
+type FullPanel = null | 'analytics' | 'earnings' | 'billing' | 'pricing' | 'ppv';
+
+import InlineAnalytics from './InlineAnalytics';
+import InlineEarnings  from './InlineEarnings';
+import InlineBilling   from './InlineBilling';
+import InlinePricing   from './InlinePricing';
+import InlinePPV       from './InlinePPV';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -232,6 +239,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const [panelOpen, setPanelOpen]         = useState(false);
   const [panelTab, setPanelTab]           = useState<'chat' | 'tools'>('chat');
   const [activePanel, setActivePanel]     = useState<string | null>(null);
+  // Fullscreen overlays — rendered inside HostControls so the LiveKit room NEVER unmounts
+  const [fullPanel, setFullPanel]         = useState<FullPanel>(null);
   const [showRtmp, setShowRtmp]           = useState(false);
   const [rtmpActive, setRtmpActive]       = useState(false);
   const [activePoll, setActivePoll]       = useState<any>(null);
@@ -953,7 +962,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                         View detailed analytics for this stream — viewers, retention, engagement, and more.
                       </p>
                       <button
-                        onClick={() => router.push(`/dashboard/${stream.roomId}`)}
+                        onClick={() => setFullPanel('analytics')}
                         className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2"
                         style={{ background: 'linear-gradient(135deg, #ff3520, #c81405)' }}
                       >
@@ -970,7 +979,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                         Manage payment gateways (Razorpay, Stripe, UPI) and view your donation earnings.
                       </p>
                       <button
-                        onClick={() => router.push('/earnings')}
+                        onClick={() => setFullPanel('earnings')}
                         className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2"
                         style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
                       >
@@ -987,14 +996,14 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                         View your current plan, usage limits, billing history, and upgrade options.
                       </p>
                       <button
-                        onClick={() => router.push('/billing')}
+                        onClick={() => setFullPanel('billing')}
                         className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2"
                         style={{ background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)' }}
                       >
                         Manage Subscription →
                       </button>
                       <button
-                        onClick={() => router.push('/pricing')}
+                        onClick={() => setFullPanel('pricing')}
                         className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
                         style={{ border: '1px solid rgba(255,255,255,0.08)', color: '#a1a1aa' }}
                       >
@@ -1008,7 +1017,7 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                         Sell tickets to this stream. Create pricing tiers, track revenue, and manage refunds.
                       </p>
                       <button
-                        onClick={() => router.push(`/host/ppv/${stream.roomId}`)}
+                        onClick={() => setFullPanel('ppv')}
                         className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2"
                         style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
                       >
@@ -1090,6 +1099,44 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
           streams={activeStreams}
         />
       )}
+
+      {/* ── Fullscreen inline overlays — stream keeps running underneath ── */}
+      <AnimatePresence>
+        {fullPanel === 'analytics' && (
+          <InlineAnalytics
+            roomId={stream.roomId}
+            hostToken={stream.hostToken}
+            onBack={() => setFullPanel(null)}
+          />
+        )}
+        {fullPanel === 'earnings' && (
+          <InlineEarnings
+            hostToken={stream.hostToken}
+            onBack={() => setFullPanel(null)}
+          />
+        )}
+        {fullPanel === 'billing' && (
+          <InlineBilling
+            hostToken={stream.hostToken}
+            onBack={() => setFullPanel(null)}
+            onUpgrade={() => setFullPanel('pricing')}
+          />
+        )}
+        {fullPanel === 'pricing' && (
+          <InlinePricing
+            hostToken={stream.hostToken}
+            onBack={() => setFullPanel('billing')}
+            onSuccess={() => setFullPanel('billing')}
+          />
+        )}
+        {fullPanel === 'ppv' && (
+          <InlinePPV
+            roomId={stream.roomId}
+            hostToken={stream.hostToken}
+            onBack={() => setFullPanel(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
