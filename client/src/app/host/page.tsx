@@ -33,6 +33,8 @@ export default function HostPage() {
   const [mode, setMode]             = useState<StreamMode>('live');
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduledAt, setScheduledAt]   = useState<string | null>(null);
+  // Shows a toast when Stripe redirects back to /host after 3DS payment
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   // Restore stream from sessionStorage so navigating to analytics/billing/ppv
   // and pressing Back doesn't drop user back to the create-stream form.
@@ -50,6 +52,15 @@ export default function HostPage() {
         }
       }
     } catch { sessionStorage.removeItem('activeStream'); }
+
+    // Detect Stripe 3DS redirect back to /host?payment_success=1
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment_success') === '1') {
+      setPaymentSuccess(true);
+      // Clean the URL without reloading the page
+      window.history.replaceState({}, '', '/host');
+      setTimeout(() => setPaymentSuccess(false), 5000);
+    }
   }, [status]);
 
   useEffect(() => {
@@ -106,7 +117,26 @@ export default function HostPage() {
   };
 
   if (stream) {
-    return <HostControls stream={stream} appUrl={APP_URL} onCopy={copyLink} copied={copied} />;
+    return (
+      <>
+        {/* ── Payment success toast (shown when Stripe 3DS redirects back to /host) ── */}
+        <AnimatePresence>
+          {paymentSuccess && (
+            <motion.div
+              initial={{ opacity:0, y:-40 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-40 }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl"
+              style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'white', fontFamily:"'DM Sans','Inter',sans-serif" }}>
+              <span className="text-lg">🎉</span>
+              <div>
+                <p className="text-sm font-bold">Subscription activated!</p>
+                <p className="text-xs opacity-80">Your plan has been upgraded successfully.</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <HostControls stream={stream} appUrl={APP_URL} onCopy={copyLink} copied={copied} />
+      </>
+    );
   }
 
   const parsedSchedule = scheduledAt ? new Date(scheduledAt) : null;
