@@ -230,7 +230,7 @@ export default function ViewerPage() {
       {/* Show countdown banner for scheduled streams */}
       {stream?.scheduledAt && !stream.isLive && (
         <div className="fixed top-0 left-0 right-0 z-50">
-          <StreamSchedulerBanner scheduledAt={stream.scheduledAt} title={stream.title} />
+          <StreamSchedulerBanner scheduledAt={stream.scheduledAt} title={stream.title} roomId={roomId} />
         </div>
       )}
       <motion.div
