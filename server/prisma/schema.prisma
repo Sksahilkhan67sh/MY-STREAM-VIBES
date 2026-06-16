@@ -17,11 +17,9 @@ model User {
   updatedAt DateTime @updatedAt
 
   streams          Stream[]
-  subscription     Subscription?
   rtmpDestinations RtmpDestination[]
   donationConfig   DonationConfig?   // ← was missing
   usageRecords     UsageRecord[]     // ← was missing
-  invoices         Invoice[]         // ← was missing
 }
 
 // ─── Plan ─────────────────────────────────────────────────────────────────────
@@ -74,7 +72,7 @@ model Subscription {
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   planId                String    // ← service creates with planId
   plan                  Plan      @relation(fields: [planId], references: [id])
-  planName              String    // denormalised copy for fast reads
+  planName              String    @default("") // denormalised copy for fast reads
   status                String    @default("active")
   billingCycle          String    @default("monthly") // ← was missing
   gateway               String    @default("stripe")  // ← was missing
@@ -113,11 +111,10 @@ model UsageRecord {
 // ← entire model was missing
 model Invoice {
   id                 String        @id @default(cuid())
-  userId             String
-  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId             String        // plain scalar, no @relation to avoid Without<> conflict
   subscriptionId     String?
   subscription       Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  planName           String
+  planName           String        @default("")
   amount             Int
   currency           String        @default("INR")
   status             String        @default("pending") // pending | paid | failed | refunded
