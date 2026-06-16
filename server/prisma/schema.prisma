@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── User ────────────────────────────────────────────────────────────────────
+// ─── User ─────────────────────────────────────────────────────────────────────
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -17,56 +17,118 @@ model User {
   updatedAt DateTime @updatedAt
 
   streams          Stream[]
-  rtmpDestinations RtmpDestination[]
   subscription     Subscription?
+  rtmpDestinations RtmpDestination[]
+  donationConfig   DonationConfig?   // ← was missing
+  usageRecords     UsageRecord[]     // ← was missing
+  invoices         Invoice[]         // ← was missing
 }
 
-// ─── Plan ────────────────────────────────────────────────────────────────────
+// ─── Plan ─────────────────────────────────────────────────────────────────────
+// FIXED: added proper id field (service calls findUnique by id),
+//        isActive, gateway price IDs (service reads these)
 model Plan {
-  name        String @id
+  id          String  @id @default(cuid())
+  name        String  @unique        // 'free' | 'starter' | 'pro' | 'enterprise'
   displayName String
   description String
+  isActive    Boolean @default(true) // ← was missing
 
   priceMonthlyINR Int
   priceYearlyINR  Int
   priceMonthlyUSD Int
   priceYearlyUSD  Int
 
-  maxStreamsPerMonth   Int
-  maxViewersPerStream  Int
-  maxStreamDuration    Int
-  maxStorageGB         Int
-  maxCoHosts           Int
-  canRecord            Boolean
-  canGoRTMP            Boolean
-  canRunPolls          Boolean
-  canAccessAnalytics   Boolean
-  canAcceptDonations   Boolean
-  canCustomBranding    Boolean
-  canScheduleStreams   Boolean
-  hasAIFeatures        Boolean
-  hasPrioritySupport   Boolean
-  hasWhiteLabel        Boolean
-  sortOrder            Int
+  maxStreamsPerMonth  Int
+  maxViewersPerStream Int
+  maxStreamDuration   Int
+  maxStorageGB        Int
+  maxCoHosts          Int
+  canRecord           Boolean
+  canGoRTMP           Boolean
+  canRunPolls         Boolean
+  canAccessAnalytics  Boolean
+  canAcceptDonations  Boolean
+  canCustomBranding   Boolean
+  canScheduleStreams  Boolean
+  hasAIFeatures       Boolean
+  hasPrioritySupport  Boolean
+  hasWhiteLabel       Boolean
+  sortOrder           Int
+
+  // Gateway price / plan IDs — ← were all missing
+  stripeMonthlyPriceId  String?
+  stripeYearlyPriceId   String?
+  razorpayMonthlyPlanId String?
+  razorpayYearlyPlanId  String?
 
   subscriptions Subscription[]
 }
 
 // ─── Subscription ─────────────────────────────────────────────────────────────
+// FIXED: added billingCycle, gateway, gatewayCustomerId,
+//        currentPeriodEnd, cancelAtPeriodEnd, planId FK (service uses planId not planName)
 model Subscription {
-  id                     String    @id @default(cuid())
-  userId                 String    @unique
-  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planName               String
-  plan                   Plan      @relation(fields: [planName], references: [name])
-  status                 String    @default("active")
-  gatewaySubscriptionId  String?   @unique
-  canceledAt             DateTime?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId                String    // ← service creates with planId
+  plan                  Plan      @relation(fields: [planId], references: [id])
+  planName              String    // denormalised copy for fast reads
+  status                String    @default("active")
+  billingCycle          String    @default("monthly") // ← was missing
+  gateway               String    @default("stripe")  // ← was missing
+  gatewaySubscriptionId String?   @unique
+  gatewayCustomerId     String?                       // ← was missing
+  currentPeriodEnd      DateTime?                     // ← was missing
+  cancelAtPeriodEnd     Boolean   @default(false)     // ← was missing
+  canceledAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  invoices Invoice[]
 }
 
-// ─── Stream ──────────────────────────────────────────────────────────────────
+// ─── UsageRecord ──────────────────────────────────────────────────────────────
+// ← entire model was missing
+model UsageRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature   String
+  count     Int      @default(0)
+  period    String   // e.g. "2024-01" (YYYY-MM)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, feature, period])
+  @@index([userId])
+}
+
+// ─── Invoice ──────────────────────────────────────────────────────────────────
+// ← entire model was missing
+model Invoice {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId   String?
+  subscription     Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  planName         String
+  amount           Int
+  currency         String    @default("INR")
+  status           String    @default("pending") // pending | paid | failed | refunded
+  billingCycle     String
+  gatewayInvoiceId String?
+  invoiceUrl       String?
+  paidAt           DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+// ─── Stream ───────────────────────────────────────────────────────────────────
+// FIXED: added isPPV, plus all missing relations
 model Stream {
   id           String    @id @default(cuid())
   userId       String?
@@ -80,6 +142,7 @@ model Stream {
   recordingUrl String?
   rtmpUrl      String?
   viewerCount  Int       @default(0)
+  isPPV        Boolean   @default(false) // ← was missing
   scheduledAt  DateTime?
   expiresAt    DateTime
   createdAt    DateTime  @default(now())
@@ -90,11 +153,19 @@ model Stream {
   coHosts             CoHost[]
   reminders           Reminder[]
   multiStreamSessions MultiStreamSession[]
+  analyticsEvents     AnalyticsEvent[]         // ← was missing
+  viewerSnapshots     ConcurrentViewerSnapshot[] // ← was missing
+  analytics           StreamAnalytics?         // ← was missing
+  donations           Donation[]               // ← was missing
+  donationLeaderboard DonationLeaderboard?     // ← was missing
+  ticketTiers         TicketTier[]             // ← was missing
+  ppvConfig           PPVConfig?               // ← was missing
+  transcripts         Transcript[]             // ← was missing
 
   @@index([userId])
 }
 
-// ─── Recording ───────────────────────────────────────────────────────────────
+// ─── Recording ────────────────────────────────────────────────────────────────
 model Recording {
   id          String    @id @default(cuid())
   streamId    String
@@ -111,16 +182,18 @@ model Recording {
 }
 
 // ─── Poll ─────────────────────────────────────────────────────────────────────
+// FIXED: added endsAt field
 model Poll {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   streamId  String
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  stream    Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
   question  String
   options   String
   votes     String
-  status    String   @default("active")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    String    @default("active")
+  endsAt    DateTime?                   // ← was missing
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   pollVotes PollVote[]
 
@@ -140,6 +213,7 @@ model PollVote {
 }
 
 // ─── CoHost ───────────────────────────────────────────────────────────────────
+// FIXED: added isActive field
 model CoHost {
   id          String    @id @default(cuid())
   streamId    String
@@ -147,6 +221,7 @@ model CoHost {
   name        String
   coHostToken String    @unique
   joinUrl     String
+  isActive    Boolean   @default(true) // ← was missing
   joinedAt    DateTime?
   createdAt   DateTime  @default(now())
 
@@ -166,21 +241,206 @@ model Reminder {
   @@index([streamId])
 }
 
-// ─── RTMP Destination (Phase 5) ───────────────────────────────────────────────
-model RtmpDestination {
+// ─── Analytics ────────────────────────────────────────────────────────────────
+// ← all three models were missing
+
+model AnalyticsEvent {
+  id           String   @id @default(cuid())
+  streamId     String
+  stream       Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  eventType    String   // join | leave | chat | reaction | poll_vote
+  viewerId     String?
+  country      String?
+  device       String?  // desktop | mobile | tablet
+  browser      String?
+  watchSeconds Int      @default(0)
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([streamId])
+  @@index([streamId, eventType])
+}
+
+model ConcurrentViewerSnapshot {
+  id       String   @id @default(cuid())
+  streamId String
+  stream   Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  count    Int
+  ts       DateTime @default(now())
+
+  @@index([streamId])
+  @@index([streamId, ts])
+}
+
+model StreamAnalytics {
+  id                String  @id @default(cuid())
+  streamId          String  @unique
+  stream            Stream  @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  totalJoins        Int     @default(0)
+  uniqueViewers     Int     @default(0)
+  peakConcurrent    Int     @default(0)
+  totalWatchSeconds Int     @default(0)
+  avgWatchSeconds   Int     @default(0)
+  totalChatMessages Int     @default(0)
+  totalReactions    Int     @default(0)
+  totalPollVotes    Int     @default(0)
+  chatEngagementRate Float  @default(0)
+  deviceBreakdown   Json    @default("{}")
+  countryBreakdown  Json    @default("{}")
+  browserBreakdown  Json    @default("{}")
+  retentionCurve    Json    @default("[]")
+  durationSeconds   Int     @default(0)
+  updatedAt         DateTime @updatedAt
+}
+
+// ─── Captions / Transcripts ───────────────────────────────────────────────────
+// ← both models were missing
+
+model Transcript {
+  id        String   @id @default(cuid())
+  streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  language  String   @default("en")
+  fullText  String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  segments TranscriptSegment[]
+
+  @@index([streamId])
+}
+
+model TranscriptSegment {
+  id           String     @id @default(cuid())
+  transcriptId String
+  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+  text         String
+  startMs      Int
+  endMs        Int
+  confidence   Float      @default(1.0)
+  createdAt    DateTime   @default(now())
+
+  @@index([transcriptId])
+}
+
+// ─── Donations ────────────────────────────────────────────────────────────────
+// ← all three models were missing
+
+model DonationConfig {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  razorpayKeyId        String?
+  razorpayKeySecret    String?
+  stripePublishableKey String?
+  stripeSecretKey      String?
+  stripeWebhookSecret  String?
+  upiId                String?
+  upiName              String?
+  minimumAmount        Int      @default(100)
+  currency             String   @default("INR")
+  alertDuration        Int      @default(10)
+  alertSound           Boolean  @default(true)
+  thankYouMessage      String   @default("Thank you for your support!")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Donation {
+  id               String    @id @default(cuid())
+  streamId         String
+  stream           Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  donorName        String
+  donorEmail       String?
+  message          String?
+  amount           Int
+  currency         String    @default("INR")
+  gateway          String    // razorpay | stripe | upi
+  status           String    @default("pending") // pending | paid | failed | refunded
+  gatewayOrderId   String?
+  gatewayPaymentId String?
+  isAnonymous      Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([streamId])
+}
+
+model DonationLeaderboard {
+  id        String   @id @default(cuid())
+  streamId  String   @unique
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  data      Json     @default("[]")
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Pay-Per-View ─────────────────────────────────────────────────────────────
+// ← all three models were missing
+
+model PPVConfig {
+  id        String   @id @default(cuid())
+  streamId  String   @unique
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TicketTier {
   id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  platform    String
-  label       String
-  rtmpUrl     String
-  streamKey   String
-  isEnabled   Boolean  @default(true)
-  totalStreams  Int     @default(0)
-  totalMinutes Int     @default(0)
-  lastUsedAt  DateTime?
+  streamId    String
+  stream      Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  price       Int                      // stored in smallest unit (paise / cents)
+  currency    String   @default("INR")
+  maxQuantity Int?
+  soldCount   Int      @default(0)
+  revenue     Int      @default(0)
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  tickets Ticket[]
+
+  @@index([streamId])
+}
+
+model Ticket {
+  id               String     @id @default(cuid())
+  tierId           String
+  tier             TicketTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  buyerName        String
+  buyerEmail       String
+  amount           Int
+  currency         String
+  gateway          String
+  status           String     @default("pending") // pending | paid | refunded
+  gatewayOrderId   String?
+  gatewayPaymentId String?
+  ticketCode       String     @unique @default(cuid())
+  paidAt           DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([tierId])
+}
+
+// ─── RTMP Multi-stream ────────────────────────────────────────────────────────
+model RtmpDestination {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform     String
+  label        String
+  rtmpUrl      String
+  streamKey    String
+  isEnabled    Boolean   @default(true)
+  totalStreams  Int       @default(0)
+  totalMinutes Int       @default(0)
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   streamSessions MultiStreamSession[]
 
