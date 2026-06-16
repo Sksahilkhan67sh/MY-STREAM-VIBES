@@ -83,6 +83,7 @@ model Subscription {
   currentPeriodEnd      DateTime?                     // ← was missing
   cancelAtPeriodEnd     Boolean   @default(false)     // ← was missing
   canceledAt            DateTime?
+  currency              String    @default("usd")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -92,37 +93,42 @@ model Subscription {
 // ─── UsageRecord ──────────────────────────────────────────────────────────────
 // ← entire model was missing
 model UsageRecord {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  feature   String
-  count     Int      @default(0)
-  period    String   // e.g. "2024-01" (YYYY-MM)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month          String   // YYYY-MM
+  streamsUsed    Int      @default(0)
+  storageUsedGB  Float    @default(0)
+  streamMinutes  Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@unique([userId, feature, period])
+  @@unique([userId, month], name: "userId_month")
   @@index([userId])
 }
 
 // ─── Invoice ──────────────────────────────────────────────────────────────────
 // ← entire model was missing
 model Invoice {
-  id               String    @id @default(cuid())
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscriptionId   String?
-  subscription     Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  planName         String
-  amount           Int
-  currency         String    @default("INR")
-  status           String    @default("pending") // pending | paid | failed | refunded
-  billingCycle     String
-  gatewayInvoiceId String?
-  invoiceUrl       String?
-  paidAt           DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                 String        @id @default(cuid())
+  userId             String
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId     String?
+  subscription       Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  planName           String
+  amount             Int
+  currency           String        @default("INR")
+  status             String        @default("pending") // pending | paid | failed | refunded
+  billingCycle       String
+  gateway            String?
+  gatewayInvoiceId   String?       @unique
+  invoiceUrl         String?
+  pdfUrl             String?
+  billingPeriodStart DateTime?
+  billingPeriodEnd   DateTime?
+  paidAt             DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   @@index([userId])
 }
@@ -248,62 +254,73 @@ model AnalyticsEvent {
   id           String   @id @default(cuid())
   streamId     String
   stream       Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  eventType    String   // join | leave | chat | reaction | poll_vote
+  event        String   // join | leave | chat | reaction | poll_vote | donate
   viewerId     String?
-  country      String?
-  device       String?  // desktop | mobile | tablet
-  browser      String?
+  sessionId    String?
   watchSeconds Int      @default(0)
-  metadata     Json?
-  createdAt    DateTime @default(now())
+  deviceType   String?
+  browser      String?
+  os           String?
+  country      String?
+  region       String?
+  city         String?
+  userId       String?
+  timestamp    DateTime @default(now())
 
   @@index([streamId])
-  @@index([streamId, eventType])
+  @@index([streamId, event])
 }
 
 model ConcurrentViewerSnapshot {
-  id       String   @id @default(cuid())
-  streamId String
-  stream   Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  count    Int
-  ts       DateTime @default(now())
+  id        String   @id @default(cuid())
+  streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  count     Int
+  timestamp DateTime @default(now())
 
   @@index([streamId])
-  @@index([streamId, ts])
+  @@index([streamId, timestamp])
 }
 
 model StreamAnalytics {
-  id                String  @id @default(cuid())
-  streamId          String  @unique
-  stream            Stream  @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  totalJoins        Int     @default(0)
-  uniqueViewers     Int     @default(0)
-  peakConcurrent    Int     @default(0)
-  totalWatchSeconds Int     @default(0)
-  avgWatchSeconds   Int     @default(0)
-  totalChatMessages Int     @default(0)
-  totalReactions    Int     @default(0)
-  totalPollVotes    Int     @default(0)
-  chatEngagementRate Float  @default(0)
-  deviceBreakdown   Json    @default("{}")
-  countryBreakdown  Json    @default("{}")
-  browserBreakdown  Json    @default("{}")
-  retentionCurve    Json    @default("[]")
-  durationSeconds   Int     @default(0)
-  updatedAt         DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  streamId           String   @unique
+  stream             Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  totalJoins         Int      @default(0)
+  uniqueViewers      Int      @default(0)
+  peakConcurrent     Int      @default(0)
+  totalWatchSeconds  BigInt   @default(0)
+  avgWatchSeconds    Int      @default(0)
+  totalChatMessages  Int      @default(0)
+  totalReactions     Int      @default(0)
+  totalPollVotes     Int      @default(0)
+  chatEngagementRate Float    @default(0)
+  deviceBreakdown    Json     @default("{}")
+  countryBreakdown   Json     @default("{}")
+  browserBreakdown   Json     @default("{}")
+  retentionCurve     Json     @default("[]")
+  concurrentTimeline Json     @default("[]")
+  durationSeconds    Int      @default(0)
+  endedAt            DateTime?
+  updatedAt          DateTime @updatedAt
 }
 
 // ─── Captions / Transcripts ───────────────────────────────────────────────────
 // ← both models were missing
 
 model Transcript {
-  id        String   @id @default(cuid())
-  streamId  String
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  language  String   @default("en")
-  fullText  String   @default("")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id @default(cuid())
+  streamId    String    @unique
+  stream      Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  language    String    @default("en")
+  provider    String    @default("deepgram")
+  status      String    @default("active")   // active | completed | error
+  fullText    String    @default("")
+  startedAt   DateTime?
+  completedAt DateTime?
+  errorMsg    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   segments TranscriptSegment[]
 
@@ -318,6 +335,9 @@ model TranscriptSegment {
   startMs      Int
   endMs        Int
   confidence   Float      @default(1.0)
+  language     String     @default("en")
+  speaker      String?
+  isFinal      Boolean    @default(true)
   createdAt    DateTime   @default(now())
 
   @@index([transcriptId])
@@ -354,6 +374,7 @@ model Donation {
   donorEmail       String?
   message          String?
   amount           Int
+  displayAmount    Float     @default(0)   // human-readable (amount / 100)
   currency         String    @default("INR")
   gateway          String    // razorpay | stripe | upi
   status           String    @default("pending") // pending | paid | failed | refunded
@@ -370,7 +391,7 @@ model DonationLeaderboard {
   id        String   @id @default(cuid())
   streamId  String   @unique
   stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  data      Json     @default("[]")
+  entries   Json     @default("[]")
   updatedAt DateTime @updatedAt
 }
 
@@ -378,12 +399,17 @@ model DonationLeaderboard {
 // ← all three models were missing
 
 model PPVConfig {
-  id        String   @id @default(cuid())
-  streamId  String   @unique
-  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  isEnabled Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  streamId           String   @unique
+  stream             Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  isEnabled          Boolean  @default(true)
+  allowRefunds       Boolean  @default(false)
+  refundWindowHours  Int      @default(24)
+  maxTicketsPerBuyer Int      @default(5)
+  thankYouMessage    String   @default("Thank you for your purchase!")
+  reminderEnabled    Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 model TicketTier {
@@ -419,11 +445,15 @@ model Ticket {
   gatewayOrderId   String?
   gatewayPaymentId String?
   ticketCode       String     @unique @default(cuid())
+  accessToken      String?
+  expiresAt        DateTime?
+  accessedAt       DateTime?
   paidAt           DateTime?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
   @@index([tierId])
+  @@index([accessToken])
 }
 
 // ─── RTMP Multi-stream ────────────────────────────────────────────────────────
