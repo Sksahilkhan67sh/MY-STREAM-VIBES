@@ -468,22 +468,34 @@ export async function handleStripeSubscriptionWebhook(event: { type: string; dat
 export async function getBillingHistory(userId: string) {
   const invoices = await prisma.invoice.findMany({
     where:   { userId },
-    include: { subscription: { include: { plan: true } } },
     orderBy: { createdAt: 'desc' },
     take:    50,
   });
 
-  return invoices.map(inv => ({
-    id:          inv.id,
-    amount:      inv.amount / 100,
-    currency:    inv.currency,
-    status:      inv.status,
-    planName:    inv.subscription.plan.displayName,
-    billingCycle: inv.subscription.billingCycle,
-    periodStart: inv.billingPeriodStart,
-    periodEnd:   inv.billingPeriodEnd,
-    paidAt:      inv.paidAt,
-    pdfUrl:      inv.pdfUrl,
-    gateway:     inv.gateway,
-  }));
+  // Manual join — subscriptionId is a plain scalar (no Prisma relation on Invoice)
+  const subIds = [...new Set(invoices.map(i => i.subscriptionId).filter(Boolean))] as string[];
+  const subs = subIds.length > 0
+    ? await prisma.subscription.findMany({
+        where:   { id: { in: subIds } },
+        include: { plan: true },
+      })
+    : [];
+  const subMap = new Map(subs.map(s => [s.id, s]));
+
+  return invoices.map(inv => {
+    const sub = inv.subscriptionId ? subMap.get(inv.subscriptionId) : null;
+    return {
+      id:          inv.id,
+      amount:      inv.amount / 100,
+      currency:    inv.currency,
+      status:      inv.status,
+      planName:    sub?.plan?.displayName ?? inv.planName,
+      billingCycle: sub?.billingCycle ?? '',
+      periodStart: inv.billingPeriodStart,
+      periodEnd:   inv.billingPeriodEnd,
+      paidAt:      inv.paidAt,
+      pdfUrl:      inv.pdfUrl,
+      gateway:     inv.gateway,
+    };
+  });
 }
