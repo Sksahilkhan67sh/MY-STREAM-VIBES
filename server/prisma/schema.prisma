@@ -87,8 +87,6 @@ model Subscription {
   currency              String    @default("usd")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
-
-  invoices Invoice[]
 }
 
 
@@ -113,14 +111,13 @@ model UsageRecord {
 // ← entire model was missing
 model Invoice {
   id                 String        @id @default(cuid())
-  userId             String        // plain scalar, no @relation to avoid Without<> conflict
-  subscriptionId     String?
-  subscription       Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  userId             String
+  subscriptionId     String?       // plain scalar reference — no Prisma @relation on this field
   planName           String        @default("")
   amount             Int
   currency           String        @default("INR")
   status             String        @default("pending") // pending | paid | failed | refunded
-  billingCycle       String
+  billingCycle       String        @default("")
   gateway            String?
   gatewayInvoiceId   String?       @unique
   gatewayPaymentId   String?
