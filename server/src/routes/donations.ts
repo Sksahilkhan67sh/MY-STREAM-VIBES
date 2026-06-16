@@ -1,32 +1,41 @@
 /**
  * /api/donations
- * Donation endpoints: config management, order creation, payment verification,
- * Stripe webhooks, and creator dashboard reads.
+ * BUG FIX: auth now uses hostToken-only fallback (same pattern as subscriptions).
  */
-
 import { Router, Request, Response, raw } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import {
-  createDonation,
-  completeDonation,
-  getDonationStats,
-  getStreamDonations,
-  upsertDonationConfig,
-  getDonationConfig,
-  getPublicDonationConfig,
-  handleStripeWebhook,
+  createDonation, completeDonation, getDonationStats,
+  getStreamDonations, upsertDonationConfig, getDonationConfig,
+  getPublicDonationConfig, handleStripeWebhook,
 } from '../services/donation.service';
 
 const router = Router();
 
-// ─── Schemas ──────────────────────────────────────────────────────────────────
+// ── Auth helper ───────────────────────────────────────────────────────────────
+async function resolveUser(userId: string, hostToken: string): Promise<string | null> {
+  if (!hostToken) return null;
+  if (userId) {
+    const s = await prisma.stream.findFirst({ where: { userId, hostToken }, select: { userId: true } });
+    if (s?.userId) return s.userId;
+  }
+  // Fallback: hostToken alone
+  const s = await prisma.stream.findFirst({ where: { hostToken }, select: { userId: true, id: true } });
+  if (!s) return null;
+  if (!s.userId && userId) {
+    await prisma.stream.update({ where: { id: (s as any).id }, data: { userId } }).catch(() => {});
+    return userId;
+  }
+  return s.userId ?? userId ?? null;
+}
 
+// ── Schemas ───────────────────────────────────────────────────────────────────
 const CreateOrderSchema = z.object({
   donorName:   z.string().min(1).max(64).default('Anonymous'),
   donorEmail:  z.string().email().optional(),
   message:     z.string().max(200).optional(),
-  amount:      z.number().int().min(100),    // min ₹1 or $1 (in paise/cents)
+  amount:      z.number().int().min(100),
   currency:    z.string().length(3).default('INR'),
   gateway:     z.enum(['razorpay', 'stripe', 'upi']),
   isAnonymous: z.boolean().default(false),
@@ -41,34 +50,21 @@ const VerifySchema = z.object({
 });
 
 const ConfigSchema = z.object({
-  razorpayKeyId:       z.string().optional(),
-  razorpayKeySecret:   z.string().optional(),
+  razorpayKeyId:        z.string().optional(),
+  razorpayKeySecret:    z.string().optional(),
   stripePublishableKey: z.string().optional(),
-  stripeSecretKey:     z.string().optional(),
-  stripeWebhookSecret: z.string().optional(),
-  upiId:               z.string().optional(),
-  upiName:             z.string().optional(),
-  minimumAmount:       z.number().int().min(100).optional(),
-  currency:            z.string().length(3).optional(),
-  alertDuration:       z.number().int().min(3).max(30).optional(),
-  alertSound:          z.boolean().optional(),
-  thankYouMessage:     z.string().max(200).optional(),
+  stripeSecretKey:      z.string().optional(),
+  stripeWebhookSecret:  z.string().optional(),
+  upiId:                z.string().optional(),
+  upiName:              z.string().optional(),
+  minimumAmount:        z.number().int().min(100).optional(),
+  currency:             z.string().length(3).optional(),
+  alertDuration:        z.number().int().min(3).max(30).optional(),
+  alertSound:           z.boolean().optional(),
+  thankYouMessage:      z.string().max(200).optional(),
 });
 
-// ─── Auth helper ──────────────────────────────────────────────────────────────
-
-async function verifyHostToken(roomId: string, hostToken: string) {
-  const stream = await prisma.stream.findUnique({
-    where:  { roomId },
-    select: { hostToken: true, userId: true },
-  });
-  if (!stream || stream.hostToken !== hostToken) return null;
-  return stream;
-}
-
-// ─── GET /api/donations/config/public/:roomId ─────────────────────────────────
-// Public — viewer fetches gateway config before donating
-
+// ── GET /api/donations/config/public/:roomId ──────────────────────────────────
 router.get('/config/public/:roomId', async (req: Request, res: Response) => {
   try {
     const config = await getPublicDonationConfig(req.params.roomId);
@@ -80,19 +76,14 @@ router.get('/config/public/:roomId', async (req: Request, res: Response) => {
   }
 });
 
-// ─── GET /api/donations/config ────────────────────────────────────────────────
-// Creator — get their own masked config
-
+// ── GET /api/donations/config ─────────────────────────────────────────────────
 router.get('/config', async (req: Request, res: Response) => {
   try {
-    const { userId, hostToken } = req.query as { userId: string; hostToken: string };
-    if (!userId || !hostToken) return res.status(401).json({ error: 'Auth required' });
-
-    // Verify hostToken belongs to this user
-    const stream = await prisma.stream.findFirst({ where: { userId, hostToken } });
-    if (!stream) return res.status(403).json({ error: 'Unauthorized' });
-
-    const config = await getDonationConfig(userId);
+    const { userId = '', hostToken = '' } = req.query as { userId: string; hostToken: string };
+    if (!hostToken) return res.status(401).json({ error: 'hostToken required' });
+    const uid = await resolveUser(userId, hostToken);
+    if (!uid) return res.status(403).json({ error: 'Unauthorized' });
+    const config = await getDonationConfig(uid);
     res.json(config ?? {});
   } catch (err) {
     console.error('[donations/config GET]', err);
@@ -100,21 +91,16 @@ router.get('/config', async (req: Request, res: Response) => {
   }
 });
 
-// ─── PUT /api/donations/config ────────────────────────────────────────────────
-// Creator — save gateway keys
-
+// ── PUT /api/donations/config ─────────────────────────────────────────────────
 router.put('/config', async (req: Request, res: Response) => {
   try {
-    const { userId, hostToken } = req.body;
-    if (!userId || !hostToken) return res.status(401).json({ error: 'Auth required' });
-
-    const stream = await prisma.stream.findFirst({ where: { userId, hostToken } });
-    if (!stream) return res.status(403).json({ error: 'Unauthorized' });
-
+    const { userId = '', hostToken = '' } = req.body;
+    if (!hostToken) return res.status(401).json({ error: 'hostToken required' });
+    const uid = await resolveUser(userId, hostToken);
+    if (!uid) return res.status(403).json({ error: 'Unauthorized' });
     const parsed = ConfigSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-
-    const config = await upsertDonationConfig(userId, parsed.data);
+    const config = await upsertDonationConfig(uid, parsed.data);
     res.json({ ok: true, currency: config.currency });
   } catch (err) {
     console.error('[donations/config PUT]', err);
@@ -122,25 +108,21 @@ router.put('/config', async (req: Request, res: Response) => {
   }
 });
 
-// ─── POST /api/donations/:roomId/order ───────────────────────────────────────
-// Viewer creates a donation order / payment intent
-
+// ── POST /api/donations/:roomId/order ────────────────────────────────────────
 router.post('/:roomId/order', async (req: Request, res: Response) => {
   try {
     const parsed = CreateOrderSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-
     const { donation, gatewayData } = await createDonation({
       roomId:      req.params.roomId,
       donorName:   parsed.data.donorName ?? 'Anonymous',
-      amount:      parsed.data.amount ?? 0,
-      currency:    parsed.data.currency ?? 'INR',
-      gateway:     parsed.data.gateway ?? 'upi',
+      amount:      parsed.data.amount,
+      currency:    parsed.data.currency,
+      gateway:     parsed.data.gateway,
       donorEmail:  parsed.data.donorEmail,
       message:     parsed.data.message,
-      isAnonymous: parsed.data.isAnonymous ?? false,
+      isAnonymous: parsed.data.isAnonymous,
     });
-
     res.json({ donationId: donation.id, ...gatewayData });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Failed to create order';
@@ -149,23 +131,19 @@ router.post('/:roomId/order', async (req: Request, res: Response) => {
   }
 });
 
-// ─── POST /api/donations/verify ──────────────────────────────────────────────
-// Client verifies Razorpay / UPI payment after user pays
-
+// ── POST /api/donations/verify ────────────────────────────────────────────────
 router.post('/verify', async (req: Request, res: Response) => {
   try {
     const parsed = VerifySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-
     const success = await completeDonation({
-      donationId:       parsed.data.donationId ?? '',
-      gatewayOrderId:   parsed.data.gatewayOrderId ?? '',
-      gatewayPaymentId: parsed.data.gatewayPaymentId ?? '',
+      donationId:       parsed.data.donationId,
+      gatewayOrderId:   parsed.data.gatewayOrderId,
+      gatewayPaymentId: parsed.data.gatewayPaymentId,
       gatewaySignature: parsed.data.gatewaySignature,
-      gateway:          parsed.data.gateway ?? 'upi',
+      gateway:          parsed.data.gateway,
     });
     if (!success) return res.status(400).json({ error: 'Payment verification failed' });
-
     res.json({ ok: true });
   } catch (err) {
     console.error('[donations/verify]', err);
@@ -173,36 +151,23 @@ router.post('/verify', async (req: Request, res: Response) => {
   }
 });
 
-// ─── POST /api/donations/webhook/stripe ──────────────────────────────────────
-// Stripe webhook — raw body required for signature verification
-
-router.post(
-  '/webhook/stripe',
-  raw({ type: 'application/json' }),
-  async (req: Request, res: Response) => {
-    try {
-      const sig     = req.headers['stripe-signature'] as string;
-      const secret  = process.env.STRIPE_WEBHOOK_SECRET || '';
-
-      if (!sig || !secret) {
-        return res.status(400).json({ error: 'Missing webhook config' });
-      }
-
-      const { verifyStripeWebhook } = await import('../services/donation.service');
-      const event = await verifyStripeWebhook(req.body as Buffer, sig, secret);
-      await handleStripeWebhook(event as unknown as { type: string; data: { object: Record<string, unknown> } });
-
-      res.json({ received: true });
-    } catch (err) {
-      console.error('[stripe/webhook]', err);
-      res.status(400).json({ error: 'Webhook error' });
-    }
+// ── POST /api/donations/webhook/stripe ───────────────────────────────────────
+router.post('/webhook/stripe', raw({ type: 'application/json' }), async (req: Request, res: Response) => {
+  try {
+    const sig    = req.headers['stripe-signature'] as string;
+    const secret = process.env.STRIPE_WEBHOOK_SECRET || '';
+    if (!sig || !secret) return res.status(400).json({ error: 'Missing webhook config' });
+    const { verifyStripeWebhook } = await import('../services/donation.service');
+    const event = await verifyStripeWebhook(req.body as Buffer, sig, secret);
+    await handleStripeWebhook(event as unknown as { type: string; data: { object: Record<string, unknown> } });
+    res.json({ received: true });
+  } catch (err) {
+    console.error('[stripe/webhook]', err);
+    res.status(400).json({ error: 'Webhook error' });
   }
-);
+});
 
-// ─── GET /api/donations/:roomId/stats ────────────────────────────────────────
-// Public — stream donation stats + leaderboard
-
+// ── GET /api/donations/:roomId/stats ─────────────────────────────────────────
 router.get('/:roomId/stats', async (req: Request, res: Response) => {
   try {
     const data = await getStreamDonations(req.params.roomId);
@@ -214,18 +179,13 @@ router.get('/:roomId/stats', async (req: Request, res: Response) => {
   }
 });
 
-// ─── GET /api/donations/creator/:userId/summary ───────────────────────────────
-// Creator — full earnings dashboard
-
+// ── GET /api/donations/creator/:userId/summary ───────────────────────────────
 router.get('/creator/:userId/summary', async (req: Request, res: Response) => {
   try {
-    const { hostToken } = req.query as { hostToken: string };
-    const stream = await prisma.stream.findFirst({
-      where: { userId: req.params.userId, hostToken },
-    });
-    if (!stream) return res.status(403).json({ error: 'Unauthorized' });
-
-    const data = await getDonationStats(req.params.userId);
+    const { hostToken = '' } = req.query as { hostToken: string };
+    const uid = await resolveUser(req.params.userId, hostToken);
+    if (!uid) return res.status(403).json({ error: 'Unauthorized' });
+    const data = await getDonationStats(uid);
     res.json(data);
   } catch (err) {
     console.error('[donations/creator/summary]', err);
