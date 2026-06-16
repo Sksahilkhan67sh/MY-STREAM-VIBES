@@ -148,6 +148,7 @@ model Stream {
   rtmpUrl      String?
   viewerCount  Int       @default(0)
   isPPV        Boolean   @default(false) // ← was missing
+  ppvPrice     Int?      // price in paise/cents
   scheduledAt  DateTime?
   expiresAt    DateTime
   createdAt    DateTime  @default(now())
