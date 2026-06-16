@@ -17,9 +17,10 @@ model User {
   updatedAt DateTime @updatedAt
 
   streams          Stream[]
+  subscription     Subscription[]   @relation("UserSubscription")
   rtmpDestinations RtmpDestination[]
-  donationConfig   DonationConfig?   // ← was missing
-  usageRecords     UsageRecord[]     // ← was missing
+  donationConfig   DonationConfig?
+  usageRecords     UsageRecord[]
 }
 
 // ─── Plan ─────────────────────────────────────────────────────────────────────
@@ -68,20 +69,20 @@ model Plan {
 //        currentPeriodEnd, cancelAtPeriodEnd, planId FK (service uses planId not planName)
 model Subscription {
   id                    String    @id @default(cuid())
-  userId                String    @unique
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planId                String    // ← service creates with planId
+  userId                String
+  user                  User      @relation("UserSubscription", fields: [userId], references: [id], onDelete: Cascade)
+  planId                String
   plan                  Plan      @relation(fields: [planId], references: [id])
-  planName              String    @default("") // denormalised copy for fast reads
+  planName              String    @default("")
   status                String    @default("active")
-  billingCycle          String    @default("monthly") // ← was missing
-  gateway               String    @default("stripe")  // ← was missing
+  billingCycle          String    @default("monthly")
+  gateway               String    @default("stripe")
   gatewaySubscriptionId String?   @unique
-  gatewayCustomerId     String?                       // ← was missing
-  currentPeriodEnd      DateTime?                     // ← was missing
-  currentPeriodStart    DateTime?                     // ← was missing
-  trialEndsAt           DateTime?                     // ← was missing
-  cancelAtPeriodEnd     Boolean   @default(false)     // ← was missing
+  gatewayCustomerId     String?
+  currentPeriodEnd      DateTime?
+  currentPeriodStart    DateTime?
+  trialEndsAt           DateTime?
+  cancelAtPeriodEnd     Boolean   @default(false)
   canceledAt            DateTime?
   currency              String    @default("usd")
   createdAt             DateTime  @default(now())
@@ -89,6 +90,7 @@ model Subscription {
 
   invoices Invoice[]
 }
+
 
 // ─── UsageRecord ──────────────────────────────────────────────────────────────
 // ← entire model was missing
