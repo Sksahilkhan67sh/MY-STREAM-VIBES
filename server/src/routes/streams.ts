@@ -26,6 +26,27 @@ router.post('/', async (req, res) => {
     const livekitToken = await createHostToken(roomId, `host-${roomId}`);
     const passwordHash = data.password ? await bcrypt.hash(data.password, 10) : null;
 
+    // Ensure the user row exists before creating the stream (FK guard)
+    if (data.userId) {
+      const isEmail = data.userId.includes('@');
+      if (isEmail) {
+        // userId is actually an email — upsert by email, use returned id
+        const user = await prisma.user.upsert({
+          where:  { email: data.userId },
+          update: {},
+          create: { email: data.userId },
+        });
+        data.userId = user.id;
+      } else {
+        // userId is a cuid — ensure the row exists
+        const exists = await prisma.user.findUnique({ where: { id: data.userId } });
+        if (!exists) {
+          // Row was wiped — recreate with a placeholder email
+          await prisma.user.create({ data: { id: data.userId, email: `${data.userId}@placeholder.local` } });
+        }
+      }
+    }
+
     const stream = await prisma.stream.create({
       data: {
         roomId,
@@ -33,7 +54,7 @@ router.post('/', async (req, res) => {
         hostToken:   hostSecret,
         passwordHash,
         expiresAt,
-        userId:      data.userId || null, // ← stored
+        userId:      data.userId || null,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       },
     });
