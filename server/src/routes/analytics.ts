@@ -110,12 +110,18 @@ router.get('/creator/:userId', async (req: Request, res: Response) => {
     const { hostToken } = req.query as { hostToken: string };
     if (!hostToken) return res.status(401).json({ error: 'hostToken required' });
 
-    const stream = await prisma.stream.findFirst({
+    // BUG FIX: streams created before userId was stored have userId=null.
+    // Fall back to hostToken-only match so analytics always works.
+    let stream = await prisma.stream.findFirst({
       where: { userId: req.params.userId, hostToken },
     });
+    if (!stream) {
+      stream = await prisma.stream.findFirst({ where: { hostToken } });
+    }
     if (!stream) return res.status(403).json({ error: 'Unauthorized' });
 
-    const data = await getCreatorStats(req.params.userId);
+    const effectiveUserId = stream.userId ?? req.params.userId;
+    const data = await getCreatorStats(effectiveUserId);
     res.json(data);
   } catch (err) {
     console.error('[analytics/creator]', err);
