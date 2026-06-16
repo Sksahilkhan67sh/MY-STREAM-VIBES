@@ -79,17 +79,20 @@ export default function HostPage() {
     if (!title.trim()) { setError('Enter a stream title'); return; }
     setError(''); setLoading(true);
     try {
-      const body: Record<string, unknown> = {
-        title: title.trim(),
-        password: password || undefined,
-      };
       const effectiveSchedule = overrideScheduledAt ?? scheduledAt;
+      // BUG FIX: include userId so subscription/donation/earnings auth works on the server
+      const userId = session?.user?.id ?? session?.user?.email ?? '';
+      const body: Record<string, unknown> = {
+        title:    title.trim(),
+        password: password || undefined,
+        userId:   userId || undefined,
+      };
       if (effectiveSchedule) body.scheduledAt = effectiveSchedule;
 
       const res = await fetch(`${API}/api/streams`, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body:    JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to create stream'); return; }
