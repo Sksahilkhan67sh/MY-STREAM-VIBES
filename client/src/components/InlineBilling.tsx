@@ -25,9 +25,11 @@ export default function InlineBilling({hostToken,onBack,onUpgrade}:Props){
 
   useEffect(()=>{
     if(!userId){setLoading(false);return;}
+    const ht = encodeURIComponent(hostToken);
+    const uid = encodeURIComponent(userId);
     Promise.all([
-      fetch(`${API}/api/subscriptions/current?userId=${userId}`).then(r=>r.ok?r.json():null),
-      fetch(`${API}/api/subscriptions/invoices?userId=${userId}`).then(r=>r.ok?r.json():[]),
+      fetch(`${API}/api/subscriptions/me?userId=${uid}&hostToken=${ht}`).then(r=>r.ok?r.json():null),
+      fetch(`${API}/api/subscriptions/billing?userId=${uid}&hostToken=${ht}`).then(r=>r.ok?r.json():[]),
     ]).then(([s,inv])=>{if(s)setSub(s);if(Array.isArray(inv))setInvoices(inv);}).finally(()=>setLoading(false));
   },[userId]);
 
