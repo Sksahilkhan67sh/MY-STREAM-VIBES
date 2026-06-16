@@ -74,6 +74,7 @@ export default function ViewerPage() {
     });
 
     s.on('connect', () => {
+      // 'connect' fires on both initial connection AND every reconnect in socket.io v4
       s.emit('join-room', {
         roomId,
         nickname: nicknameRef.current || 'Anonymous',
@@ -82,10 +83,9 @@ export default function ViewerPage() {
     });
 
     s.on('disconnect', () => setSocketReady(false));
-    s.on('reconnect', () => {
-      s.emit('join-room', { roomId, nickname: nicknameRef.current || 'Anonymous' });
-      setSocketReady(true);
-    });
+
+    // NOTE: s.on('reconnect') is deprecated in socket.io v4.
+    // The 'connect' event above already handles reconnects correctly.
     // When host goes live, refresh stream info so video appears without manual reload
     s.on('stream-started', () => {
       setStream(prev => prev ? { ...prev, isLive: true } : prev);
@@ -227,6 +227,12 @@ export default function ViewerPage() {
 
   return (
     <main className="min-h-screen flex items-start sm:items-center justify-center px-4 pt-8 sm:pt-0">
+      {/* Show countdown banner for scheduled streams */}
+      {stream?.scheduledAt && !stream.isLive && (
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <StreamSchedulerBanner scheduledAt={stream.scheduledAt} title={stream.title} />
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
