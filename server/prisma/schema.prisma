@@ -81,6 +81,8 @@ model Subscription {
   gatewaySubscriptionId String?   @unique
   gatewayCustomerId     String?                       // ← was missing
   currentPeriodEnd      DateTime?                     // ← was missing
+  currentPeriodStart    DateTime?                     // ← was missing
+  trialEndsAt           DateTime?                     // ← was missing
   cancelAtPeriodEnd     Boolean   @default(false)     // ← was missing
   canceledAt            DateTime?
   currency              String    @default("usd")
@@ -122,6 +124,7 @@ model Invoice {
   billingCycle       String
   gateway            String?
   gatewayInvoiceId   String?       @unique
+  gatewayPaymentId   String?
   invoiceUrl         String?
   pdfUrl             String?
   billingPeriodStart DateTime?
@@ -163,10 +166,11 @@ model Stream {
   viewerSnapshots     ConcurrentViewerSnapshot[] // ← was missing
   analytics           StreamAnalytics?         // ← was missing
   donations           Donation[]               // ← was missing
-  donationLeaderboard DonationLeaderboard?     // ← was missing
+  leaderboard         DonationLeaderboard?     // ← was missing
   ticketTiers         TicketTier[]             // ← was missing
+  tickets             Ticket[]                 // ← direct relation for include: { stream }
   ppvConfig           PPVConfig?               // ← was missing
-  transcripts         Transcript[]             // ← was missing
+  transcript          Transcript?              // ← was missing (singular — streamId is @unique)
 
   @@index([userId])
 }
@@ -433,26 +437,30 @@ model TicketTier {
 }
 
 model Ticket {
-  id               String     @id @default(cuid())
-  tierId           String
-  tier             TicketTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
-  buyerName        String
-  buyerEmail       String
-  amount           Int
-  currency         String
-  gateway          String
-  status           String     @default("pending") // pending | paid | refunded
-  gatewayOrderId   String?
-  gatewayPaymentId String?
-  ticketCode       String     @unique @default(cuid())
-  accessToken      String?
-  expiresAt        DateTime?
-  accessedAt       DateTime?
-  paidAt           DateTime?
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  id                String     @id @default(cuid())
+  tierId            String
+  tier              TicketTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  streamId          String
+  stream            Stream     @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  buyerName         String
+  buyerEmail        String
+  amount            Int
+  currency          String
+  gateway           String
+  status            String     @default("pending") // pending | paid | active | refunded | canceled
+  gatewayOrderId    String?
+  gatewayPaymentId  String?
+  gatewaySignature  String?
+  ticketCode        String     @unique @default(cuid())
+  accessToken       String?
+  expiresAt         DateTime?
+  accessedAt        DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   @@index([tierId])
+  @@index([streamId])
   @@index([accessToken])
 }
 
