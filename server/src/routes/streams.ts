@@ -9,49 +9,44 @@ const router = Router();
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
 
 const CreateStreamSchema = z.object({
-  title: z.string().min(1).max(100),
-  password: z.string().optional(),
-  scheduledAt: z.string().datetime().optional(),
+  title:          z.string().min(1).max(100),
+  password:       z.string().optional(),
+  scheduledAt:    z.string().datetime().optional(),
   expiresInHours: z.number().min(1).max(168).default(24),
+  userId:         z.string().optional(), // ← BUG FIX: store userId so subscription/donation auth works
 });
 
 // POST /api/streams
 router.post('/', async (req, res) => {
   try {
     const data = CreateStreamSchema.parse(req.body);
-    const roomId = nanoid();
-    const hostSecret = nanoid(32);
-    const expiresAt = new Date(Date.now() + data.expiresInHours * 60 * 60 * 1000);
-
-    // Await the async token
+    const roomId      = nanoid();
+    const hostSecret  = nanoid(32);
+    const expiresAt   = new Date(Date.now() + data.expiresInHours * 60 * 60 * 1000);
     const livekitToken = await createHostToken(roomId, `host-${roomId}`);
-
-    const passwordHash = data.password
-      ? await bcrypt.hash(data.password, 10)
-      : null;
+    const passwordHash = data.password ? await bcrypt.hash(data.password, 10) : null;
 
     const stream = await prisma.stream.create({
       data: {
         roomId,
-        title: data.title,
-        hostToken: hostSecret,
+        title:       data.title,
+        hostToken:   hostSecret,
         passwordHash,
         expiresAt,
+        userId:      data.userId || null, // ← stored
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       },
     });
 
     res.json({
-      roomId: stream.roomId,
-      hostToken: hostSecret,
-      livekitToken,           // now a proper string
-      viewerUrl: `/s/${roomId}`,
-      expiresAt: stream.expiresAt,
+      roomId:      stream.roomId,
+      hostToken:   hostSecret,
+      livekitToken,
+      viewerUrl:   `/s/${roomId}`,
+      expiresAt:   stream.expiresAt,
     });
   } catch (err) {
-    if (err instanceof z.ZodError) {
-      return res.status(400).json({ error: err.errors });
-    }
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors });
     console.error(err);
     res.status(500).json({ error: 'Failed to create stream' });
   }
@@ -61,28 +56,45 @@ router.post('/', async (req, res) => {
 router.get('/:roomId', async (req, res) => {
   try {
     const stream = await prisma.stream.findUnique({
-      where: { roomId: req.params.roomId },
+      where:   { roomId: req.params.roomId },
       select: {
-        roomId: true,
-        title: true,
-        isLive: true,
-        isRecording: true,
-        scheduledAt: true,
-        expiresAt: true,
-        viewerCount: true,
+        roomId:       true,
+        title:        true,
+        isLive:       true,
+        isRecording:  true,
+        scheduledAt:  true,
+        expiresAt:    true,
+        viewerCount:  true,
         passwordHash: true,
       },
     });
 
     if (!stream) return res.status(404).json({ error: 'Stream not found' });
-    if (new Date() > stream.expiresAt) {
-      return res.status(410).json({ error: 'Stream link has expired' });
-    }
+    if (new Date() > stream.expiresAt) return res.status(410).json({ error: 'Stream link has expired' });
+
+    // Check if PPV is enabled for this stream
+    let isPPV   = false;
+    let ppvPrice: number | null = null;
+    try {
+      const tiers = await prisma.ticketTier.findMany({
+        where: { stream: { roomId: req.params.roomId }, isActive: true },
+        select: { price: true },
+        take: 1,
+      });
+      if (tiers.length > 0) { isPPV = true; ppvPrice = tiers[0].price; }
+    } catch {} // TicketTier may not exist yet — ignore
 
     res.json({
-      ...stream,
+      roomId:      stream.roomId,
+      title:       stream.title,
+      isLive:      stream.isLive,
+      isRecording: stream.isRecording,
+      scheduledAt: stream.scheduledAt,
+      expiresAt:   stream.expiresAt,
+      viewerCount: stream.viewerCount,
       hasPassword: !!stream.passwordHash,
-      passwordHash: undefined,
+      isPPV,
+      ppvPrice,
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to get stream' });
@@ -92,25 +104,15 @@ router.get('/:roomId', async (req, res) => {
 // PATCH /api/streams/:roomId
 router.patch('/:roomId', async (req, res) => {
   try {
-    // Only isLive is settable via this public PATCH endpoint
-    // isRecording is managed exclusively by the /api/egress routes to prevent state corruption
     const { hostToken, isLive } = req.body;
-    const stream = await prisma.stream.findUnique({
-      where: { roomId: req.params.roomId },
-    });
-
-    if (!stream) return res.status(404).json({ error: 'Stream not found' });
-    if (stream.hostToken !== hostToken) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
+    const stream = await prisma.stream.findUnique({ where: { roomId: req.params.roomId } });
+    if (!stream)                         return res.status(404).json({ error: 'Stream not found' });
+    if (stream.hostToken !== hostToken)  return res.status(403).json({ error: 'Unauthorized' });
 
     const updated = await prisma.stream.update({
       where: { roomId: req.params.roomId },
-      data: {
-        ...(isLive !== undefined && { isLive }),
-      },
+      data:  { ...(isLive !== undefined && { isLive }) },
     });
-
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update stream' });
@@ -121,13 +123,9 @@ router.patch('/:roomId', async (req, res) => {
 router.post('/:roomId/verify-password', async (req, res) => {
   try {
     const { password } = req.body;
-    const stream = await prisma.stream.findUnique({
-      where: { roomId: req.params.roomId },
-    });
-
-    if (!stream) return res.status(404).json({ error: 'Stream not found' });
+    const stream = await prisma.stream.findUnique({ where: { roomId: req.params.roomId } });
+    if (!stream)            return res.status(404).json({ error: 'Stream not found' });
     if (!stream.passwordHash) return res.json({ valid: true });
-
     const valid = await bcrypt.compare(password, stream.passwordHash);
     res.json({ valid });
   } catch (err) {
