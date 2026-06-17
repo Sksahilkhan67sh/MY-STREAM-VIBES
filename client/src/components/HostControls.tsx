@@ -21,17 +21,26 @@ import { useStreamStore } from '../store/stream';
 import ColorGrading, { ColorSettings, DEFAULT_SETTINGS, buildFilter, buildVignette } from './ColorGrading';
 import ResolutionPicker, { Resolution, DEFAULT_RESOLUTION } from './ResolutionPicker';
 import { ThemeToggle } from './ThemeContext';
-type FullPanel = null | 'analytics' | 'earnings' | 'billing' | 'pricing' | 'ppv';
+type FullPanel = null | 'analytics' | 'earnings' | 'billing' | 'pricing' | 'ppv' | 'replays' | 'calendar';
 
 import InlineAnalytics from './InlineAnalytics';
 import InlineEarnings  from './InlineEarnings';
 import InlineBilling   from './InlineBilling';
 import InlinePricing   from './InlinePricing';
 import InlinePPV       from './InlinePPV';
+// ── New feature imports ───────────────────────────────────────────────────────
+import StreamCalendar        from './StreamCalendar';
+import ThumbnailUploader     from './ThumbnailUploader';
+import EmailNotificationPanel from './EmailNotificationPanel';
+import ReplayLibrary         from './ReplayLibrary';
+import ModerationPanel       from './ModerationPanel';
+import ClipCreator           from './ClipCreator';
+import AITitleGenerator      from './AITitleGenerator';
+import AISummaryExport       from './AISummaryExport';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-interface StreamData { roomId: string; hostToken: string; livekitToken: string; viewerUrl: string; expiresAt: string; }
+interface StreamData { roomId: string; hostToken: string; livekitToken: string; viewerUrl: string; expiresAt: string; title?: string; }
 interface HostControlsProps { stream: StreamData; appUrl: string; onCopy: () => void; copied: boolean; }
 
 // ── SVG Icons ─────────────────────────────────────────────────
@@ -244,6 +253,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   const [showRtmp, setShowRtmp]           = useState(false);
   const [rtmpActive, setRtmpActive]       = useState(false);
   const [activePoll, setActivePoll]       = useState<any>(null);
+  const [streamStartTime, setStreamStartTime] = useState<number | undefined>(undefined);
+  const [currentTitle, setCurrentTitle]   = useState(stream.title ?? '');
   const [activeStreams, setActiveStreams]  = useState<MediaStream[]>([]);
   const [layoutMode, setLayoutMode]       = useState<LayoutMode>('stack');
   const [colorSettings, setColorSettingsState] = useState<ColorSettings>(DEFAULT_SETTINGS);
@@ -482,6 +493,8 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
         body: JSON.stringify({ hostToken: stream.hostToken, isLive: live }),
       });
       socketRef.current?.emit(live ? 'stream-started' : 'stream-ended', { roomId: stream.roomId, hostToken: stream.hostToken });
+      if (live) setStreamStartTime(Date.now());
+      else setStreamStartTime(undefined);
     } catch {}
   };
 
@@ -585,17 +598,26 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
   };
 
   const TOOLS = [
-    { id: 'resolution', label: 'Resolution',    badge: resolution.tag },
-    { id: 'color',      label: 'Color grading', badge: null },
-    { id: 'recording',  label: 'Recording',     badge: null },
-    { id: 'poll',       label: 'Live poll',     badge: activePoll ? 'Active' : null },
-    { id: 'social',     label: 'Go social',     badge: rtmpActive ? 'Live' : null },
-    { id: 'link',       label: 'Viewer link',   badge: null },
-    { id: 'cohost',     label: 'Co-Hosts',      badge: coHostCount > 0 ? `${coHostCount}` : null },
-    { id: 'analytics',  label: 'Analytics',     badge: null },
-    { id: 'earnings',   label: 'Earnings',      badge: null },
-    { id: 'billing',    label: 'Plan & Billing', badge: null },
-    { id: 'ppv',        label: 'Pay-Per-View',  badge: null },
+    { id: 'resolution', label: 'Resolution',       badge: resolution.tag },
+    { id: 'color',      label: 'Color grading',    badge: null },
+    { id: 'recording',  label: 'Recording',        badge: null },
+    { id: 'poll',       label: 'Live poll',        badge: activePoll ? 'Active' : null },
+    { id: 'social',     label: 'Go social',        badge: rtmpActive ? 'Live' : null },
+    { id: 'link',       label: 'Viewer link',      badge: null },
+    { id: 'cohost',     label: 'Co-Hosts',         badge: coHostCount > 0 ? `${coHostCount}` : null },
+    { id: 'analytics',  label: 'Analytics',        badge: null },
+    { id: 'earnings',   label: 'Earnings',         badge: null },
+    { id: 'billing',    label: 'Plan & Billing',   badge: null },
+    { id: 'ppv',        label: 'Pay-Per-View',     badge: null },
+    // ── New feature tools ────────────────────────────────────────
+    { id: 'calendar',     label: '📅 Schedule',       badge: null },
+    { id: 'thumbnail',    label: '🖼 Thumbnail',       badge: null },
+    { id: 'notifications',label: '✉️ Email Notify',    badge: null },
+    { id: 'replays',      label: '📼 Replay Library',  badge: null },
+    { id: 'moderation',   label: '🛡 Moderation',      badge: null },
+    { id: 'clips',        label: '✂️ Clips',           badge: null },
+    { id: 'ai-title',     label: '✨ AI Title',        badge: null },
+    { id: 'ai-summary',   label: '🤖 AI Summary',      badge: null },
   ];
 
   const renderPreviewArea = () => {
@@ -1069,6 +1091,75 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                   {activePanel === 'cohost' && (
                     <CoHostManager roomId={stream.roomId} hostToken={stream.hostToken} />
                   )}
+                  {/* ── New Feature Panels ─────────────────────────────── */}
+                  {activePanel === 'thumbnail' && (
+                    <ThumbnailUploader
+                      roomId={stream.roomId}
+                      hostToken={stream.hostToken}
+                    />
+                  )}
+                  {activePanel === 'notifications' && (
+                    <EmailNotificationPanel
+                      roomId={stream.roomId}
+                      hostToken={stream.hostToken}
+                      streamTitle={currentTitle}
+                      scheduledAt={undefined}
+                    />
+                  )}
+                  {activePanel === 'moderation' && (
+                    <ModerationPanel
+                      roomId={stream.roomId}
+                      hostToken={stream.hostToken}
+                      userId={stream.roomId}
+                    />
+                  )}
+                  {activePanel === 'clips' && (
+                    <ClipCreator
+                      roomId={stream.roomId}
+                      hostToken={stream.hostToken}
+                      streamStartTime={streamStartTime}
+                    />
+                  )}
+                  {activePanel === 'ai-title' && (
+                    <AITitleGenerator
+                      roomId={stream.roomId}
+                      hostToken={stream.hostToken}
+                      currentTitle={currentTitle}
+                      onTitleApplied={(t) => setCurrentTitle(t)}
+                    />
+                  )}
+                  {activePanel === 'ai-summary' && (
+                    <AISummaryExport
+                      roomId={stream.roomId}
+                      hostToken={stream.hostToken}
+                      streamTitle={currentTitle}
+                      onTitleApplied={(t) => setCurrentTitle(t)}
+                    />
+                  )}
+                  {activePanel === 'calendar' && (
+                    <div className="text-center py-6">
+                      <p className="text-zinc-400 text-sm mb-3">Opens the full stream calendar</p>
+                      <button
+                        onClick={() => { setFullPanel('calendar'); setPanelOpen(false); setActivePanel(null); }}
+                        className="w-full py-3 rounded-xl text-sm font-bold text-white"
+                        style={{ background: 'linear-gradient(135deg, #ff3520, #c81405)' }}
+                      >
+                        📅 Open Calendar →
+                      </button>
+                    </div>
+                  )}
+                  {activePanel === 'replays' && (
+                    <div className="text-center py-6">
+                      <p className="text-zinc-400 text-sm mb-3">Browse and manage all past recordings</p>
+                      <button
+                        onClick={() => { setFullPanel('replays'); setPanelOpen(false); setActivePanel(null); }}
+                        className="w-full py-3 rounded-xl text-sm font-bold text-white"
+                        style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+                      >
+                        📼 Open Replay Library →
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1134,6 +1225,23 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
             roomId={stream.roomId}
             hostToken={stream.hostToken}
             onBack={() => setFullPanel(null)}
+          />
+        )}
+        {fullPanel === 'calendar' && (
+          <StreamCalendar
+            userId={stream.roomId}
+            onClose={() => setFullPanel(null)}
+            onCreateScheduled={(dt) => {
+              // Pass scheduledAt to stream creation flow
+              console.log('Schedule stream at:', dt);
+              setFullPanel(null);
+            }}
+          />
+        )}
+        {fullPanel === 'replays' && (
+          <ReplayLibrary
+            userId={stream.roomId}
+            onClose={() => setFullPanel(null)}
           />
         )}
       </AnimatePresence>
