@@ -31,13 +31,14 @@ interface StreamCalendarProps {
   userId: string;
   onClose: () => void;
   onCreateScheduled?: (datetime: string) => void;
+  inline?: boolean; // render in-place instead of as a fixed overlay
 }
 
 const MONTHS = ['January','February','March','April','May','June',
                  'July','August','September','October','November','December'];
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-export default function StreamCalendar({ userId, onClose, onCreateScheduled }: StreamCalendarProps) {
+export default function StreamCalendar({ userId, onClose, onCreateScheduled, inline }: StreamCalendarProps) {
   const today = new Date();
   const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [streams, setStreams] = useState<ScheduledStream[]>([]);
@@ -112,12 +113,15 @@ export default function StreamCalendar({ userId, onClose, onCreateScheduled }: S
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div className={inline
+      ? "w-full"
+      : "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    }>
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-2xl bg-[#0d0d0d] border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+        className={`bg-[#0d0d0d] border border-white/10 rounded-2xl overflow-hidden shadow-2xl ${inline ? 'w-full' : 'w-full max-w-2xl'}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
