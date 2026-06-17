@@ -20,9 +20,16 @@ import analyticsRouter     from './routes/analytics';
 import donationsRouter     from './routes/donations';
 import subscriptionsRouter from './routes/subscriptions';
 import ppvRouter           from './routes/ppv';
-import captionsRouter      from './routes/captions';   // ← was missing
-import summaryRouter       from './routes/summary';    // ← was missing
-import multistreamRouter   from './routes/multistream'; // ← was missing
+import captionsRouter      from './routes/captions';
+import summaryRouter       from './routes/summary';
+import multistreamRouter   from './routes/multistream';
+// ── NEW FEATURE ROUTES ────────────────────────────────────────────────────────
+import thumbnailsRouter    from './routes/thumbnails';    // Feature 2: Thumbnails
+import notificationsRouter from './routes/notifications'; // Feature 3: Email Notifications
+import replaysRouter       from './routes/replays';       // Feature 4: Replay Library
+import moderationRouter    from './routes/moderation';    // Features 5 & 6: Moderation + Chat Filter
+import clipsRouter         from './routes/clips';         // Feature 7: Clips
+import aiRouter            from './routes/ai-titles';     // Features 8 & 9: AI Title + Summary
 
 const app        = express();
 const httpServer = createServer(app);
@@ -48,16 +55,17 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-room-id', 'x-host-token', 'x-user-id'],
 }));
 app.options('*', cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // increased for thumbnail uploads
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 const limiter = rateLimit({ windowMs: 15*60*1000, max: 200, standardHeaders: true, legacyHeaders: false });
 const tokenLimiter = rateLimit({ windowMs: 15*60*1000, max: 500, standardHeaders: true, legacyHeaders: false });
+const aiLimiter = rateLimit({ windowMs: 60*1000, max: 10, standardHeaders: true, legacyHeaders: false });
 
 app.set('trust proxy', 1);
 app.use('/api', limiter);
 
-// ── Routes ────────────────────────────────────────────────────
+// ── Existing Routes ───────────────────────────────────────────────────────────
 app.use('/api/streams',       streamsRouter);
 app.use('/api/token',         tokenLimiter, tokenRouter);
 app.use('/api/egress',        egressRouter);
@@ -68,9 +76,17 @@ app.use('/api/analytics',     analyticsRouter);
 app.use('/api/donations',     donationsRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/ppv',           ppvRouter);
-app.use('/api/captions',      captionsRouter);    // ← now mounted
-app.use('/api/summary',       summaryRouter);     // ← now mounted
-app.use('/api/multistream',   multistreamRouter); // ← now mounted
+app.use('/api/captions',      captionsRouter);
+app.use('/api/summary',       summaryRouter);
+app.use('/api/multistream',   multistreamRouter);
+
+// ── New Feature Routes ────────────────────────────────────────────────────────
+app.use('/api/thumbnails',    thumbnailsRouter);
+app.use('/api/notifications', notificationsRouter);
+app.use('/api/replays',       replaysRouter);
+app.use('/api/moderation',    moderationRouter);
+app.use('/api/clips',         clipsRouter);
+app.use('/api/ai',            aiLimiter, aiRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
