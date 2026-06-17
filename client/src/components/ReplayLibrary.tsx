@@ -44,6 +44,7 @@ interface Replay {
 interface ReplayLibraryProps {
   userId: string;
   onClose: () => void;
+  inline?: boolean;
 }
 
 function fmtDuration(sec: number): string {
@@ -62,7 +63,7 @@ function fmtSize(bytes: number): string {
   return `${(bytes / 1e3).toFixed(0)} KB`;
 }
 
-export default function ReplayLibrary({ userId, onClose }: ReplayLibraryProps) {
+export default function ReplayLibrary({ userId, onClose, inline }: ReplayLibraryProps) {
   const [replays, setReplays] = useState<Replay[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -126,7 +127,7 @@ export default function ReplayLibrary({ userId, onClose }: ReplayLibraryProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#070707] flex flex-col">
+    <div className={inline ? "flex flex-col min-h-full" : "fixed inset-0 z-50 bg-[#070707] flex flex-col"}>
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <div className="flex items-center gap-3">
