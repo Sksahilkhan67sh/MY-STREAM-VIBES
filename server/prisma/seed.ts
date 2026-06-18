@@ -115,6 +115,19 @@ const PLANS = [
   },
 ];
 
+const CATEGORIES = [
+  { name: 'Gaming',        slug: 'gaming',        icon: '🎮', sortOrder: 0 },
+  { name: 'Education',     slug: 'education',      icon: '📚', sortOrder: 1 },
+  { name: 'Coding',        slug: 'coding',         icon: '💻', sortOrder: 2 },
+  { name: 'Music',         slug: 'music',          icon: '🎵', sortOrder: 3 },
+  { name: 'Podcasts',      slug: 'podcasts',       icon: '🎙️', sortOrder: 4 },
+  { name: 'Sports',        slug: 'sports',         icon: '⚽', sortOrder: 5 },
+  { name: 'Technology',    slug: 'technology',     icon: '🔬', sortOrder: 6 },
+  { name: 'Finance',       slug: 'finance',        icon: '💹', sortOrder: 7 },
+  { name: 'Entertainment', slug: 'entertainment',  icon: '🎬', sortOrder: 8 },
+  { name: 'Art & Design',  slug: 'art-design',     icon: '🎨', sortOrder: 9 },
+];
+
 async function main() {
   console.log('🌱 Seeding subscription plans...');
   for (const plan of PLANS) {
@@ -126,6 +139,17 @@ async function main() {
     console.log(`  ✓ ${plan.displayName}`);
   }
   console.log('✅ Plans seeded successfully');
+
+  console.log('🌱 Seeding categories...');
+  for (const cat of CATEGORIES) {
+    await prisma.category.upsert({
+      where:  { slug: cat.slug },
+      update: cat,
+      create: cat,
+    });
+    console.log(`  ✓ ${cat.icon} ${cat.name}`);
+  }
+  console.log('✅ Categories seeded successfully');
 }
 
 main()
