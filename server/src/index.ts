@@ -7,29 +7,28 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-import { initSocket } from './lib/socket';
-import { connectRedis } from './lib/redis';
-import prisma from './lib/prisma';
-import streamsRouter       from './routes/streams';
-import tokenRouter         from './routes/token';
-import egressRouter        from './routes/egress';
+import { initSocket }                        from './lib/socket';
+import { connectRedis }                      from './lib/redis';
+import prisma                                from './lib/prisma';
+import streamsRouter                         from './routes/streams';
+import tokenRouter                           from './routes/token';
+import egressRouter                          from './routes/egress';
 import remindersRouter, { recoverReminders } from './routes/reminders';
 import pollsRouter, { recoverActivePolls }   from './routes/polls';
-import coHostsRouter       from './routes/cohosts';
-import analyticsRouter     from './routes/analytics';
-import donationsRouter     from './routes/donations';
-import subscriptionsRouter from './routes/subscriptions';
-import ppvRouter           from './routes/ppv';
-import captionsRouter      from './routes/captions';
-import summaryRouter       from './routes/summary';
-import multistreamRouter   from './routes/multistream';
-// ── NEW FEATURE ROUTES ────────────────────────────────────────────────────────
-import thumbnailsRouter    from './routes/thumbnails';    // Feature 2: Thumbnails
-import notificationsRouter from './routes/notifications'; // Feature 3: Email Notifications
-import replaysRouter       from './routes/replays';       // Feature 4: Replay Library
-import moderationRouter    from './routes/moderation';    // Features 5 & 6: Moderation + Chat Filter
-import clipsRouter         from './routes/clips';         // Feature 7: Clips
-import aiRouter            from './routes/ai-titles';     // Features 8 & 9: AI Title + Summary
+import coHostsRouter                         from './routes/cohosts';
+import analyticsRouter                       from './routes/analytics';
+import donationsRouter                       from './routes/donations';
+import subscriptionsRouter                   from './routes/subscriptions';
+import ppvRouter                             from './routes/ppv';
+import captionsRouter                        from './routes/captions';
+import summaryRouter                         from './routes/summary';
+import multistreamRouter                     from './routes/multistream';
+import thumbnailsRouter                      from './routes/thumbnails';
+import notificationsRouter                   from './routes/notifications';
+import replaysRouter                         from './routes/replays';
+import moderationRouter                      from './routes/moderation';
+import clipsRouter                           from './routes/clips';
+import aiRouter                              from './routes/ai-titles';
 
 const app        = express();
 const httpServer = createServer(app);
@@ -50,22 +49,21 @@ app.use(cors({
     ) return callback(null, true);
     callback(new Error(`CORS: ${origin} not allowed`));
   },
-  credentials: true,
-  methods:      ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  credentials:    true,
+  methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-room-id', 'x-host-token', 'x-user-id'],
 }));
 app.options('*', cors());
-app.use(express.json({ limit: '10mb' })); // increased for thumbnail uploads
+app.use(express.json({ limit: '10mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-const limiter = rateLimit({ windowMs: 15*60*1000, max: 200, standardHeaders: true, legacyHeaders: false });
+const limiter      = rateLimit({ windowMs: 15*60*1000, max: 200, standardHeaders: true, legacyHeaders: false });
 const tokenLimiter = rateLimit({ windowMs: 15*60*1000, max: 500, standardHeaders: true, legacyHeaders: false });
-const aiLimiter = rateLimit({ windowMs: 60*1000, max: 10, standardHeaders: true, legacyHeaders: false });
+const aiLimiter    = rateLimit({ windowMs: 60*1000,    max: 10,  standardHeaders: true, legacyHeaders: false });
 
 app.set('trust proxy', 1);
 app.use('/api', limiter);
 
-// ── Existing Routes ───────────────────────────────────────────────────────────
 app.use('/api/streams',       streamsRouter);
 app.use('/api/token',         tokenLimiter, tokenRouter);
 app.use('/api/egress',        egressRouter);
@@ -79,8 +77,6 @@ app.use('/api/ppv',           ppvRouter);
 app.use('/api/captions',      captionsRouter);
 app.use('/api/summary',       summaryRouter);
 app.use('/api/multistream',   multistreamRouter);
-
-// ── New Feature Routes ────────────────────────────────────────────────────────
 app.use('/api/thumbnails',    thumbnailsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/replays',       replaysRouter);
