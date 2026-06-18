@@ -107,6 +107,9 @@ export default function HostPage() {
   const [scheduledAt, setScheduledAt]       = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [recentStreams, setRecentStreams]    = useState<RecentStream[]>([]);
+  const [categories, setCategories]         = useState<{ id: string; name: string; icon: string }[]>([]);
+  const [categoryId, setCategoryId]         = useState('');
+  const [isPublic, setIsPublic]             = useState(false);
 
   // Persisted hostToken & roomId from localStorage (survives page refresh)
   const [savedHostToken, setSavedHostToken] = useState('');
@@ -157,6 +160,14 @@ export default function HostPage() {
       .catch(() => {});
   }, [status, userId]);
 
+  // Load categories for the public-stream category picker
+  useEffect(() => {
+    fetch(`${API}/api/discover/categories`)
+      .then(r => r.ok ? r.json() : { categories: [] })
+      .then(d => setCategories(d.categories ?? []))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
   }, [status, router]);
@@ -205,6 +216,8 @@ export default function HostPage() {
         title:    title.trim(),
         password: password || undefined,
         userId:   userId || undefined,
+        categoryId: isPublic ? (categoryId || undefined) : undefined,
+        isPublic,
       };
       if (effectiveSchedule) body.scheduledAt = effectiveSchedule;
 
@@ -434,6 +447,42 @@ export default function HostPage() {
                           className="w-full px-4 py-3 text-sm bg-white/[0.04] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/20 transition-colors"
                         />
                       </div>
+
+                      <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+                        <div>
+                          <p className="text-sm font-semibold text-white">List on Stream Vault</p>
+                          <p className="text-zinc-500 text-xs mt-0.5">Show this stream in public browse, search, and categories</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsPublic(v => !v)}
+                          aria-pressed={isPublic}
+                          className={['relative w-10 h-6 rounded-full transition-colors flex-shrink-0',
+                            isPublic ? 'bg-[#ff3520]' : 'bg-white/10'].join(' ')}
+                        >
+                          <span className={['absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform',
+                            isPublic ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+                        </button>
+                      </div>
+
+                      <AnimatePresence>
+                        {isPublic && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                          >
+                            <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Category</label>
+                            <select
+                              value={categoryId} onChange={e => setCategoryId(e.target.value)}
+                              className="w-full px-4 py-3 text-sm bg-white/[0.04] border border-white/[0.08] rounded-xl text-white focus:outline-none focus:border-white/20 transition-colors"
+                            >
+                              <option value="" className="bg-zinc-900">Select a category</option>
+                              {categories.map(c => (
+                                <option key={c.id} value={c.id} className="bg-zinc-900">{c.icon} {c.name}</option>
+                              ))}
+                            </select>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
                       <AnimatePresence>
                         {mode === 'scheduled' && parsedSchedule && (
