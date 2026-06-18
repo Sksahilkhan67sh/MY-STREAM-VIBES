@@ -29,6 +29,9 @@ import replaysRouter                         from './routes/replays';
 import moderationRouter                      from './routes/moderation';
 import clipsRouter                           from './routes/clips';
 import aiRouter                              from './routes/ai-titles';
+import discoverRouter                        from './routes/discover';
+import creatorsRouter                        from './routes/creators';
+import historyRouter                         from './routes/history';
 
 const app        = express();
 const httpServer = createServer(app);
@@ -83,6 +86,9 @@ app.use('/api/replays',       replaysRouter);
 app.use('/api/moderation',    moderationRouter);
 app.use('/api/clips',         clipsRouter);
 app.use('/api/ai',            aiLimiter, aiRouter);
+app.use('/api/discover',      discoverRouter);
+app.use('/api/creators',      creatorsRouter);
+app.use('/api/history',       historyRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
