@@ -1,14 +1,4 @@
-/**
- * server/src/routes/thumbnails.ts
- * Feature 2: Stream Thumbnails
- *
- * POST /api/thumbnails/:roomId          — save a thumbnail URL for a stream
- * GET  /api/thumbnails/:roomId          — get active thumbnail
- * DELETE /api/thumbnails/:roomId/:id   — remove a thumbnail
- */
-
 import { Router } from 'express';
-import { z } from 'zod';
 import prisma from '../lib/prisma';
 
 const router = Router();
@@ -23,17 +13,17 @@ router.post('/:roomId', async (req, res) => {
     if (!stream) return res.status(404).json({ error: 'Stream not found' });
     if (stream.hostToken !== hostToken) return res.status(403).json({ error: 'Unauthorized' });
 
-    // Deactivate previous thumbnails
-    await (prisma as any).streamThumbnail.updateMany({
+    // Deactivate old thumbnails
+    await prisma.streamThumbnail.updateMany({
       where: { streamId: stream.id },
       data: { isActive: false },
     });
 
-    const thumbnail = await (prisma as any).streamThumbnail.create({
+    const thumbnail = await prisma.streamThumbnail.create({
       data: { streamId: stream.id, url, source, isActive: true },
     });
 
-    // Also store on stream for quick access
+    // Store on Stream for quick access in viewer/list pages
     await prisma.stream.update({
       where: { id: stream.id },
       data: { thumbnailUrl: url },
@@ -41,7 +31,7 @@ router.post('/:roomId', async (req, res) => {
 
     res.json(thumbnail);
   } catch (err) {
-    console.error(err);
+    console.error('[thumbnails POST]', err);
     res.status(500).json({ error: 'Failed to save thumbnail' });
   }
 });
@@ -52,13 +42,14 @@ router.get('/:roomId', async (req, res) => {
     const stream = await prisma.stream.findUnique({ where: { roomId: req.params.roomId } });
     if (!stream) return res.status(404).json({ error: 'Stream not found' });
 
-    const thumbnails = await (prisma as any).streamThumbnail.findMany({
+    const thumbnails = await prisma.streamThumbnail.findMany({
       where: { streamId: stream.id },
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ thumbnails, active: thumbnails.find((t: any) => t.isActive) || null });
+    res.json({ thumbnails, active: thumbnails.find(t => t.isActive) ?? null });
   } catch (err) {
+    console.error('[thumbnails GET]', err);
     res.status(500).json({ error: 'Failed to get thumbnails' });
   }
 });
@@ -71,9 +62,10 @@ router.delete('/:roomId/:thumbnailId', async (req, res) => {
     if (!stream) return res.status(404).json({ error: 'Stream not found' });
     if (stream.hostToken !== hostToken) return res.status(403).json({ error: 'Unauthorized' });
 
-    await (prisma as any).streamThumbnail.delete({ where: { id: req.params.thumbnailId } });
+    await prisma.streamThumbnail.delete({ where: { id: req.params.thumbnailId } });
     res.json({ ok: true });
   } catch (err) {
+    console.error('[thumbnails DELETE]', err);
     res.status(500).json({ error: 'Failed to delete thumbnail' });
   }
 });
