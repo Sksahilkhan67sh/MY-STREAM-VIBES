@@ -50,8 +50,13 @@ export function initSocket(httpServer: HttpServer) {
       socket.join(roomId);
       const count = await incrementViewerCount(roomId);
       io.to(roomId).emit('viewer-count', count);
-      // Keep DB viewerCount in sync so GET /api/streams returns accurate count
+      // Keep DB viewerCount in sync so GET /api/streams returns accurate count.
       prisma.stream.update({ where: { roomId }, data: { viewerCount: count } }).catch(() => {});
+      // Bump peakViewers only if this is a new high (used for trending/"fastest growing").
+      prisma.stream.updateMany({
+        where: { roomId, peakViewers: { lt: count } },
+        data: { peakViewers: count },
+      }).catch(() => {});
       if (nickname) socket.to(roomId).emit('viewer-joined', { nickname });
     });
 
