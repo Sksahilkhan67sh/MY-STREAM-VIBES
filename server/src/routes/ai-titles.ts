@@ -1,302 +1,114 @@
-/**
- * server/src/routes/ai-titles.ts
- * Feature 8: AI Title Generation
- *
- * POST /api/ai/title/generate   — generate title suggestions from topic/transcript
- * POST /api/ai/title/apply      — apply a chosen title to a stream
- */
+import express from 'express';
+import { createServer } from 'http';
+import cors from 'cors';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import dotenv from 'dotenv';
 
-import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
-import prisma from '../lib/prisma';
+dotenv.config();
 
-const router = Router();
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { initSocket }                        from './lib/socket';
+import { connectRedis }                      from './lib/redis';
+import prisma                                from './lib/prisma';
+import streamsRouter                         from './routes/streams';
+import tokenRouter                           from './routes/token';
+import egressRouter                          from './routes/egress';
+import remindersRouter, { recoverReminders } from './routes/reminders';
+import pollsRouter, { recoverActivePolls }   from './routes/polls';
+import coHostsRouter                         from './routes/cohosts';
+import analyticsRouter                       from './routes/analytics';
+import donationsRouter                       from './routes/donations';
+import subscriptionsRouter                   from './routes/subscriptions';
+import ppvRouter                             from './routes/ppv';
+import captionsRouter                        from './routes/captions';
+import summaryRouter                         from './routes/summary';
+import multistreamRouter                     from './routes/multistream';
+import thumbnailsRouter                      from './routes/thumbnails';
+import notificationsRouter                   from './routes/notifications';
+import replaysRouter                         from './routes/replays';
+import moderationRouter                      from './routes/moderation';
+import clipsRouter                           from './routes/clips';
+import aiRouter                              from './routes/ai-titles';
 
-// POST /api/ai/title/generate
-router.post('/title/generate', async (req, res) => {
-  try {
-    const { roomId, hostToken, topic, description, keywords, style = 'engaging' } = req.body;
-    if (!topic && !roomId) return res.status(400).json({ error: 'topic or roomId required' });
+const app        = express();
+const httpServer = createServer(app);
 
-    let transcript = '';
-    let streamTitle = topic || '';
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:3000',
+  'http://localhost:3001',
+].filter(Boolean) as string[];
 
-    // If roomId provided, pull transcript context
-    if (roomId) {
-      const stream = await prisma.stream.findUnique({
-        where: { roomId },
-        include: { transcript: { include: { segments: { take: 50, orderBy: { startMs: 'asc' } } } } },
-      });
-      if (stream) {
-        if (hostToken && stream.hostToken !== hostToken) {
-          return res.status(403).json({ error: 'Unauthorized' });
-        }
-        streamTitle = topic || stream.title;
-        if (stream.transcript?.segments?.length) {
-          transcript = stream.transcript.segments.slice(0, 30).map((s: any) => s.text).join(' ');
-        }
-      }
-    }
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.some(o => origin === o) ||
+      origin.endsWith('.vercel.app') ||
+      origin.endsWith('.onrender.com')
+    ) return callback(null, true);
+    callback(new Error(`CORS: ${origin} not allowed`));
+  },
+  credentials:    true,
+  methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-room-id', 'x-host-token', 'x-user-id'],
+}));
+app.options('*', cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-    const systemPrompt = `You are an expert content strategist who creates viral, engaging stream titles.
-Generate exactly 5 title suggestions. Return ONLY valid JSON array, no markdown, no explanation:
-[
-  { "title": "...", "style": "...", "hook": "..." },
-  ...
-]
-Style options: engaging, clickbait, professional, question, listicle
-Hook is a one-sentence reason why viewers will click.`;
+const limiter      = rateLimit({ windowMs: 15*60*1000, max: 200, standardHeaders: true, legacyHeaders: false });
+const tokenLimiter = rateLimit({ windowMs: 15*60*1000, max: 500, standardHeaders: true, legacyHeaders: false });
+const aiLimiter    = rateLimit({ windowMs: 60*1000,    max: 10,  standardHeaders: true, legacyHeaders: false });
 
-    const userPrompt = `Stream topic: ${streamTitle}
-${description ? `Description: ${description}` : ''}
-${keywords?.length ? `Keywords: ${keywords.join(', ')}` : ''}
-${transcript ? `Transcript excerpt: ${transcript.slice(0, 500)}` : ''}
-Preferred style: ${style}
+app.set('trust proxy', 1);
+app.use('/api', limiter);
 
-Generate 5 title variations that are compelling, SEO-friendly, and optimized for a live streaming audience.`;
+app.use('/api/streams',       streamsRouter);
+app.use('/api/token',         tokenLimiter, tokenRouter);
+app.use('/api/egress',        egressRouter);
+app.use('/api/reminders',     remindersRouter);
+app.use('/api/polls',         pollsRouter);
+app.use('/api/cohosts',       coHostsRouter);
+app.use('/api/analytics',     analyticsRouter);
+app.use('/api/donations',     donationsRouter);
+app.use('/api/subscriptions', subscriptionsRouter);
+app.use('/api/ppv',           ppvRouter);
+app.use('/api/captions',      captionsRouter);
+app.use('/api/summary',       summaryRouter);
+app.use('/api/multistream',   multistreamRouter);
+app.use('/api/thumbnails',    thumbnailsRouter);
+app.use('/api/notifications', notificationsRouter);
+app.use('/api/replays',       replaysRouter);
+app.use('/api/moderation',    moderationRouter);
+app.use('/api/clips',         clipsRouter);
+app.use('/api/ai',            aiLimiter, aiRouter);
 
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 800,
-      messages: [{ role: 'user', content: userPrompt }],
-      system: systemPrompt,
-    });
-
-    const raw = (message.content[0] as any).text?.trim() ?? '';
-    let suggestions: any[] = [];
-    try {
-      const clean = raw.replace(/```json|```/g, '').trim();
-      suggestions = JSON.parse(clean);
-    } catch {
-      // fallback: extract from text
-      suggestions = [
-        { title: streamTitle, style: 'original', hook: 'Your original title' },
-      ];
-    }
-
-    // Store suggestions on StreamSummary if stream exists
-    if (roomId) {
-      const stream = await prisma.stream.findUnique({ where: { roomId } });
-      if (stream) {
-        try {
-          await (prisma as any).streamSummary.upsert({
-            where: { streamId: stream.id },
-            create: {
-              streamId: stream.id,
-              title: stream.title,
-              summary: '',
-              keyTakeaways: '[]',
-              chapters: '[]',
-              actionItems: '[]',
-              discussionPoints: '[]',
-              titleSuggestions: JSON.stringify(suggestions),
-            },
-            update: { titleSuggestions: JSON.stringify(suggestions) },
-          });
-        } catch { /* summary table may not exist yet */ }
-      }
-    }
-
-    res.json({ suggestions, count: suggestions.length });
-  } catch (err: any) {
-    console.error('[AI Title]', err);
-    res.status(500).json({ error: 'Failed to generate titles', detail: err?.message });
-  }
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
 });
 
-// POST /api/ai/title/apply — update stream title
-router.post('/title/apply', async (req, res) => {
+initSocket(httpServer);
+
+const PORT = parseInt(process.env.PORT || '4000');
+
+async function main() {
   try {
-    const { roomId, hostToken, title } = req.body;
-    if (!roomId || !title) return res.status(400).json({ error: 'roomId and title required' });
-
-    const stream = await prisma.stream.findUnique({ where: { roomId } });
-    if (!stream) return res.status(404).json({ error: 'Stream not found' });
-    if (stream.hostToken !== hostToken) return res.status(403).json({ error: 'Unauthorized' });
-
-    const updated = await prisma.stream.update({
-      where: { roomId },
-      data: { title },
+    await prisma.$connect();
+    console.log('✅ Prisma connected');
+    await connectRedis();
+    startScheduler();
+    recoverActivePolls().catch(console.error);
+    recoverReminders().catch(console.error);
+    httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log(`\n🚀 Server on port ${PORT}`);
+      console.log(`🌍 Origins: ${allowedOrigins.join(', ')}`);
     });
-
-    res.json({ ok: true, title: updated.title });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to apply title' });
+    console.error('Failed to start server:', err);
+    process.exit(1);
   }
-});
-
-// POST /api/ai/summary/generate — full AI summary + export
-// (extends existing summary route)
-router.post('/summary/generate', async (req, res) => {
-  try {
-    const { roomId, hostToken } = req.body;
-    if (!roomId) return res.status(400).json({ error: 'roomId required' });
-
-    const stream = await prisma.stream.findUnique({
-      where: { roomId },
-      include: {
-        transcript: { include: { segments: { where: { isFinal: true }, orderBy: { startMs: 'asc' } } } },
-        analytics: true,
-      },
-    });
-    if (!stream) return res.status(404).json({ error: 'Stream not found' });
-    if (stream.hostToken !== hostToken) return res.status(403).json({ error: 'Unauthorized' });
-
-    const segments = stream.transcript?.segments ?? [];
-    const transcriptText = segments.length > 0
-      ? segments.slice(0, 200).map((s: any) => `[${formatMs(s.startMs)}] ${s.text}`).join('\n')
-      : 'No transcript available for this stream.';
-
-    const durationMin = stream.analytics
-      ? Math.round((stream.analytics as any).durationSeconds / 60)
-      : 0;
-
-    const systemPrompt = `You are an expert content analyst for live streams.
-Return ONLY valid JSON with this exact structure:
-{
-  "summary": "3-4 sentence overview",
-  "keyTakeaways": ["point1", "point2", "point3", "point4", "point5"],
-  "chapters": [{"title": "...", "startMs": 0, "endMs": 60000, "summary": "..."}],
-  "actionItems": ["action1", "action2"],
-  "discussionPoints": ["point1", "point2"],
-  "titleSuggestions": [{"title": "...", "style": "engaging", "hook": "..."}]
-}`;
-
-    const userPrompt = `Stream: "${stream.title}"
-Duration: ${durationMin} minutes
-Viewers: ${stream.analytics ? (stream.analytics as any).uniqueViewers : 'N/A'}
-
-Transcript:
-${transcriptText.slice(0, 3000)}
-
-Generate a comprehensive summary.`;
-
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: userPrompt }],
-      system: systemPrompt,
-    });
-
-    const raw = (message.content[0] as any).text?.trim() ?? '';
-    let parsed: any = {};
-    try {
-      const clean = raw.replace(/```json|```/g, '').trim();
-      parsed = JSON.parse(clean);
-    } catch {
-      parsed = {
-        summary: `${stream.title} — AI summary generation encountered an issue. Please retry.`,
-        keyTakeaways: [],
-        chapters: [],
-        actionItems: [],
-        discussionPoints: [],
-        titleSuggestions: [],
-      };
-    }
-
-    // Upsert StreamSummary
-    const summaryRecord = await (prisma as any).streamSummary.upsert({
-      where: { streamId: stream.id },
-      create: {
-        streamId: stream.id,
-        title: stream.title,
-        summary: parsed.summary || '',
-        keyTakeaways: JSON.stringify(parsed.keyTakeaways || []),
-        chapters: JSON.stringify(parsed.chapters || []),
-        actionItems: JSON.stringify(parsed.actionItems || []),
-        discussionPoints: JSON.stringify(parsed.discussionPoints || []),
-        titleSuggestions: JSON.stringify(parsed.titleSuggestions || []),
-      },
-      update: {
-        summary: parsed.summary || '',
-        keyTakeaways: JSON.stringify(parsed.keyTakeaways || []),
-        chapters: JSON.stringify(parsed.chapters || []),
-        actionItems: JSON.stringify(parsed.actionItems || []),
-        discussionPoints: JSON.stringify(parsed.discussionPoints || []),
-        titleSuggestions: JSON.stringify(parsed.titleSuggestions || []),
-      },
-    });
-
-    res.json({
-      summary: {
-        ...summaryRecord,
-        keyTakeaways: parsed.keyTakeaways,
-        chapters: parsed.chapters,
-        actionItems: parsed.actionItems,
-        discussionPoints: parsed.discussionPoints,
-        titleSuggestions: parsed.titleSuggestions,
-      },
-    });
-  } catch (err: any) {
-    console.error('[AI Summary]', err);
-    res.status(500).json({ error: 'Failed to generate summary', detail: err?.message });
-  }
-});
-
-// GET /api/ai/summary/:roomId/download?format=md|txt|json
-router.get('/summary/:roomId/download', async (req, res) => {
-  try {
-    const format = (req.query.format as string) || 'md';
-    const stream = await prisma.stream.findUnique({ where: { roomId: req.params.roomId } });
-    if (!stream) return res.status(404).json({ error: 'Stream not found' });
-
-    const raw = await (prisma as any).streamSummary.findUnique({ where: { streamId: stream.id } });
-    if (!raw) return res.status(404).json({ error: 'No summary yet. Generate it first.' });
-
-    const summary = {
-      title: raw.title,
-      summary: raw.summary,
-      keyTakeaways: JSON.parse(raw.keyTakeaways || '[]'),
-      chapters: JSON.parse(raw.chapters || '[]'),
-      actionItems: JSON.parse(raw.actionItems || '[]'),
-      discussionPoints: JSON.parse(raw.discussionPoints || '[]'),
-      generatedAt: raw.createdAt?.toISOString(),
-    };
-
-    const safeTitle = (stream.title || 'summary').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-
-    if (format === 'json') {
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}-summary.json"`);
-      return res.send(JSON.stringify(summary, null, 2));
-    }
-
-    // Markdown / txt
-    const md = [
-      `# ${summary.title}`,
-      `> Generated: ${summary.generatedAt}`,
-      '',
-      '## Summary',
-      summary.summary,
-      '',
-      '## Key Takeaways',
-      ...summary.keyTakeaways.map((k: string) => `- ${k}`),
-      '',
-      '## Chapters',
-      ...summary.chapters.map((c: any) => `### ${c.title}\n${c.summary}`),
-      '',
-      '## Action Items',
-      ...summary.actionItems.map((a: string) => `- [ ] ${a}`),
-      '',
-      '## Discussion Points',
-      ...summary.discussionPoints.map((d: string) => `- ${d}`),
-    ].join('\n');
-
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}-summary.md"`);
-    res.send(md);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to download summary' });
-  }
-});
-
-function formatMs(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const h = Math.floor(m / 60);
-  if (h > 0) return `${h}:${String(m % 60).padStart(2,'0')}:${String(s % 60).padStart(2,'0')}`;
-  return `${m}:${String(s % 60).padStart(2,'0')}`;
 }
 
-export default router;
+import { startScheduler } from './jobs/scheduler';
+main();
