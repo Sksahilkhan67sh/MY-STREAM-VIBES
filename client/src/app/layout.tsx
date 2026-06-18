@@ -4,9 +4,10 @@ import { ThemeProvider } from '@/components/ThemeContext';
 import { SessionProvider } from 'next-auth/react';
 
 export const metadata: Metadata = {
-  title: 'StreamVault — Free Private Live Streaming, No Account Needed',
-  description: 'Create a private live stream in seconds. Share a link instantly. No sign-up, no downloads. Stream to YouTube & Instagram simultaneously. Free forever.',
-  keywords: 'free live streaming, private live stream, stream without account, stream share link, browser live stream',
+  metadataBase: new URL('https://my-stream-vibes-client.vercel.app'),
+  title: 'StreamVault — Discover Live Streams',
+  description: 'Browse live streams by category, follow your favorite creators, and watch instantly. Gaming, coding, music, podcasts, and more.',
+  keywords: 'live streaming, watch live, browse streams, gaming streams, coding streams, free live streaming',
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon.ico',
@@ -14,8 +15,8 @@ export const metadata: Metadata = {
     other: [{ rel: 'icon', url: '/icon.png', sizes: '32x32', type: 'image/png' }],
   },
   openGraph: {
-    title: 'StreamVault — Free Private Live Streaming',
-    description: 'Go live in one click. Share a link. No account needed.',
+    title: 'StreamVault — Discover Live Streams',
+    description: 'Browse live streams by category, follow creators, and watch instantly.',
     url: 'https://my-stream-vibes-client.vercel.app/',
     siteName: 'StreamVault',
     type: 'website',
@@ -23,8 +24,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'StreamVault — Free Private Live Streaming',
-    description: 'Go live in one click. Share a link. No account needed.',
+    title: 'StreamVault — Discover Live Streams',
+    description: 'Browse live streams by category, follow creators, and watch instantly.',
     images: ['/og-image.png'],
   },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
