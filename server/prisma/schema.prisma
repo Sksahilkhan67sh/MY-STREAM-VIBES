@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── User ─────────────────────────────────────────────────────────────────────
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -21,11 +20,8 @@ model User {
   rtmpDestinations RtmpDestination[]
   donationConfig   DonationConfig?
   usageRecords     UsageRecord[]
-  emailNotifications EmailNotification[]
-  chatFilters      ChatFilter[]
 }
 
-// ─── Plan ─────────────────────────────────────────────────────────────────────
 model Plan {
   id          String  @id @default(cuid())
   name        String  @unique
@@ -63,7 +59,6 @@ model Plan {
   subscriptions Subscription[]
 }
 
-// ─── Subscription ─────────────────────────────────────────────────────────────
 model Subscription {
   id                    String    @id @default(cuid())
   userId                String
@@ -86,47 +81,44 @@ model Subscription {
   updatedAt             DateTime  @updatedAt
 }
 
-// ─── UsageRecord ──────────────────────────────────────────────────────────────
 model UsageRecord {
-  id             String   @id @default(cuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  month          String
-  streamsUsed    Int      @default(0)
-  storageUsedGB  Float    @default(0)
-  streamMinutes  Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month         String
+  streamsUsed   Int      @default(0)
+  storageUsedGB Float    @default(0)
+  streamMinutes Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([userId, month], name: "userId_month")
   @@index([userId])
 }
 
-// ─── Invoice ──────────────────────────────────────────────────────────────────
 model Invoice {
-  id                 String        @id @default(cuid())
+  id                 String    @id @default(cuid())
   userId             String
   subscriptionId     String?
-  planName           String        @default("")
+  planName           String    @default("")
   amount             Int
-  currency           String        @default("INR")
-  status             String        @default("pending")
-  billingCycle       String        @default("")
+  currency           String    @default("INR")
+  status             String    @default("pending")
+  billingCycle       String    @default("")
   gateway            String?
-  gatewayInvoiceId   String?       @unique
+  gatewayInvoiceId   String?   @unique
   gatewayPaymentId   String?
   invoiceUrl         String?
   pdfUrl             String?
   billingPeriodStart DateTime?
   billingPeriodEnd   DateTime?
   paidAt             DateTime?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([userId])
 }
 
-// ─── Stream ───────────────────────────────────────────────────────────────────
 model Stream {
   id           String    @id @default(cuid())
   userId       String?
@@ -145,11 +137,9 @@ model Stream {
   ppvPrice     Int?
   scheduledAt  DateTime?
   expiresAt    DateTime
+  thumbnailUrl String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-
-  // ── thumbnail ────────────────────────────────────────────────
-  thumbnailUrl String?   // quick scalar access for list views
 
   recordings          Recording[]
   polls               Poll[]
@@ -174,7 +164,6 @@ model Stream {
   @@index([userId])
 }
 
-// ─── Recording ────────────────────────────────────────────────────────────────
 model Recording {
   id          String    @id @default(cuid())
   streamId    String
@@ -190,7 +179,6 @@ model Recording {
   @@index([streamId])
 }
 
-// ─── Poll ─────────────────────────────────────────────────────────────────────
 model Poll {
   id        String    @id @default(cuid())
   streamId  String
@@ -220,7 +208,6 @@ model PollVote {
   @@index([pollId])
 }
 
-// ─── CoHost ───────────────────────────────────────────────────────────────────
 model CoHost {
   id          String    @id @default(cuid())
   streamId    String
@@ -235,7 +222,6 @@ model CoHost {
   @@index([streamId])
 }
 
-// ─── Reminder ─────────────────────────────────────────────────────────────────
 model Reminder {
   id        String   @id @default(cuid())
   streamId  String
@@ -248,7 +234,6 @@ model Reminder {
   @@index([streamId])
 }
 
-// ─── Analytics ────────────────────────────────────────────────────────────────
 model AnalyticsEvent {
   id           String   @id @default(cuid())
   streamId     String
@@ -282,29 +267,28 @@ model ConcurrentViewerSnapshot {
 }
 
 model StreamAnalytics {
-  id                 String   @id @default(cuid())
-  streamId           String   @unique
-  stream             Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  totalJoins         Int      @default(0)
-  uniqueViewers      Int      @default(0)
-  peakConcurrent     Int      @default(0)
-  totalWatchSeconds  BigInt   @default(0)
-  avgWatchSeconds    Int      @default(0)
-  totalChatMessages  Int      @default(0)
-  totalReactions     Int      @default(0)
-  totalPollVotes     Int      @default(0)
-  chatEngagementRate Float    @default(0)
-  deviceBreakdown    Json     @default("{}")
-  countryBreakdown   Json     @default("{}")
-  browserBreakdown   Json     @default("{}")
-  retentionCurve     Json     @default("[]")
-  concurrentTimeline Json     @default("[]")
-  durationSeconds    Int      @default(0)
+  id                 String    @id @default(cuid())
+  streamId           String    @unique
+  stream             Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  totalJoins         Int       @default(0)
+  uniqueViewers      Int       @default(0)
+  peakConcurrent     Int       @default(0)
+  totalWatchSeconds  BigInt    @default(0)
+  avgWatchSeconds    Int       @default(0)
+  totalChatMessages  Int       @default(0)
+  totalReactions     Int       @default(0)
+  totalPollVotes     Int       @default(0)
+  chatEngagementRate Float     @default(0)
+  deviceBreakdown    Json      @default("{}")
+  countryBreakdown   Json      @default("{}")
+  browserBreakdown   Json      @default("{}")
+  retentionCurve     Json      @default("[]")
+  concurrentTimeline Json      @default("[]")
+  durationSeconds    Int       @default(0)
   endedAt            DateTime?
-  updatedAt          DateTime @updatedAt
+  updatedAt          DateTime  @updatedAt
 }
 
-// ─── Captions / Transcripts ───────────────────────────────────────────────────
 model Transcript {
   id          String    @id @default(cuid())
   streamId    String    @unique
@@ -340,7 +324,6 @@ model TranscriptSegment {
   @@index([transcriptId])
 }
 
-// ─── Donations ────────────────────────────────────────────────────────────────
 model DonationConfig {
   id                   String   @id @default(cuid())
   userId               String   @unique
@@ -362,22 +345,22 @@ model DonationConfig {
 }
 
 model Donation {
-  id               String    @id @default(cuid())
+  id               String   @id @default(cuid())
   streamId         String
-  stream           Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  stream           Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   donorName        String
   donorEmail       String?
   message          String?
   amount           Int
-  displayAmount    Float     @default(0)
-  currency         String    @default("INR")
+  displayAmount    Float    @default(0)
+  currency         String   @default("INR")
   gateway          String
-  status           String    @default("pending")
+  status           String   @default("pending")
   gatewayOrderId   String?
   gatewayPaymentId String?
-  isAnonymous      Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  isAnonymous      Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([streamId])
 }
@@ -390,7 +373,6 @@ model DonationLeaderboard {
   updatedAt DateTime @updatedAt
 }
 
-// ─── Pay-Per-View ─────────────────────────────────────────────────────────────
 model PPVConfig {
   id                 String   @id @default(cuid())
   streamId           String   @unique
@@ -426,34 +408,33 @@ model TicketTier {
 }
 
 model Ticket {
-  id                String     @id @default(cuid())
-  tierId            String
-  tier              TicketTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
-  streamId          String
-  stream            Stream     @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  buyerName         String
-  buyerEmail        String
-  amount            Int
-  currency          String
-  gateway           String
-  status            String     @default("pending")
-  gatewayOrderId    String?
-  gatewayPaymentId  String?
-  gatewaySignature  String?
-  ticketCode        String     @unique @default(cuid())
-  accessToken       String?
-  expiresAt         DateTime?
-  accessedAt        DateTime?
-  paidAt            DateTime?
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  id               String     @id @default(cuid())
+  tierId           String
+  tier             TicketTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  streamId         String
+  stream           Stream     @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  buyerName        String
+  buyerEmail       String
+  amount           Int
+  currency         String
+  gateway          String
+  status           String     @default("pending")
+  gatewayOrderId   String?
+  gatewayPaymentId String?
+  gatewaySignature String?
+  ticketCode       String     @unique @default(cuid())
+  accessToken      String?
+  expiresAt        DateTime?
+  accessedAt       DateTime?
+  paidAt           DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   @@index([tierId])
   @@index([streamId])
   @@index([accessToken])
 }
 
-// ─── RTMP Multi-stream ────────────────────────────────────────────────────────
 model RtmpDestination {
   id           String    @id @default(cuid())
   userId       String
@@ -495,73 +476,73 @@ model MultiStreamSession {
   @@index([destinationId])
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// NEW MODELS — Features 1-9
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── NEW MODELS ────────────────────────────────────────────────────────────────
 
-// ─── Feature 1 & 2: Stream Schedule + Thumbnails ──────────────────────────────
+model StreamSummary {
+  id               String   @id @default(cuid())
+  streamId         String   @unique
+  stream           Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  title            String
+  summary          String   @db.Text
+  keyTakeaways     String   @db.Text
+  chapters         String   @db.Text
+  actionItems      String   @db.Text
+  discussionPoints String   @db.Text
+  titleSuggestions String   @default("[]") @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
 
 model StreamThumbnail {
-  id         String   @id @default(cuid())
-  streamId   String
-  stream     Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  url        String   // S3/public URL
-  isActive   Boolean  @default(true)
-  source     String   @default("upload") // upload | auto | ai
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  url       String   @db.Text
+  isActive  Boolean  @default(true)
+  source    String   @default("upload")
+  createdAt DateTime @default(now())
 
   @@index([streamId])
 }
-
-// ─── Feature 3: Email Notifications ──────────────────────────────────────────
-
-model EmailNotification {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  streamId   String?
-  stream     Stream?  @relation(fields: [streamId], references: [id], onDelete: SetNull)
-  type       String   // stream_start | stream_end | scheduled_reminder | clip_ready | summary_ready
-  to         String
-  subject    String
-  body       String   @db.Text
-  status     String   @default("pending") // pending | sent | failed
-  sentAt     DateTime?
-  error      String?
-  createdAt  DateTime @default(now())
-
-  @@index([userId])
-  @@index([streamId])
-}
-
-// ─── Feature 4: Replay Library ────────────────────────────────────────────────
-// Recordings already exist — we extend with metadata fields via ReplayMeta
 
 model ReplayMeta {
-  id           String    @id @default(cuid())
-  recordingId  String    @unique
+  id           String   @id @default(cuid())
+  recordingId  String   @unique
   title        String
   description  String?
   thumbnailUrl String?
-  isPublic     Boolean   @default(false)
-  tags         String    @default("[]") // JSON array
-  viewCount    Int       @default(0)
-  duration     Int       @default(0)   // seconds
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  @@index([recordingId])
+  isPublic     Boolean  @default(false)
+  tags         String   @default("[]")
+  viewCount    Int      @default(0)
+  duration     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
-// ─── Feature 6 & 5: Chat Filter + Viewer Moderation ─────────────────────────
+model EmailNotification {
+  id        String    @id @default(cuid())
+  userId    String
+  streamId  String?
+  stream    Stream?   @relation(fields: [streamId], references: [id], onDelete: SetNull)
+  type      String
+  to        String
+  subject   String
+  body      String    @db.Text
+  status    String    @default("pending")
+  sentAt    DateTime?
+  error     String?
+  createdAt DateTime  @default(now())
+
+  @@index([streamId])
+  @@index([userId])
+}
 
 model ChatFilter {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   keyword   String
-  action    String   @default("block") // block | replace | flag
-  replace   String?  // replacement text if action=replace
+  action    String   @default("block")
+  replace   String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -574,50 +555,30 @@ model ViewerModerationLog {
   stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   viewerId  String
   nickname  String
-  action    String   // ban | timeout | warn | unban
+  action    String
   reason    String?
-  duration  Int?     // timeout duration in seconds
-  by        String   // host | cohost
+  duration  Int?
+  by        String   @default("host")
   createdAt DateTime @default(now())
 
   @@index([streamId])
   @@index([viewerId])
 }
 
-// ─── Feature 7: Stream Clips / Highlights ────────────────────────────────────
-
 model StreamClip {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   streamId     String
-  stream       Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  stream       Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   title        String
   startSec     Float
   endSec       Float
-  url          String?   // processed clip URL
+  url          String?
   thumbnailUrl String?
-  status       String    @default("pending") // pending | processing | ready | error
-  createdBy    String    @default("host")    // host | viewer
-  viewCount    Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  status       String   @default("pending")
+  createdBy    String   @default("host")
+  viewCount    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([streamId])
-}
-
-// ─── Feature 8 & 9: AI Title + AI Summary ────────────────────────────────────
-
-model StreamSummary {
-  id               String   @id @default(cuid())
-  streamId         String   @unique
-  stream           Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  title            String
-  summary          String   @db.Text
-  keyTakeaways     String   @db.Text  // JSON array
-  chapters         String   @db.Text  // JSON array
-  actionItems      String   @db.Text  // JSON array
-  discussionPoints String   @db.Text  // JSON array
-  aiGeneratedTitle String?            // Feature 8: AI-generated title suggestion
-  titleSuggestions String   @default("[]") // JSON array of title options
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
 }
