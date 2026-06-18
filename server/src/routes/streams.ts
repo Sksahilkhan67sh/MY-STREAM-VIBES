@@ -10,10 +10,16 @@ const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
 
 const CreateStreamSchema = z.object({
   title:          z.string().min(1).max(100),
+  description:    z.string().max(500).optional(),
   password:       z.string().optional(),
   scheduledAt:    z.string().datetime().optional(),
   expiresInHours: z.number().min(1).max(168).default(24),
   userId:         z.string().optional(), // ← BUG FIX: store userId so subscription/donation auth works
+  categoryId:     z.string().optional(),
+  isPublic:       z.boolean().default(false),
+  language:       z.string().default('en'),
+  country:        z.string().optional(),
+  tags:           z.array(z.string()).max(10).optional(),
 });
 
 // POST /api/streams
@@ -51,11 +57,17 @@ router.post('/', async (req, res) => {
       data: {
         roomId,
         title:       data.title,
+        description: data.description,
         hostToken:   hostSecret,
         passwordHash,
         expiresAt,
         userId:      data.userId || null,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+        categoryId:  data.categoryId || null,
+        isPublic:    data.isPublic,
+        language:    data.language,
+        country:     data.country || null,
+        tags:        JSON.stringify(data.tags || []),
       },
     });
 
@@ -81,12 +93,16 @@ router.get('/:roomId', async (req, res) => {
       select: {
         roomId:       true,
         title:        true,
+        description:  true,
         isLive:       true,
         isRecording:  true,
         scheduledAt:  true,
         expiresAt:    true,
         viewerCount:  true,
         passwordHash: true,
+        thumbnailUrl: true,
+        category:     { select: { id: true, name: true, slug: true, icon: true } },
+        user:         { select: { id: true, name: true, username: true, avatarUrl: true } },
       },
     });
 
@@ -108,12 +124,16 @@ router.get('/:roomId', async (req, res) => {
     res.json({
       roomId:      stream.roomId,
       title:       stream.title,
+      description: stream.description,
       isLive:      stream.isLive,
       isRecording: stream.isRecording,
       scheduledAt: stream.scheduledAt,
       expiresAt:   stream.expiresAt,
       viewerCount: stream.viewerCount,
       hasPassword: !!stream.passwordHash,
+      thumbnailUrl: stream.thumbnailUrl,
+      category:    stream.category,
+      creator:     stream.user,
       isPPV,
       ppvPrice,
     });
@@ -130,9 +150,13 @@ router.patch('/:roomId', async (req, res) => {
     if (!stream)                         return res.status(404).json({ error: 'Stream not found' });
     if (stream.hostToken !== hostToken)  return res.status(403).json({ error: 'Unauthorized' });
 
+    const goingLiveNow = isLive === true && !stream.isLive;
     const updated = await prisma.stream.update({
       where: { roomId: req.params.roomId },
-      data:  { ...(isLive !== undefined && { isLive }) },
+      data:  {
+        ...(isLive !== undefined && { isLive }),
+        ...(goingLiveNow && { goneLiveAt: new Date() }),
+      },
     });
     res.json(updated);
   } catch (err) {
@@ -179,27 +203,3 @@ router.get('/', async (req, res) => {
 });
 
 export default router;
-
-// GET /api/streams?userId=xxx — list streams for user (calendar + replays)
-router.get('/', async (req, res) => {
-  try {
-    const { userId } = req.query;
-    if (!userId || typeof userId !== 'string') {
-      return res.status(400).json({ error: 'userId query param required' });
-    }
-    const streams = await prisma.stream.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      select: {
-        id: true, roomId: true, title: true, isLive: true,
-        scheduledAt: true, expiresAt: true, createdAt: true,
-        thumbnailUrl: true, viewerCount: true,
-      },
-    });
-    res.json({ streams });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch streams' });
-  }
-});
