@@ -1,225 +1,140 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { ThemeToggle } from '@/components/ThemeContext';
-import IntroWrapper from '@/components/IntroWrapper';
-
-const FEATURES = [
-  { icon: '⚡', title: 'Instant streams', desc: 'One click to go live. Share a link. Done.' },
-  { icon: '🔒', title: 'Private by default', desc: 'Password-protect any stream. No accounts needed.' },
-  { icon: '🌐', title: 'Go social', desc: 'Restream to YouTube and Instagram simultaneously.' },
-  { icon: '💬', title: 'Live interaction', desc: 'Real-time chat, emoji reactions, and polls.' },
-  { icon: '⏺', title: 'Record everything', desc: 'Download your stream as a video file instantly.' },
-  { icon: '🎨', title: 'Color grading', desc: '10 presets or manual controls for your look.' },
-];
-
-const fade = (delay = 0) => ({
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5, delay, ease: [0.25, 0.1, 0.25, 1] as any },
-});
+import { useSession } from 'next-auth/react';
+import SiteHeader from '@/components/discover/SiteHeader';
+import CategoryPills from '@/components/discover/CategoryPills';
+import StreamRow from '@/components/discover/StreamRow';
+import CreatorCard from '@/components/discover/CreatorCard';
+import { apiGet } from '@/lib/api';
+import type { CategoryLite, StreamCard as StreamCardType, CreatorSearchResult } from '@/lib/discover-types';
 
 export default function HomePage() {
   const router = useRouter();
-  const [hovered, setHovered] = useState<number | null>(null);
+  const { data: session } = useSession();
+  const userId = session?.user?.id ?? session?.user?.email ?? '';
 
-  // ── JSON-LD Structured Data for Google ──────────────────────
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'WebApplication',
-    name: 'StreamVault',
-    url: 'https://my-stream-vibes.vercel.app',
-    description: 'Free private live streaming. No account needed. Go live in one click and share a link instantly.',
-    applicationCategory: 'MultimediaApplication',
-    operatingSystem: 'Any',
-    browserRequirements: 'Requires a modern browser with WebRTC support',
-    offers: {
-      '@type': 'Offer',
-      price: '0',
-      priceCurrency: 'USD',
-    },
-    featureList: [
-      'Private live streaming',
-      'No account required',
-      'Restream to YouTube and Instagram',
-      'Live chat and emoji reactions',
-      'Live polls',
-      'Stream recording and download',
-      'Color grading with 10 presets',
-      'Password-protected streams',
-      'Co-host support',
-    ],
-  };
+  const [categories, setCategories] = useState<CategoryLite[]>([]);
+  const [mostViewed, setMostViewed] = useState<StreamCardType[]>([]);
+  const [fastestGrowing, setFastestGrowing] = useState<StreamCardType[]>([]);
+  const [liveNow, setLiveNow] = useState<StreamCardType[]>([]);
+  const [recommended, setRecommended] = useState<StreamCardType[]>([]);
+  const [topCreators, setTopCreators] = useState<CreatorSearchResult[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [cats, trending, live, rec] = await Promise.all([
+          apiGet<{ categories: CategoryLite[] }>('/api/discover/categories'),
+          apiGet<{ mostViewed: StreamCardType[]; fastestGrowing: StreamCardType[] }>('/api/discover/trending'),
+          apiGet<{ streams: StreamCardType[] }>('/api/discover/live?limit=18'),
+          apiGet<{ streams: StreamCardType[] }>(`/api/discover/recommended${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),
+        ]);
+        if (cancelled) return;
+        setCategories(cats.categories);
+        setMostViewed(trending.mostViewed);
+        setFastestGrowing(trending.fastestGrowing);
+        setLiveNow(live.streams);
+        setRecommended(rec.streams);
+
+        // Top creators — derive from search with empty-ish broad query isn't supported,
+        // so pull from the most-viewed live streams' creators as a reasonable proxy.
+        const seen = new Set<string>();
+        const creators: CreatorSearchResult[] = [];
+        for (const s of [...trending.mostViewed, ...live.streams]) {
+          if (s.user && !seen.has(s.user.id)) {
+            seen.add(s.user.id);
+            creators.push({
+              id: s.user.id, name: s.user.name, username: s.user.username,
+              avatarUrl: s.user.avatarUrl, bio: null, followerCount: 0, streamCount: 0,
+            });
+          }
+          if (creators.length >= 8) break;
+        }
+        setTopCreators(creators);
+      } catch {
+        // discovery API may be unreachable (server down / not yet deployed) — show empty states
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [userId]);
 
   return (
-    <IntroWrapper>
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200"
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
 
-      {/* ── JSON-LD injected into page for Google SEO ── */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <SiteHeader />
 
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 border-b border-gray-100 dark:border-gray-800">
-        <div className="flex items-center gap-2">
-  <img src="/logo.png" alt="StreamVault" className="w-7 h-7 object-contain" />
-  <span className="font-bold text-base sm:text-lg tracking-tight">StreamVault</span>
-  </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <ThemeToggle />
-          <button
-            onClick={() => router.push('/host')}
-            className="text-xs sm:text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors whitespace-nowrap"
-          >
-            Start streaming →
-          </button>
+      {/* Categories */}
+      <div className="pt-5 pb-1">
+        <CategoryPills categories={categories} />
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <div className="w-6 h-6 rounded-full border-2 border-gray-300 border-t-gray-900 dark:border-t-white animate-spin" />
         </div>
-      </nav>
+      ) : (
+        <div className="pt-6">
+          {/* Trending */}
+          <StreamRow title="Trending Streams" icon="🔥" streams={mostViewed} emptyText="No trending streams right now." />
+          {fastestGrowing.length > 0 && (
+            <StreamRow title="Fastest Growing" icon="📈" streams={fastestGrowing} />
+          )}
 
-      {/* Hero */}
-      <section className="max-w-3xl mx-auto px-4 sm:px-8 pt-14 sm:pt-24 pb-14 sm:pb-20 text-center">
-        <motion.div {...fade(0)}>
-          <span className="inline-flex items-center gap-2 text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-500/10 px-3 py-1.5 rounded-full mb-6 sm:mb-8">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            Free to use · No account required
-          </span>
-        </motion.div>
+          {/* Live Now */}
+          <StreamRow title="Live Now" icon="🔴" streams={liveNow} emptyText="No one is live right now — check back soon." />
 
-        <motion.h1
-          {...fade(0.1)}
-          className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight mb-4 sm:mb-6"
-          style={{ letterSpacing: '-0.03em' }}
-        >
-          Stream privately.<br />
-          <span className="text-red-500">Share instantly.</span>
-        </motion.h1>
+          {/* Recommended */}
+          <StreamRow
+            title="Recommended For You"
+            icon="⭐"
+            streams={recommended}
+            emptyText="Follow creators and watch a few streams to get personalized picks."
+          />
 
-        <motion.p
-          {...fade(0.2)}
-          className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-xl mx-auto mb-8 sm:mb-10 leading-relaxed px-2"
-        >
-          Create a private live stream in seconds. Share a link. No accounts, no downloads, no friction.
-        </motion.p>
+          {/* Top Creators */}
+          {topCreators.length > 0 && (
+            <section className="mb-10">
+              <h2 className="flex items-center gap-2 text-base sm:text-lg font-bold mb-4 px-4 sm:px-8">
+                <span>🎥</span> Top Creators
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 px-4 sm:px-8">
+                {topCreators.map(c => <CreatorCard key={c.id} creator={c} />)}
+              </div>
+            </section>
+          )}
 
-        <motion.div {...fade(0.3)} className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <button
-            onClick={() => router.push('/host')}
-            className="w-full sm:w-auto px-6 py-3.5 sm:py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold rounded-xl sm:rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors"
-          >
-            Start streaming
-          </button>
-          <button
-            onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-            className="w-full sm:w-auto px-6 py-3.5 sm:py-3 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors border border-gray-200 dark:border-gray-700 rounded-xl sm:rounded-lg sm:border-0"
-          >
-            See features
-          </button>
-        </motion.div>
-      </section>
-
-      {/* How it works */}
-      <section className="border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 py-14 sm:py-20 transition-colors duration-200">
-        <div className="max-w-3xl mx-auto px-4 sm:px-8">
-          <motion.h2
-            initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
-            className="text-xs sm:text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center mb-10 sm:mb-12"
-          >
-            How it works
-          </motion.h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
-            {[
-              { step: '01', title: 'Create a stream', desc: 'Enter a title and optional password. Done in 3 seconds.' },
-              { step: '02', title: 'Go live', desc: 'Enable your camera or screen. Your stream starts immediately.' },
-              { step: '03', title: 'Share the link', desc: 'Send the viewer URL to anyone. They join instantly.' },
-            ].map((item, i) => (
-              <motion.div
-                key={item.step}
-                initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1, duration: 0.5 }} viewport={{ once: true }}
-                className="flex sm:block gap-4 sm:gap-0"
+          {mostViewed.length === 0 && liveNow.length === 0 && (
+            <div className="text-center py-16 px-4">
+              <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">No public streams yet — be the first to go live.</p>
+              <button
+                onClick={() => router.push('/host')}
+                className="px-6 py-3 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors"
               >
-                <div className="text-sm font-bold text-red-400 mb-0 sm:mb-3 mt-0.5 sm:mt-0 w-8 sm:w-auto flex-shrink-0">{item.step}</div>
-                <div>
-                  <div className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{item.title}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{item.desc}</div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                Start streaming →
+              </button>
+            </div>
+          )}
         </div>
-      </section>
+      )}
 
-      {/* Features */}
-      <section id="features" className="py-14 sm:py-20">
-        <div className="max-w-3xl mx-auto px-4 sm:px-8">
-          <motion.h2
-            initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
-            className="text-xs sm:text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center mb-10 sm:mb-12"
-          >
-            Everything included
-          </motion.h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05, duration: 0.4 }} viewport={{ once: true }}
-                onMouseEnter={() => setHovered(i)}
-                onMouseLeave={() => setHovered(null)}
-                className={`p-4 sm:p-5 rounded-xl border transition-all cursor-default ${
-                  hovered === i
-                    ? 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'
-                    : 'border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900'}`}
-              >
-                <div className="flex sm:block items-start gap-3 sm:gap-0">
-                  <div className="text-xl sm:mb-3">{f.icon}</div>
-                  <div>
-                    <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-0.5 sm:mb-1">{f.title}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{f.desc}</div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="border-t border-gray-100 dark:border-gray-800 py-14 sm:py-20 transition-colors duration-200">
-        <div className="max-w-3xl mx-auto px-4 sm:px-8 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }} viewport={{ once: true }}
-          >
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3 sm:mb-4" style={{ letterSpacing: '-0.02em' }}>
-              Ready to go live?
-            </h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-6 sm:mb-8 text-sm sm:text-base">No sign-up. No credit card. Just stream.</p>
-            <button
-              onClick={() => router.push('/host')}
-              className="w-full sm:w-auto px-8 py-4 sm:py-3.5 bg-red-500 text-white text-sm font-semibold rounded-xl sm:rounded-lg hover:bg-red-600 transition-colors"
-            >
-              Start your stream →
-            </button>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-100 dark:border-gray-800 py-6 sm:py-8 px-4 sm:px-8 transition-colors duration-200">
-        <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-2 sm:gap-0 justify-between text-xs text-gray-400 dark:text-gray-600">
+      <footer className="border-t border-gray-100 dark:border-gray-800 py-6 px-4 sm:px-8 mt-6">
+        <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-0 justify-between text-xs text-gray-400 dark:text-gray-600">
           <div className="flex items-center gap-2">
-  <img src="/logo.png" alt="StreamVault" className="w-5 h-5 object-contain" />
-  <span>StreamVault</span>
-</div>
-          <span>Private live streaming · Free forever</span>
+            <img src="/logo.png" alt="StreamVault" className="w-5 h-5 object-contain" />
+            <span>StreamVault</span>
+          </div>
+          <button onClick={() => router.push('/landing')} className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+            About StreamVault
+          </button>
         </div>
       </footer>
     </div>
-    </IntroWrapper>
   );
 }
