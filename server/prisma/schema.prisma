@@ -15,11 +15,66 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // ── Creator profile fields ─────────────────────────────────
+  username    String? @unique
+  avatarUrl   String?
+  bannerUrl   String?
+  bio         String?
+  socialLinks Json?   @default("{}")
+
   streams          Stream[]
   subscription     Subscription[]   @relation("UserSubscription")
   rtmpDestinations RtmpDestination[]
   donationConfig   DonationConfig?
   usageRecords     UsageRecord[]
+
+  // ── Discovery / social graph ───────────────────────────────
+  followers      Follow[]        @relation("Followed")
+  following      Follow[]        @relation("Follower")
+  watchHistory   WatchHistory[]
+
+  @@index([username])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  icon      String   @default("📺")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  streams Stream[]
+
+  @@index([slug])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     User     @relation("Followed", fields: [creatorId], references: [id], onDelete: Cascade)
+  notifyOnLive Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, creatorId])
+  @@index([followerId])
+  @@index([creatorId])
+}
+
+model WatchHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  streamId     String
+  stream       Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  watchSeconds Int      @default(0)
+  lastWatchedAt DateTime @default(now())
+
+  @@unique([userId, streamId])
+  @@index([userId])
+  @@index([streamId])
 }
 
 model Plan {
@@ -133,6 +188,7 @@ model Stream {
   recordingUrl String?
   rtmpUrl      String?
   viewerCount  Int       @default(0)
+  peakViewers  Int       @default(0)
   isPPV        Boolean   @default(false)
   ppvPrice     Int?
   scheduledAt  DateTime?
@@ -140,6 +196,15 @@ model Stream {
   thumbnailUrl String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  // ── Discovery fields ────────────────────────────────────────
+  isPublic     Boolean   @default(false)
+  categoryId   String?
+  category     Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  language     String    @default("en")
+  country      String?
+  tags         String    @default("[]")
+  goneLiveAt   DateTime?
 
   recordings          Recording[]
   polls               Poll[]
@@ -160,8 +225,11 @@ model Stream {
   clips               StreamClip[]
   moderationLogs      ViewerModerationLog[]
   emailNotifications  EmailNotification[]
+  watchHistory        WatchHistory[]
 
   @@index([userId])
+  @@index([categoryId])
+  @@index([isLive, isPublic])
 }
 
 model Recording {
