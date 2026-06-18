@@ -26,37 +26,50 @@ import {
   FileText, ChevronRight, LogOut, Menu, X, Play, Zap,
 } from 'lucide-react';
 
-const API     = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:4000';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL  || 'http://localhost:3000';
+const API     = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 interface StreamData {
-  roomId: string; hostToken: string; livekitToken: string;
-  viewerUrl: string; expiresAt: string; scheduledAt?: string; title?: string;
+  roomId: string;
+  hostToken: string;
+  livekitToken: string;
+  viewerUrl: string;
+  expiresAt: string;
+  scheduledAt?: string;
+  title?: string;
+}
+
+interface RecentStream {
+  roomId: string;
+  title: string;
+  isLive: boolean;
+  createdAt: string;
+  thumbnailUrl?: string;
 }
 
 const NAV = [
   {
     group: 'Stream',
     items: [
-      { id: 'create',    label: 'Go Live',        icon: Radio,     accent: '#ff3520' },
-      { id: 'calendar',  label: 'Schedule',        icon: Calendar,  accent: '#f59e0b' },
-      { id: 'replays',   label: 'Replay Library',  icon: Video,     accent: '#6366f1' },
+      { id: 'create',    label: 'Go Live',       icon: Radio,     accent: '#ff3520' },
+      { id: 'calendar',  label: 'Schedule',       icon: Calendar,  accent: '#f59e0b' },
+      { id: 'replays',   label: 'Replay Library', icon: Video,     accent: '#6366f1' },
     ],
   },
   {
     group: 'Tools',
     items: [
-      { id: 'thumbnail',     label: 'Thumbnail',     icon: Image,    accent: '#10b981' },
-      { id: 'clips',         label: 'Clips',          icon: Scissors, accent: '#ec4899' },
-      { id: 'moderation',    label: 'Moderation',     icon: Shield,   accent: '#ef4444' },
-      { id: 'notifications', label: 'Email Notify',   icon: Mail,     accent: '#3b82f6' },
+      { id: 'thumbnail',     label: 'Thumbnail',    icon: Image,    accent: '#10b981' },
+      { id: 'clips',         label: 'Clips',         icon: Scissors, accent: '#ec4899' },
+      { id: 'moderation',    label: 'Moderation',    icon: Shield,   accent: '#ef4444' },
+      { id: 'notifications', label: 'Email Notify',  icon: Mail,     accent: '#3b82f6' },
     ],
   },
   {
     group: 'AI',
     items: [
-      { id: 'ai-title',   label: 'AI Title',   icon: Sparkles,  accent: '#a855f7' },
-      { id: 'ai-summary', label: 'AI Summary',  icon: FileText,  accent: '#ff3520' },
+      { id: 'ai-title',   label: 'AI Title',   icon: Sparkles, accent: '#a855f7' },
+      { id: 'ai-summary', label: 'AI Summary',  icon: FileText, accent: '#ff3520' },
     ],
   },
   {
@@ -70,9 +83,13 @@ const NAV = [
   },
 ];
 
-const STREAM_REQUIRED_TABS = new Set([
+// tabs that need a stream's roomId + hostToken
+const STREAM_TOOL_TABS = new Set([
   'thumbnail', 'clips', 'moderation', 'notifications', 'ai-title', 'ai-summary',
 ]);
+
+// tabs that need a stream but open their own fullscreen overlay
+const STREAM_BUSINESS_TABS = new Set(['analytics', 'ppv']);
 
 export default function HostPage() {
   const { data: session, status } = useSession();
@@ -90,9 +107,9 @@ export default function HostPage() {
   const [showSchedule, setShowSchedule]     = useState(false);
   const [scheduledAt, setScheduledAt]       = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [recentStreams, setRecentStreams]    = useState<any[]>([]);
+  const [recentStreams, setRecentStreams]    = useState<RecentStream[]>([]);
 
-  // Restore stream from sessionStorage
+  // Restore active stream from sessionStorage
   useEffect(() => {
     if (status !== 'authenticated') return;
     try {
@@ -106,8 +123,9 @@ export default function HostPage() {
           sessionStorage.removeItem('activeStream');
         }
       }
-    } catch { sessionStorage.removeItem('activeStream'); }
-
+    } catch {
+      sessionStorage.removeItem('activeStream');
+    }
     const params = new URLSearchParams(window.location.search);
     if (params.get('payment_success') === '1') {
       setPaymentSuccess(true);
@@ -116,16 +134,16 @@ export default function HostPage() {
     }
   }, [status]);
 
-  // Load recent streams for the sidebar
+  // Load recent streams for sidebar + tool panels
   useEffect(() => {
-    if (!session?.user) return;
-    const userId = (session.user as any).id ?? session.user.email ?? '';
+    if (status !== 'authenticated' || !session?.user) return;
+    const userId = session.user.id ?? session.user.email ?? '';
     if (!userId) return;
     fetch(`${API}/api/streams?userId=${encodeURIComponent(userId)}`)
       .then(r => r.ok ? r.json() : { streams: [] })
-      .then(d => setRecentStreams((d.streams || []).slice(0, 3)))
+      .then(d => setRecentStreams((d.streams ?? []).slice(0, 3)))
       .catch(() => {});
-  }, [session]);
+  }, [status, session]);
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
@@ -139,14 +157,16 @@ export default function HostPage() {
     );
   }
 
-  // When stream is active and user clicks "Go Live" tab → show HostControls full-screen
+  // Active stream → show full HostControls studio
   if (stream && activeTab === 'create') {
     return (
       <>
         <AnimatePresence>
           {paymentSuccess && (
             <motion.div
-              initial={{ opacity: 0, y: -40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -40 }}
+              initial={{ opacity: 0, y: -40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -40 }}
               className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl bg-green-500 text-white"
             >
               <span>🎉</span>
@@ -170,9 +190,10 @@ export default function HostPage() {
 
   const createStream = async (overrideScheduledAt?: string) => {
     if (!title.trim()) { setError('Enter a stream title'); return; }
-    setError(''); setLoading(true);
+    setError('');
+    setLoading(true);
     try {
-      const userId = (session?.user as any)?.id ?? session?.user?.email ?? '';
+      const userId = session?.user?.id ?? session?.user?.email ?? '';
       const effectiveSchedule = overrideScheduledAt ?? scheduledAt;
       const body: Record<string, unknown> = {
         title: title.trim(),
@@ -211,26 +232,29 @@ export default function HostPage() {
     createStream(datetime);
   };
 
-  const userId   = (session?.user as any)?.id ?? session?.user?.email ?? '';
-  const userName = session?.user?.name ?? session?.user?.email ?? 'Host';
-  const userImage = session?.user?.image;
+  const userId    = session?.user?.id ?? session?.user?.email ?? '';
+  const userName  = session?.user?.name ?? session?.user?.email ?? 'Host';
+  const userImage = session?.user?.image ?? null;
   const parsedSchedule = scheduledAt ? new Date(scheduledAt) : null;
 
-  // Best available stream for tool panels (active > most recent)
-  const activeStream = stream ?? (recentStreams[0]
-    ? {
-        roomId:    recentStreams[0].roomId,
-        hostToken: sessionStorage.getItem(`hostToken_${recentStreams[0].roomId}`) || '',
-        title:     recentStreams[0].title,
-      }
-    : null);
+  // Best available stream for tool panels: active session > most recent
+  const toolStream: { roomId: string; hostToken: string; title?: string } | null =
+    stream
+      ? { roomId: stream.roomId, hostToken: stream.hostToken, title: stream.title }
+      : recentStreams[0]
+        ? {
+            roomId:    recentStreams[0].roomId,
+            hostToken: sessionStorage.getItem(`hostToken_${recentStreams[0].roomId}`) ?? '',
+            title:     recentStreams[0].title,
+          }
+        : null;
 
-  const needsStream = STREAM_REQUIRED_TABS.has(activeTab) && !activeStream;
+  const needsStream = (STREAM_TOOL_TABS.has(activeTab) || STREAM_BUSINESS_TABS.has(activeTab)) && !toolStream;
 
   return (
     <div className="min-h-screen bg-[#070707] flex" style={{ fontFamily: "'DM Sans','Inter',sans-serif" }}>
 
-      {/* Mobile overlay */}
+      {/* Mobile backdrop */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
@@ -241,24 +265,29 @@ export default function HostPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Sidebar ── */}
-      <aside className={`
-        fixed lg:relative inset-y-0 left-0 z-50 w-64 bg-[#0d0d0d] border-r border-white/[0.06]
-        flex flex-col transition-transform duration-300 ease-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
+      {/* ── Sidebar ─────────────────────────────────────────────── */}
+      <aside className={[
+        'fixed lg:relative inset-y-0 left-0 z-50 w-64',
+        'bg-[#0d0d0d] border-r border-white/[0.06]',
+        'flex flex-col transition-transform duration-300 ease-out',
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+      ].join(' ')}>
+
         {/* Logo */}
         <div className="flex items-center justify-between px-5 py-5 border-b border-white/[0.06]">
           <a href="/" className="flex items-center gap-2.5">
             <img src="/logo.png" alt="StreamVault" className="w-7 h-7 object-contain" />
             <span className="font-bold text-white text-base tracking-tight">StreamVault</span>
           </a>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-zinc-500 hover:text-white">
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-zinc-500 hover:text-white transition-colors"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Nav */}
+        {/* Nav groups */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           {NAV.map(group => (
             <div key={group.group} className="mb-5">
@@ -266,25 +295,30 @@ export default function HostPage() {
                 {group.group}
               </p>
               {group.items.map(item => {
-                const Icon = item.icon;
+                const Icon    = item.icon;
                 const isActive = activeTab === item.id;
                 return (
                   <button
                     key={item.id}
                     onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5
-                      ${isActive
+                    className={[
+                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5',
+                      isActive
                         ? 'bg-white/[0.08] text-white'
-                        : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]'}`}
+                        : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]',
+                    ].join(' ')}
                   >
                     <div
                       className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ background: isActive ? `${item.accent}20` : 'transparent' }}
                     >
-                      <Icon className="w-3.5 h-3.5" style={{ color: isActive ? item.accent : 'currentColor' }} />
+                      <Icon
+                        className="w-3.5 h-3.5"
+                        style={{ color: isActive ? item.accent : 'currentColor' }}
+                      />
                     </div>
-                    {item.label}
-                    {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto text-zinc-600" />}
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {isActive && <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />}
                   </button>
                 );
               })}
@@ -295,34 +329,33 @@ export default function HostPage() {
         {/* User footer */}
         <div className="p-4 border-t border-white/[0.06]">
           {stream && (
-            <div
+            <button
               onClick={() => setActiveTab('create')}
-              className="flex items-center gap-2.5 p-3 rounded-xl bg-[#ff3520]/10 border border-[#ff3520]/20 mb-3 cursor-pointer hover:bg-[#ff3520]/15 transition-colors"
+              className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-[#ff3520]/10 border border-[#ff3520]/20 mb-3 hover:bg-[#ff3520]/15 transition-colors text-left"
             >
               <div className="w-2 h-2 rounded-full bg-[#ff3520] animate-pulse flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-white text-xs font-semibold truncate">{stream.title || 'Live stream'}</p>
+                <p className="text-white text-xs font-semibold truncate">{stream.title ?? 'Live stream'}</p>
                 <p className="text-[#ff3520] text-[10px] font-semibold">LIVE · Click to return</p>
               </div>
-            </div>
+            </button>
           )}
           <div className="flex items-center gap-3">
-            {userImage
-              ? <img src={userImage} alt="" className="w-8 h-8 rounded-full border border-white/10 flex-shrink-0" />
-              : (
-                <div className="w-8 h-8 rounded-full bg-[#ff3520]/20 border border-[#ff3520]/30 flex items-center justify-center text-[#ff3520] text-sm font-bold flex-shrink-0">
-                  {userName[0]?.toUpperCase()}
-                </div>
-              )
-            }
+            {userImage ? (
+              <img src={userImage} alt="" className="w-8 h-8 rounded-full border border-white/10 flex-shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#ff3520]/20 border border-[#ff3520]/30 flex items-center justify-center text-[#ff3520] text-sm font-bold flex-shrink-0">
+                {userName[0]?.toUpperCase()}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-white text-xs font-semibold truncate">{userName}</p>
               <p className="text-zinc-600 text-[10px] truncate">{session?.user?.email}</p>
             </div>
             <button
               onClick={() => signOut({ callbackUrl: '/login' })}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-600 hover:text-white hover:bg-white/10 transition-colors"
               title="Sign out"
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-600 hover:text-white hover:bg-white/10 transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
@@ -330,27 +363,30 @@ export default function HostPage() {
         </div>
       </aside>
 
-      {/* ── Main ── */}
+      {/* ── Main ─────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0 min-h-screen">
 
         {/* Mobile top bar */}
         <div className="lg:hidden flex items-center justify-between px-4 py-3.5 border-b border-white/[0.06] bg-[#0d0d0d]">
-          <button onClick={() => setSidebarOpen(true)} className="text-zinc-400 hover:text-white">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-zinc-400 hover:text-white transition-colors"
+          >
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="" className="w-5 h-5 object-contain" />
             <span className="text-white font-bold text-sm">StreamVault</span>
           </div>
-          {stream && (
+          {stream ? (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#ff3520]/20 border border-[#ff3520]/30">
               <div className="w-1.5 h-1.5 rounded-full bg-[#ff3520] animate-pulse" />
               <span className="text-[#ff3520] text-[10px] font-bold">LIVE</span>
             </div>
-          )}
+          ) : <div className="w-8" />}
         </div>
 
-        {/* Content */}
+        {/* Page content */}
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
@@ -358,16 +394,18 @@ export default function HostPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18 }}
-              className="h-full"
+              transition={{ duration: 0.15 }}
+              className="min-h-full"
             >
 
-              {/* ── GO LIVE ── */}
+              {/* ── GO LIVE ─────────────────────────────────────── */}
               {activeTab === 'create' && (
                 <div className="flex items-center justify-center min-h-full px-4 py-12">
                   <div className="w-full max-w-sm">
                     <div className="mb-8">
-                      <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Create a stream</h1>
+                      <h1 className="text-2xl font-bold text-white tracking-tight mb-1">
+                        Create a stream
+                      </h1>
                       <p className="text-zinc-500 text-sm">Go live instantly or schedule for later.</p>
                     </div>
 
@@ -377,10 +415,16 @@ export default function HostPage() {
                         <button
                           key={m}
                           onClick={() => { setMode(m); if (m === 'live') setScheduledAt(null); }}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all
-                            ${mode === m ? 'bg-white/[0.10] text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                          className={[
+                            'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all',
+                            mode === m
+                              ? 'bg-white/[0.10] text-white shadow-sm'
+                              : 'text-zinc-500 hover:text-zinc-300',
+                          ].join(' ')}
                         >
-                          {m === 'live' ? <Radio className="w-3.5 h-3.5" /> : <Calendar className="w-3.5 h-3.5" />}
+                          {m === 'live'
+                            ? <Radio className="w-3.5 h-3.5" />
+                            : <Calendar className="w-3.5 h-3.5" />}
                           {m === 'live' ? 'Go Live' : 'Schedule'}
                         </button>
                       ))}
@@ -394,45 +438,49 @@ export default function HostPage() {
                         <input
                           value={title}
                           onChange={e => setTitle(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && mode === 'live' && createStream()}
+                          onKeyDown={e => { if (e.key === 'Enter' && mode === 'live') createStream(); }}
                           placeholder="My live stream"
                           autoFocus
-                          className="w-full px-4 py-3 text-sm bg-white/[0.04] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/20 transition-colors"
                           style={{ fontSize: '16px' }}
+                          className="w-full px-4 py-3 text-sm bg-white/[0.04] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/20 transition-colors"
                         />
                       </div>
 
                       <div>
                         <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
-                          Password <span className="text-zinc-700 font-normal normal-case">(optional)</span>
+                          Password{' '}
+                          <span className="text-zinc-700 font-normal normal-case">(optional)</span>
                         </label>
                         <input
                           type="password"
                           value={password}
                           onChange={e => setPassword(e.target.value)}
                           placeholder="Leave blank for public"
-                          className="w-full px-4 py-3 text-sm bg-white/[0.04] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/20 transition-colors"
                           style={{ fontSize: '16px' }}
+                          className="w-full px-4 py-3 text-sm bg-white/[0.04] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/20 transition-colors"
                         />
                       </div>
 
                       <AnimatePresence>
                         {mode === 'scheduled' && parsedSchedule && (
                           <motion.div
-                            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
                             className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#ff3520]/10 border border-[#ff3520]/20"
                           >
                             <Clock className="w-4 h-4 text-[#ff3520] flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <p className="text-[#ff3520] text-xs font-semibold">Scheduled</p>
                               <p className="text-zinc-400 text-xs truncate">
-                                {parsedSchedule.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at{' '}
+                                {parsedSchedule.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                {' at '}
                                 {parsedSchedule.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                               </p>
                             </div>
                             <button
                               onClick={() => { setScheduledAt(null); setShowSchedule(true); }}
-                              className="text-xs text-zinc-500 hover:text-white"
+                              className="text-xs text-zinc-500 hover:text-white transition-colors"
                             >
                               Edit
                             </button>
@@ -476,7 +524,9 @@ export default function HostPage() {
                       )}
                     </div>
 
-                    <p className="text-zinc-700 text-xs text-center mt-5">Stream link expires after 24 hours</p>
+                    <p className="text-zinc-700 text-xs text-center mt-5">
+                      Stream link expires after 24 hours
+                    </p>
 
                     {recentStreams.length > 0 && (
                       <div className="mt-8">
@@ -494,9 +544,13 @@ export default function HostPage() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-white text-xs font-semibold truncate">{s.title}</p>
-                                <p className="text-zinc-600 text-[10px]">{new Date(s.createdAt).toLocaleDateString()}</p>
+                                <p className="text-zinc-600 text-[10px]">
+                                  {new Date(s.createdAt).toLocaleDateString()}
+                                </p>
                               </div>
-                              {s.isLive && <span className="text-[#ff3520] text-[10px] font-bold">LIVE</span>}
+                              {s.isLive && (
+                                <span className="text-[#ff3520] text-[10px] font-bold flex-shrink-0">LIVE</span>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -506,10 +560,15 @@ export default function HostPage() {
                 </div>
               )}
 
-              {/* ── CALENDAR ── */}
+              {/* ── CALENDAR ────────────────────────────────────── */}
               {activeTab === 'calendar' && (
                 <div className="p-6 lg:p-8">
-                  <PageHeader title="Schedule" subtitle="Plan and manage your upcoming streams" icon={Calendar} accent="#f59e0b" />
+                  <SectionHeader
+                    title="Schedule"
+                    subtitle="Plan and manage your upcoming streams"
+                    icon={Calendar}
+                    accent="#f59e0b"
+                  />
                   <div className="mt-6">
                     <StreamCalendar
                       userId={userId}
@@ -525,7 +584,7 @@ export default function HostPage() {
                 </div>
               )}
 
-              {/* ── REPLAY LIBRARY ── */}
+              {/* ── REPLAY LIBRARY ──────────────────────────────── */}
               {activeTab === 'replays' && (
                 <ReplayLibrary
                   userId={userId}
@@ -534,51 +593,78 @@ export default function HostPage() {
                 />
               )}
 
-              {/* ── STREAM TOOL PANELS ── */}
-              {STREAM_REQUIRED_TABS.has(activeTab) && (
-                needsStream
-                  ? <NoStreamPlaceholder tab={activeTab} onGoLive={() => setActiveTab('create')} />
-                  : <StreamToolPanel activeTab={activeTab} stream={activeStream!} userId={userId} />
+              {/* ── STREAM TOOL PANELS ──────────────────────────── */}
+              {STREAM_TOOL_TABS.has(activeTab) && (
+                toolStream ? (
+                  <StreamToolPanel
+                    activeTab={activeTab}
+                    stream={toolStream}
+                    userId={userId}
+                  />
+                ) : (
+                  <NoStreamPlaceholder
+                    tab={activeTab}
+                    onGoLive={() => setActiveTab('create')}
+                  />
+                )
               )}
 
-              {/* ── ANALYTICS ── */}
+              {/* ── ANALYTICS ───────────────────────────────────── */}
               {activeTab === 'analytics' && (
-                activeStream
-                  ? <InlineAnalytics roomId={activeStream.roomId} hostToken={activeStream.hostToken} onBack={() => setActiveTab('create')} />
-                  : <NoStreamPlaceholder tab="analytics" onGoLive={() => setActiveTab('create')} />
+                toolStream ? (
+                  <InlineAnalytics
+                    roomId={toolStream.roomId}
+                    hostToken={toolStream.hostToken}
+                    onBack={() => setActiveTab('create')}
+                  />
+                ) : (
+                  <NoStreamPlaceholder
+                    tab="analytics"
+                    onGoLive={() => setActiveTab('create')}
+                  />
+                )
               )}
 
-              {/* ── EARNINGS ── */}
+              {/* ── EARNINGS ─────────────────────────────────────── */}
               {activeTab === 'earnings' && (
                 <InlineEarnings
-                  hostToken={activeStream?.hostToken || ''}
+                  hostToken={toolStream?.hostToken ?? ''}
                   onBack={() => setActiveTab('create')}
                 />
               )}
 
-              {/* ── BILLING ── */}
+              {/* ── BILLING ──────────────────────────────────────── */}
               {activeTab === 'billing' && (
                 <InlineBilling
-                  hostToken={activeStream?.hostToken || ''}
+                  hostToken={toolStream?.hostToken ?? ''}
                   onBack={() => setActiveTab('create')}
                   onUpgrade={() => setActiveTab('pricing')}
                 />
               )}
 
-              {/* ── PRICING ── */}
+              {/* ── PRICING ──────────────────────────────────────── */}
               {activeTab === 'pricing' && (
                 <InlinePricing
-                  hostToken={activeStream?.hostToken || ''}
+                  hostToken={toolStream?.hostToken ?? ''}
                   onBack={() => setActiveTab('billing')}
                   onSuccess={() => setActiveTab('billing')}
                 />
               )}
 
-              {/* ── PAY-PER-VIEW ── */}
+              {/* ── PAY-PER-VIEW ─────────────────────────────────── */}
               {activeTab === 'ppv' && (
-                activeStream
-                  ? <InlinePPV roomId={activeStream.roomId} hostToken={activeStream.hostToken} onBack={() => setActiveTab('create')} />
-                  : <NoStreamPlaceholder tab="ppv" onGoLive={() => setActiveTab('create')} />
+                toolStream ? (
+                  <InlinePPV
+                    roomId={toolStream.roomId}
+                    hostToken={toolStream.hostToken}
+                    onBack={() => setActiveTab('create')}
+                  />
+                ) : (
+                  <NoStreamPlaceholder
+                    tab="ppv"
+                    onGoLive={() => setActiveTab('create')}
+                  />
+                )
               )}
 
             </motion.div>
@@ -602,13 +688,15 @@ export default function HostPage() {
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
-function PageHeader({ title, subtitle, icon: Icon, accent }: {
-  title: string; subtitle: string; icon: any; accent: string;
+function SectionHeader({
+  title, subtitle, icon: Icon, accent,
+}: {
+  title: string; subtitle: string; icon: React.ElementType; accent: string;
 }) {
   return (
     <div className="flex items-center gap-4">
       <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center"
+        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
         style={{ background: `${accent}20`, border: `1px solid ${accent}30` }}
       >
         <Icon className="w-5 h-5" style={{ color: accent }} />
@@ -628,107 +716,123 @@ function NoStreamPlaceholder({ tab, onGoLive }: { tab: string; onGoLive: () => v
     moderation:    'Moderate viewers',
     notifications: 'Send email notifications',
     'ai-title':    'Generate AI titles',
-    'ai-summary':  'Generate AI summary',
+    'ai-summary':  'Generate an AI summary',
     analytics:     'View analytics',
     ppv:           'Set up Pay-Per-View',
   };
   return (
-    <div className="flex flex-col items-center justify-center min-h-full py-20 px-6 text-center">
+    <div className="flex flex-col items-center justify-center min-h-full py-24 px-6 text-center">
       <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mb-5">
         <Zap className="w-7 h-7 text-zinc-700" />
       </div>
       <h2 className="text-white font-bold text-lg mb-2">Start a stream first</h2>
       <p className="text-zinc-500 text-sm mb-6 max-w-xs">
-        {LABELS[tab] || 'This feature'} requires an active or recent stream.
+        {LABELS[tab] ?? 'This feature'} requires an active or recent stream.
       </p>
       <button
         onClick={onGoLive}
         className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#ff3520] text-white font-semibold text-sm hover:bg-[#e02e1a] transition-colors"
       >
-        <Radio className="w-4 h-4" /> Go Live Now
+        <Radio className="w-4 h-4" />
+        Go Live Now
       </button>
     </div>
   );
 }
 
+const TOOL_CONFIG: Record<string, {
+  icon: React.ElementType;
+  accent: string;
+  title: string;
+  subtitle: string;
+}> = {
+  thumbnail:     { icon: Image,    accent: '#10b981', title: 'Thumbnail',           subtitle: 'Upload a custom thumbnail for your stream' },
+  clips:         { icon: Scissors, accent: '#ec4899', title: 'Clips & Highlights',  subtitle: 'Mark and manage stream clip highlights' },
+  moderation:    { icon: Shield,   accent: '#ef4444', title: 'Moderation',          subtitle: 'Ban, timeout, and filter your chat' },
+  notifications: { icon: Mail,     accent: '#3b82f6', title: 'Email Notifications', subtitle: 'Send updates and reminders to viewers' },
+  'ai-title':    { icon: Sparkles, accent: '#a855f7', title: 'AI Title Generator',  subtitle: 'Generate optimised titles with Claude AI' },
+  'ai-summary':  { icon: FileText, accent: '#ff3520', title: 'AI Summary Export',   subtitle: 'Auto-summarise your stream with Claude AI' },
+};
+
 function StreamToolPanel({
-  activeTab, stream, userId,
+  activeTab,
+  stream,
+  userId,
 }: {
   activeTab: string;
   stream: { roomId: string; hostToken: string; title?: string };
   userId: string;
 }) {
-  const accentMap: Record<string, string> = {
-    thumbnail:     '#10b981',
-    clips:         '#ec4899',
-    moderation:    '#ef4444',
-    notifications: '#3b82f6',
-    'ai-title':    '#a855f7',
-    'ai-summary':  '#ff3520',
-  };
-  const iconMap: Record<string, any> = {
-    thumbnail:     Image,
-    clips:         Scissors,
-    moderation:    Shield,
-    notifications: Mail,
-    'ai-title':    Sparkles,
-    'ai-summary':  FileText,
-  };
-  const labelMap: Record<string, [string, string]> = {
-    thumbnail:     ['Thumbnail',           'Upload a custom thumbnail for your stream'],
-    clips:         ['Clips & Highlights',  'Mark and manage stream clip highlights'],
-    moderation:    ['Moderation',          'Ban, timeout, and filter your chat'],
-    notifications: ['Email Notifications', 'Send updates and reminders to viewers'],
-    'ai-title':    ['AI Title Generator',  'Generate optimised titles with Claude AI'],
-    'ai-summary':  ['AI Summary Export',   'Auto-summarise your stream with Claude AI'],
-  };
-
-  const Icon = iconMap[activeTab];
-  const [tabTitle, tabSub] = labelMap[activeTab] || ['Tool', ''];
-  const accent = accentMap[activeTab] || '#ff3520';
+  const cfg = TOOL_CONFIG[activeTab];
+  if (!cfg) return null;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col min-h-full">
       <div className="px-6 lg:px-8 py-6 border-b border-white/[0.06]">
-        <PageHeader title={tabTitle} subtitle={tabSub} icon={Icon} accent={accent} />
+        <SectionHeader
+          title={cfg.title}
+          subtitle={cfg.subtitle}
+          icon={cfg.icon}
+          accent={cfg.accent}
+        />
         <div className="mt-3 flex items-center gap-2 text-xs text-zinc-600">
           <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
-          Stream: <span className="text-zinc-400 font-medium ml-1">{stream.title || stream.roomId}</span>
+          Stream:
+          <span className="text-zinc-400 font-medium ml-1">
+            {stream.title ?? stream.roomId}
+          </span>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl">
+
           {activeTab === 'thumbnail' && (
-            <ThumbnailUploader roomId={stream.roomId} hostToken={stream.hostToken} />
+            <ThumbnailUploader
+              roomId={stream.roomId}
+              hostToken={stream.hostToken}
+            />
           )}
+
           {activeTab === 'clips' && (
-            <ClipCreator roomId={stream.roomId} hostToken={stream.hostToken} />
+            <ClipCreator
+              roomId={stream.roomId}
+              hostToken={stream.hostToken}
+            />
           )}
+
           {activeTab === 'moderation' && (
-            <ModerationPanel roomId={stream.roomId} hostToken={stream.hostToken} userId={userId} />
+            <ModerationPanel
+              roomId={stream.roomId}
+              hostToken={stream.hostToken}
+              userId={userId}
+            />
           )}
+
           {activeTab === 'notifications' && (
             <EmailNotificationPanel
               roomId={stream.roomId}
               hostToken={stream.hostToken}
-              streamTitle={stream.title || ''}
+              streamTitle={stream.title ?? ''}
             />
           )}
+
           {activeTab === 'ai-title' && (
             <AITitleGenerator
               roomId={stream.roomId}
               hostToken={stream.hostToken}
-              currentTitle={stream.title || ''}
+              currentTitle={stream.title ?? ''}
             />
           )}
+
           {activeTab === 'ai-summary' && (
             <AISummaryExport
               roomId={stream.roomId}
               hostToken={stream.hostToken}
-              streamTitle={stream.title || ''}
+              streamTitle={stream.title ?? ''}
             />
           )}
+
         </div>
       </div>
     </div>
