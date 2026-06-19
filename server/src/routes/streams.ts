@@ -91,6 +91,7 @@ router.get('/:roomId', async (req, res) => {
     const stream = await prisma.stream.findUnique({
       where:   { roomId: req.params.roomId },
       select: {
+        id:           true,
         roomId:       true,
         title:        true,
         description:  true,
@@ -122,6 +123,7 @@ router.get('/:roomId', async (req, res) => {
     } catch {} // TicketTier may not exist yet — ignore
 
     res.json({
+      id:          stream.id,
       roomId:      stream.roomId,
       title:       stream.title,
       description: stream.description,
