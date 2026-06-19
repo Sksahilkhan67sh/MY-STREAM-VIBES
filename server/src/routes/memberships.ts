@@ -51,7 +51,12 @@ router.post('/tiers', async (req, res) => {
     const data = TierSchema.parse(req.body);
     const tier = await prisma.membershipTier.create({
       data: {
-        ...data,
+        creatorId: data.creatorId,
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        currency: data.currency,
+        sortOrder: data.sortOrder,
         perks: JSON.stringify(data.perks ?? []),
         color: data.color ?? '#6366f1',
       },
@@ -69,7 +74,7 @@ router.patch('/tiers/:id', async (req, res) => {
     const data = TierSchema.partial().parse(req.body);
     const updated = await prisma.membershipTier.update({
       where: { id: req.params.id },
-      data: { ...data, ...(data.perks ? { perks: JSON.stringify(data.perks) } : {}) },
+      data: { ...data, perks: data.perks !== undefined ? JSON.stringify(data.perks) : undefined },
     });
     res.json(updated);
   } catch (err) {
