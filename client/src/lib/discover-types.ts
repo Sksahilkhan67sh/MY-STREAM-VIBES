@@ -55,6 +55,8 @@ export interface CreatorProfile {
   socialLinks: Record<string, string>;
   followerCount: number;
   isFollowing: boolean;
+  isVerified?: boolean;
+  verifiedTier?: string | null;
   liveStreams: StreamCard[];
   upcomingStreams: StreamCard[];
   pastStreams: StreamCard[];
