@@ -140,6 +140,7 @@ router.post('/generate-clips/:streamId', async (req, res) => {
         analyticsEvents: { where: { event: 'reaction' }, orderBy: { timestamp: 'asc' } },
         transcript: { include: { segments: { orderBy: { startMs: 'asc' } } } },
         clips: true,
+        analytics: true,
       },
     });
     if (!stream) return res.status(404).json({ error: 'Stream not found' });
