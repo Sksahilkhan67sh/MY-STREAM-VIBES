@@ -81,9 +81,30 @@ export default function ChatPanel({ roomId, identity, nickname, isHost, socket: 
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = () => {
+  const [moderationWarning, setModerationWarning] = useState('');
+
+  const sendMessage = async () => {
     if (!input.trim() || !socketRef.current) return;
-    socketRef.current.emit('chat-message', { roomId, message: input.trim(), nickname });
+    const text = input.trim();
+
+    // AI content moderation — checked before broadcast, fails open so chat never breaks
+    try {
+      const res = await fetch(`${API}/api/ai-features/moderate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamId: roomId, message: text, nickname }),
+      });
+      const data = await res.json();
+      if (data.action === 'blocked') {
+        setModerationWarning('Message blocked: contains inappropriate content');
+        setTimeout(() => setModerationWarning(''), 3000);
+        return;
+      }
+    } catch {
+      // moderation service unreachable — allow message through rather than block chat
+    }
+
+    socketRef.current.emit('chat-message', { roomId, message: text, nickname });
     setInput('');
   };
 
@@ -155,6 +176,13 @@ export default function ChatPanel({ roomId, identity, nickname, isHost, socket: 
           </button>
         ))}
       </div>
+
+      {/* Moderation warning */}
+      {moderationWarning && (
+        <div className="px-3 sm:px-4 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs text-center flex-shrink-0">
+          {moderationWarning}
+        </div>
+      )}
 
       {/* Input */}
       <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
