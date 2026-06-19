@@ -59,7 +59,7 @@ router.post('/', async (req, res) => {
         ...data,
         audienceSize: data.audienceSize ?? followerCount,
         categories: JSON.stringify(data.categories ?? []),
-      },
+      } as any,
     });
     res.json(listing);
   } catch (err) {
@@ -74,7 +74,7 @@ router.patch('/:id', async (req, res) => {
     const data = ListingSchema.partial().parse(req.body);
     const updated = await prisma.sponsorshipListing.update({
       where: { id: req.params.id },
-      data: { ...data, ...(data.categories ? { categories: JSON.stringify(data.categories) } : {}) },
+      data: { ...data, ...(data.categories ? { categories: JSON.stringify(data.categories) } : {}) } as any,
     });
     res.json(updated);
   } catch (err) {
