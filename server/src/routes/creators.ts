@@ -38,7 +38,7 @@ router.get('/:idOrUsername', async (req, res) => {
       where: { OR: [{ id: idOrUsername }, { username: idOrUsername }] },
       select: {
         id: true, name: true, username: true, avatarUrl: true, bannerUrl: true, bio: true,
-        socialLinks: true, createdAt: true,
+        socialLinks: true, createdAt: true, isVerified: true, verifiedTier: true,
         _count: { select: { followers: true } },
       },
     });
@@ -76,6 +76,8 @@ router.get('/:idOrUsername', async (req, res) => {
       socialLinks: creator.socialLinks || {},
       followerCount: creator._count.followers,
       isFollowing: !!isFollowing,
+      isVerified: creator.isVerified,
+      verifiedTier: creator.verifiedTier,
       liveStreams: liveStreams.map(serializeStream),
       upcomingStreams: upcomingStreams.map(serializeStream),
       pastStreams: pastStreams.map(serializeStream),
