@@ -19,6 +19,8 @@ export default function HomePage() {
   const [fastestGrowing, setFastestGrowing] = useState<StreamCardType[]>([]);
   const [liveNow, setLiveNow] = useState<StreamCardType[]>([]);
   const [recommended, setRecommended] = useState<StreamCardType[]>([]);
+  const [fromFollowed, setFromFollowed] = useState<StreamCardType[]>([]);
+  const [becauseYouLiked, setBecauseYouLiked] = useState<StreamCardType[]>([]);
   const [topCreators, setTopCreators] = useState<CreatorSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,18 +28,36 @@ export default function HomePage() {
     let cancelled = false;
     async function load() {
       try {
-        const [cats, trending, live, rec] = await Promise.all([
+        const [cats, trending, live] = await Promise.all([
           apiGet<{ categories: CategoryLite[] }>('/api/discover/categories'),
           apiGet<{ mostViewed: StreamCardType[]; fastestGrowing: StreamCardType[] }>('/api/discover/trending'),
           apiGet<{ streams: StreamCardType[] }>('/api/discover/live?limit=18'),
-          apiGet<{ streams: StreamCardType[] }>(`/api/discover/recommended${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),
         ]);
         if (cancelled) return;
         setCategories(cats.categories);
         setMostViewed(trending.mostViewed);
         setFastestGrowing(trending.fastestGrowing);
         setLiveNow(live.streams);
-        setRecommended(rec.streams);
+
+        // AI-powered recommendations for signed-in viewers; generic fallback otherwise
+        if (userId) {
+          try {
+            const ai = await apiGet<{ forYou: StreamCardType[]; fromFollowed: StreamCardType[]; becauseYouLiked: StreamCardType[] }>(
+              `/api/ai-features/recommendations/${encodeURIComponent(userId)}`
+            );
+            if (!cancelled) {
+              setRecommended(ai.forYou);
+              setFromFollowed(ai.fromFollowed);
+              setBecauseYouLiked(ai.becauseYouLiked);
+            }
+          } catch {
+            const rec = await apiGet<{ streams: StreamCardType[] }>(`/api/discover/recommended?userId=${encodeURIComponent(userId)}`);
+            if (!cancelled) setRecommended(rec.streams);
+          }
+        } else {
+          const rec = await apiGet<{ streams: StreamCardType[] }>('/api/discover/recommended');
+          if (!cancelled) setRecommended(rec.streams);
+        }
 
         // Top creators — derive from search with empty-ish broad query isn't supported,
         // so pull from the most-viewed live streams' creators as a reasonable proxy.
@@ -97,6 +117,13 @@ export default function HomePage() {
             streams={recommended}
             emptyText="Follow creators and watch a few streams to get personalized picks."
           />
+
+          {fromFollowed.length > 0 && (
+            <StreamRow title="From Creators You Follow" icon="👤" streams={fromFollowed} />
+          )}
+          {becauseYouLiked.length > 0 && (
+            <StreamRow title="Because You Liked Similar Streams" icon="💜" streams={becauseYouLiked} />
+          )}
 
           {/* Top Creators */}
           {topCreators.length > 0 && (
