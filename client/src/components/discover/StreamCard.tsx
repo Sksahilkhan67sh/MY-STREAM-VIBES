@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { Lock } from 'lucide-react';
 import type { StreamCard as StreamCardType } from '@/lib/discover-types';
+import SaveButton from './SaveButton';
 
 function formatViewers(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -15,9 +16,12 @@ export default function StreamCard({ stream, size = 'md' }: { stream: StreamCard
   const initial = creatorLabel.charAt(0).toUpperCase();
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => router.push(`/s/${stream.roomId}`)}
-      className="group text-left w-full focus:outline-none"
+      onKeyDown={e => { if (e.key === 'Enter') router.push(`/s/${stream.roomId}`); }}
+      className="group text-left w-full cursor-pointer focus:outline-none"
     >
       <div className={`relative rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 ${size === 'sm' ? 'aspect-video' : 'aspect-video'} mb-2.5`}>
         {stream.thumbnailUrl ? (
@@ -47,11 +51,14 @@ export default function StreamCard({ stream, size = 'md' }: { stream: StreamCard
           </span>
         )}
 
-        {stream.isLive && (
-          <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
-            {formatViewers(stream.viewerCount)} watching
-          </span>
-        )}
+        <div className="absolute bottom-2 left-2 right-2 flex items-end justify-between">
+          {stream.isLive ? (
+            <span className="bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
+              {formatViewers(stream.viewerCount)} watching
+            </span>
+          ) : <span />}
+          <SaveButton streamId={stream.id} />
+        </div>
       </div>
 
       <div className="flex gap-2.5">
@@ -71,6 +78,6 @@ export default function StreamCard({ stream, size = 'md' }: { stream: StreamCard
           )}
         </div>
       </div>
-    </button>
+    </div>
   );
 }
