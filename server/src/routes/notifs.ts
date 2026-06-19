@@ -61,7 +61,7 @@ router.post('/send', async (req, res) => {
       userId: z.string(), type: z.string(), title: z.string(),
       body: z.string(), imageUrl: z.string().optional(), actionUrl: z.string().optional(),
     }).parse(req.body);
-    const notif = await prisma.notification.create({ data });
+    const notif = await prisma.notification.create({ data: data as any });
     res.json(notif);
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors });
