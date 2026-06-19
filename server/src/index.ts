@@ -32,6 +32,16 @@ import aiRouter                              from './routes/ai-titles';
 import discoverRouter                        from './routes/discover';
 import creatorsRouter                        from './routes/creators';
 import historyRouter                         from './routes/history';
+import watchlaterRouter                      from './routes/watchlater';
+import ratingsRouter                         from './routes/ratings';
+import verificationRouter                    from './routes/verification';
+import communityRouter                       from './routes/community';
+import friendsRouter                         from './routes/friends';
+import membershipsRouter                     from './routes/memberships';
+import merchRouter                           from './routes/merch';
+import notifsRouter                          from './routes/notifs';
+import aiFeaturesRouter                      from './routes/ai-features';
+import sponsorshipRouter                     from './routes/sponsorship';
 
 const app        = express();
 const httpServer = createServer(app);
@@ -89,6 +99,16 @@ app.use('/api/ai',            aiLimiter, aiRouter);
 app.use('/api/discover',      discoverRouter);
 app.use('/api/creators',      creatorsRouter);
 app.use('/api/history',       historyRouter);
+app.use('/api/watchlater',    watchlaterRouter);
+app.use('/api/ratings',       ratingsRouter);
+app.use('/api/verification',  verificationRouter);
+app.use('/api/community',     communityRouter);
+app.use('/api/friends',       friendsRouter);
+app.use('/api/memberships',   membershipsRouter);
+app.use('/api/merch',         merchRouter);
+app.use('/api/notifs',        notifsRouter);
+app.use('/api/ai-features',   aiFeaturesRouter);
+app.use('/api/sponsorship',   sponsorshipRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
