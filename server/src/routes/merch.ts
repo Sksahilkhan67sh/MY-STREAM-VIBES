@@ -33,7 +33,7 @@ const ProductSchema = z.object({
 router.post('/', async (req, res) => {
   try {
     const data = ProductSchema.parse(req.body);
-    const product = await prisma.merchProduct.create({ data });
+    const product = await prisma.merchProduct.create({ data: data as any });
     res.json(product);
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors });
@@ -45,7 +45,7 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const data = ProductSchema.partial().parse(req.body);
-    const updated = await prisma.merchProduct.update({ where: { id: req.params.id }, data });
+    const updated = await prisma.merchProduct.update({ where: { id: req.params.id }, data: data as any });
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update product' });
