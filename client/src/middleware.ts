@@ -6,7 +6,7 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn   = !!req.auth;
   const isLoginPage  = pathname === '/login';
-  const isHostPage   = pathname.startsWith('/host');
+  const isHostPage   = pathname.startsWith('/host') || pathname.startsWith('/studio');
   const isApiAuth    = pathname.startsWith('/api/auth');
   const isCoHost     = pathname.startsWith('/cohost');   // ← FIX: allow co-host pages through
 
