@@ -2,12 +2,16 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeContext';
 import { SessionProvider } from 'next-auth/react';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import { I18nProvider } from '@/components/I18nContext';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://my-stream-vibes-client.vercel.app'),
   title: 'StreamVault — Discover Live Streams',
   description: 'Browse live streams by category, follow your favorite creators, and watch instantly. Gaming, coding, music, podcasts, and more.',
   keywords: 'live streaming, watch live, browse streams, gaming streams, coding streams, free live streaming',
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'StreamVault' },
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon.ico',
@@ -32,13 +36,22 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://my-stream-vibes-client.vercel.app/' },
 };
 
+export const viewport = {
+  themeColor: '#ef4444',
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
+        <ServiceWorkerRegister />
         <SessionProvider>
           <ThemeProvider>
-            {children}
+            <I18nProvider>
+              {children}
+            </I18nProvider>
           </ThemeProvider>
         </SessionProvider>
       </body>
