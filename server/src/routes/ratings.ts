@@ -47,7 +47,7 @@ router.post('/', async (req, res) => {
     const saved = await prisma.streamRating.upsert({
       where: { streamId_userId: { streamId: data.streamId, userId: data.userId } },
       update: { rating: data.rating, review: data.review },
-      create: data,
+      create: data as any,
     });
     res.json(saved);
   } catch (err) {
