@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Radio, Clock } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
@@ -13,10 +14,13 @@ import DonationAlert from '@/components/donations/DonationAlert';
 import DonationModal from '@/components/donations/DonationModal';
 import { DonateButton, DonationLeaderboard } from '@/components/donations/DonationLeaderboard';
 import PPVGate from '@/components/ppv/PPVGate';
+import RatingWidget from '@/components/RatingWidget';
+import SaveButton from '@/components/discover/SaveButton';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 interface StreamInfo {
+  id:           string;
   roomId:       string;
   title:        string;
   isLive:       boolean;
@@ -30,6 +34,8 @@ interface StreamInfo {
 
 export default function ViewerPage() {
   const { roomId } = useParams<{ roomId: string }>();
+  const { data: session } = useSession();
+  const viewerUserId = session?.user?.id ?? session?.user?.email ?? '';
   const [stream, setStream]       = useState<StreamInfo | null>(null);
   const [error, setError]         = useState('');
   const [nickname, setNickname]   = useState('');
@@ -49,6 +55,20 @@ export default function ViewerPage() {
   });
   const nicknameRef               = useRef(nickname);
   nicknameRef.current             = nickname;
+
+  // ── Watch history: pings every 30s while watching, for signed-in viewers ──
+  // Powers AI recommendations and "Recently Watched" — silently no-ops if signed out.
+  useEffect(() => {
+    if (step !== 'watching' || !viewerUserId) return;
+    const interval = setInterval(() => {
+      fetch(`${API}/api/history/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: viewerUserId, roomId, watchSeconds: 30 }),
+      }).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [step, viewerUserId, roomId]);
 
   useEffect(() => {
     fetch(`${API}/api/streams/${roomId}`)
@@ -215,9 +235,11 @@ export default function ViewerPage() {
       {/* ── Chat sidebar (desktop only) ── */}
       <div className="hidden lg:flex w-80 flex-shrink-0 border-l border-zinc-800/60 flex-col">
         {/* Leaderboard above chat */}
-        <div className="px-3 pt-3">
-          <DonationLeaderboard roomId={roomId} socket={socket} currency="INR" />
+        <div className="px-3 pt-3 flex items-center justify-between gap-2">
+          <div className="flex-1"><DonationLeaderboard roomId={roomId} socket={socket} currency="INR" /></div>
+          <SaveButton streamId={stream.id} className="!bg-zinc-800 hover:!bg-zinc-700 flex-shrink-0" />
         </div>
+        <div className="px-3 pt-2"><RatingWidget streamId={stream.id} /></div>
         <ChatPanel roomId={roomId} identity={identity} nickname={nickname || 'Anonymous'} socket={socket} />
       </div>
 
