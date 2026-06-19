@@ -680,6 +680,7 @@ model WatchLater {
 model Playlist {
   id          String         @id @default(cuid())
   userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   title       String
   description String?
   isPublic    Boolean        @default(false)
@@ -708,6 +709,7 @@ model StreamRating {
   id        String   @id @default(cuid())
   streamId  String
   userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rating    Int      // 1-5
   review    String?
   createdAt DateTime @default(now())
@@ -737,6 +739,7 @@ model CreatorVerification {
 model CommunityPost {
   id          String            @id @default(cuid())
   userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   type        String            @default("text")  // text | poll | image | announcement
   body        String            @db.Text
   imageUrl    String?
@@ -835,6 +838,7 @@ model MembershipTier {
 model Membership {
   id        String         @id @default(cuid())
   userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tierId    String
   tier      MembershipTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
   status    String         @default("active")  // active | cancelled | expired
@@ -853,6 +857,7 @@ model Membership {
 model MerchProduct {
   id          String   @id @default(cuid())
   creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   title       String
   description String?
   imageUrl    String?
@@ -872,6 +877,7 @@ model MerchProduct {
 model Notification {
   id        String   @id @default(cuid())
   userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      String   // follow | donation | live | message | membership | mention | rating
   title     String
   body      String
@@ -903,6 +909,7 @@ model AIModerationLog {
 model SponsorshipListing {
   id           String   @id @default(cuid())
   creatorId    String
+  creator      User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   title        String
   description  String   @db.Text
   audienceSize Int      @default(0)
