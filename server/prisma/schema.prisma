@@ -7,6 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ── Role system (added — additive, non-destructive) ────────────────────────
+enum UserRole {
+  VIEWER
+  CREATOR
+  ADMIN
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -14,6 +21,10 @@ model User {
   password  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // ── Role system ────────────────────────────────────────────
+  role           UserRole @default(VIEWER)
+  roleSelectedAt DateTime?
 
   // ── Creator profile fields ─────────────────────────────────
   username    String? @unique
@@ -45,6 +56,7 @@ model User {
   merchProducts    MerchProduct[]
 
   @@index([username])
+  @@index([role])
 }
 
 model Category {
