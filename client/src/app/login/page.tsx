@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (status === 'authenticated') router.replace('/host');
+    if (status === 'authenticated') router.replace('/studio');
   }, [status, router]);
 
   if (status === 'loading' || status === 'authenticated') {
@@ -28,7 +28,7 @@ export default function LoginPage() {
     setLoading(provider);
     setError('');
     try {
-      await signIn(provider, { callbackUrl: '/host' });
+      await signIn(provider, { callbackUrl: '/studio' });
     } catch {
       setError('Something went wrong. Please try again.');
       setLoading(null);
