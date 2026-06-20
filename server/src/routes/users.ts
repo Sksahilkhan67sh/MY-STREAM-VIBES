@@ -37,15 +37,64 @@ async function resolveUser(idOrEmail: string) {
 router.get('/:id/role', async (req, res) => {
   try {
     const user = await resolveUser(req.params.id);
+
+    // hasChannel: true once a channel handle (username) is set via the
+    // /create-channel wizard. IMPORTANT — for backward compatibility with
+    // creators who existed before this wizard existed (and were promoted to
+    // CREATOR by the role-system migration's backfill), we also treat any
+    // pre-existing creator footprint as already having a "channel", using
+    // the exact same criteria the migration backfill used. This guarantees
+    // no existing creator is ever newly locked out of /studio for lacking
+    // a username they were never asked to set.
+    let hasChannel = !!user.username;
+    if (!hasChannel && (user.role === 'CREATOR' || user.role === 'ADMIN')) {
+      const [streamCount, verification, tier, merch, sponsorship] = await Promise.all([
+        prisma.stream.count({ where: { userId: user.id } }),
+        prisma.creatorVerification.findUnique({ where: { userId: user.id } }),
+        prisma.membershipTier.findFirst({ where: { creatorId: user.id } }),
+        prisma.merchProduct.findFirst({ where: { creatorId: user.id } }),
+        prisma.sponsorshipListing.findFirst({ where: { creatorId: user.id } }),
+      ]);
+      hasChannel = streamCount > 0 || !!verification || !!tier || !!merch || !!sponsorship;
+    }
+
     res.json({
       id: user.id,
       role: user.role,
       roleSelectedAt: user.roleSelectedAt,
       hasSelectedRole: !!user.roleSelectedAt,
+      // Additive fields — let clients know whether a creator channel has been
+      // set up yet. Does not change any existing field already returned here.
+      username: user.username,
+      hasChannel,
     });
   } catch (err) {
     console.error('GET /users/:id/role error:', err);
     res.status(500).json({ error: 'Failed to fetch role' });
+  }
+});
+
+const usernamePattern = /^[a-zA-Z0-9_]+$/;
+
+// GET /api/users/check-username/:username — live availability check used by
+// the /create-channel wizard. Mounted before any other param routes that
+// could collide; "check-username" can never be a valid :id/role lookup since
+// this route lives at a separate path segment.
+router.get('/check-username/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const { userId } = req.query as Record<string, string | undefined>;
+
+    if (username.length < 3 || username.length > 30 || !usernamePattern.test(username)) {
+      return res.json({ available: false, reason: 'invalid' });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { username } });
+    const available = !existing || (!!userId && existing.id === userId);
+    res.json({ available, reason: available ? null : 'taken' });
+  } catch (err) {
+    console.error('GET /users/check-username error:', err);
+    res.status(500).json({ error: 'Failed to check username' });
   }
 });
 
