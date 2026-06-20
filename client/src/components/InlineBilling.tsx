@@ -43,8 +43,8 @@ export default function InlineBilling({hostToken,onBack,onUpgrade}:Props){
   const planColor=(name:string)=>{const m:Record<string,string>={free:'#71717a',starter:'#3b82f6',pro:BRAND,business:'#8b5cf6',enterprise:'#f59e0b'};return m[name?.toLowerCase()]??BRAND;};
 
   return(
-    <motion.div initial={{x:'100%'}}animate={{x:0}}exit={{x:'100%'}}transition={{type:'spring',damping:30,stiffness:280}}
-      className="fixed inset-0 z-[200] overflow-y-auto bg-zinc-950" style={{fontFamily:"'DM Sans','Inter',sans-serif"}}>
+    <motion.div initial={{opacity:0}}animate={{opacity:1}}exit={{opacity:0}}transition={{duration:0.2}}
+      className="min-h-screen bg-zinc-950 overflow-y-auto" style={{fontFamily:"'DM Sans','Inter',sans-serif"}}>
       <nav className="sticky top-0 z-10 flex items-center justify-between px-4 py-4 border-b border-zinc-800/60"style={{background:'rgba(9,9,11,0.95)',backdropFilter:'blur(16px)'}}>
         <div className="flex items-center gap-3">
           <button onClick={onBack}className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"><ArrowLeft className="w-4 h-4"/></button>
