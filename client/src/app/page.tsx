@@ -8,11 +8,13 @@ import StreamRow from '@/components/discover/StreamRow';
 import CreatorCard from '@/components/discover/CreatorCard';
 import { apiGet } from '@/lib/api';
 import type { CategoryLite, StreamCard as StreamCardType, CreatorSearchResult } from '@/lib/discover-types';
+import { useUserRole } from '@/hooks/useUserRole';
 
 export default function HomePage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const userId = session?.user?.id ?? session?.user?.email ?? '';
+  const { hasSelectedRole, loading: roleLoading } = useUserRole();
 
   const [categories, setCategories] = useState<CategoryLite[]>([]);
   const [mostViewed, setMostViewed] = useState<StreamCardType[]>([]);
@@ -23,6 +25,16 @@ export default function HomePage() {
   const [becauseYouLiked, setBecauseYouLiked] = useState<StreamCardType[]>([]);
   const [topCreators, setTopCreators] = useState<CreatorSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // ── Onboarding guard ──
+  // Only ever redirects a signed-in user who has never chosen Viewer/Creator.
+  // Logged-out visitors and anyone who has already chosen keep browsing the
+  // feed exactly as before — this never blocks public/anonymous viewing.
+  useEffect(() => {
+    if (status === 'authenticated' && !roleLoading && !hasSelectedRole) {
+      router.replace('/onboarding');
+    }
+  }, [status, roleLoading, hasSelectedRole, router]);
 
   useEffect(() => {
     let cancelled = false;
