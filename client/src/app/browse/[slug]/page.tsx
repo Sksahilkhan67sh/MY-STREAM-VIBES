@@ -121,7 +121,7 @@ export default function CategoryBrowsePage() {
         ) : streams.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">No live streams match these filters right now.</p>
-            <button onClick={() => router.push('/host')} className="px-6 py-3 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors">
+            <button onClick={() => router.push('/studio')} className="px-6 py-3 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors">
               Start streaming →
             </button>
           </div>
