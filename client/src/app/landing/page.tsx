@@ -72,7 +72,7 @@ export default function HomePage() {
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
           <button
-            onClick={() => router.push('/host')}
+            onClick={() => router.push('/studio')}
             className="text-xs sm:text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors whitespace-nowrap"
           >
             Start streaming →
@@ -107,7 +107,7 @@ export default function HomePage() {
 
         <motion.div {...fade(0.3)} className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <button
-            onClick={() => router.push('/host')}
+            onClick={() => router.push('/studio')}
             className="w-full sm:w-auto px-6 py-3.5 sm:py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold rounded-xl sm:rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors"
           >
             Start streaming
@@ -200,7 +200,7 @@ export default function HomePage() {
             </h2>
             <p className="text-gray-500 dark:text-gray-400 mb-6 sm:mb-8 text-sm sm:text-base">No sign-up. No credit card. Just stream.</p>
             <button
-              onClick={() => router.push('/host')}
+              onClick={() => router.push('/studio')}
               className="w-full sm:w-auto px-8 py-4 sm:py-3.5 bg-red-500 text-white text-sm font-semibold rounded-xl sm:rounded-lg hover:bg-red-600 transition-colors"
             >
               Start your stream →
