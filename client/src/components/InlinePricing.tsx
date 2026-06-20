@@ -183,7 +183,7 @@ export default function InlinePricing({ hostToken, onBack, onSuccess }: Props) {
   // ── Success screen ──
   if (successPlan) return (
     <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }}
-      className="fixed inset-0 z-[300] bg-zinc-950 flex items-center justify-center"
+      className="min-h-screen bg-zinc-950 flex items-center justify-center"
       style={{ fontFamily:"'DM Sans','Inter',sans-serif" }}>
       <div className="text-center p-8">
         <CheckCircle className="w-16 h-16 mx-auto mb-4 text-green-400"/>
@@ -194,9 +194,9 @@ export default function InlinePricing({ hostToken, onBack, onSuccess }: Props) {
   );
 
   return (
-    <motion.div initial={{ x:'100%' }} animate={{ x:0 }} exit={{ x:'100%' }}
-      transition={{ type:'spring', damping:30, stiffness:280 }}
-      className="fixed inset-0 z-[300] overflow-y-auto bg-zinc-950"
+    <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+      transition={{ duration:0.2 }}
+      className="min-h-screen overflow-y-auto bg-zinc-950"
       style={{ fontFamily:"'DM Sans','Inter',sans-serif" }}>
 
       {/* Nav */}
