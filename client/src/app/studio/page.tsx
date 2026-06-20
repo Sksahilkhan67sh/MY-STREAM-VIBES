@@ -40,6 +40,7 @@ import InlinePPV             from '@/components/InlinePPV';
 
 // Creator-hub helpers
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
+import { useUserRole } from '@/hooks/useUserRole';
 
 import {
   // Stream section
@@ -292,6 +293,7 @@ function StudioInner() {
   const [toastMsg, setToastMsg]       = useState('');
 
   const userId = session?.user?.id ?? session?.user?.email ?? '';
+  const { role, hasSelectedRole, loading: roleLoading, error: roleError, refetch: refetchRole } = useUserRole();
 
   const toast = (m: string) => { setToastMsg(m); setTimeout(() => setToastMsg(''), 3000); };
 
@@ -372,7 +374,37 @@ function StudioInner() {
     if (status === 'unauthenticated') router.replace('/login');
   }, [status, router]);
 
-  if (status === 'loading' || status === 'unauthenticated') {
+  // ── Role guard: VIEWER → onboarding (if never chosen) or /become-creator ──
+  useEffect(() => {
+    if (status !== 'authenticated' || roleLoading || roleError) return;
+    if (!hasSelectedRole) { router.replace('/onboarding'); return; }
+    if (role === 'VIEWER') { router.replace('/become-creator'); return; }
+  }, [status, roleLoading, roleError, hasSelectedRole, role, router]);
+
+  if (status === 'loading' || status === 'unauthenticated' || roleLoading) {
+    return (
+      <div className="min-h-screen bg-[#070707] flex items-center justify-center">
+        <div className="w-5 h-5 rounded-full border-2 border-zinc-700 border-t-[#ff3520] animate-spin" />
+      </div>
+    );
+  }
+
+  // Role lookup failed and we have no cached role to fall back on — show a
+  // retry state instead of redirect-looping into onboarding.
+  if (roleError && !role) {
+    return (
+      <div className="min-h-screen bg-[#070707] flex items-center justify-center px-4">
+        <div className="text-center max-w-xs">
+          <p className="text-zinc-400 text-sm mb-4">Couldn't load your account. Please check your connection and try again.</p>
+          <button onClick={() => refetchRole()} className="px-5 py-2.5 bg-[#ff3520] text-white text-sm font-semibold rounded-xl hover:bg-[#e02e1a]">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasSelectedRole || role === 'VIEWER') {
     return (
       <div className="min-h-screen bg-[#070707] flex items-center justify-center">
         <div className="w-5 h-5 rounded-full border-2 border-zinc-700 border-t-[#ff3520] animate-spin" />
