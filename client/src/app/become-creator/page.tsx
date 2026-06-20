@@ -33,7 +33,7 @@ export default function BecomeCreatorPage() {
     setError('');
     try {
       await becomeCreator();
-      router.replace('/studio');
+      router.replace('/create-channel');
     } catch {
       setError('Could not upgrade your account. Please try again.');
       setUpgrading(false);
