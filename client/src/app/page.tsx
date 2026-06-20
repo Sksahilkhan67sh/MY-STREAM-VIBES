@@ -141,7 +141,7 @@ export default function HomePage() {
             <div className="text-center py-16 px-4">
               <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">No public streams yet — be the first to go live.</p>
               <button
-                onClick={() => router.push('/host')}
+                onClick={() => router.push('/studio')}
                 className="px-6 py-3 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors"
               >
                 Start streaming →
