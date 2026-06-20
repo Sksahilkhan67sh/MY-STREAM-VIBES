@@ -6,12 +6,14 @@ import SearchBar from './SearchBar';
 import NotificationBell from '@/components/NotificationBell';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useI18n } from '@/components/I18nContext';
+import { useUserRole } from '@/hooks/useUserRole';
 
 export default function SiteHeader({ searchValue }: { searchValue?: string }) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const userId = session?.user?.id ?? session?.user?.email ?? '';
   const { t } = useI18n();
+  const { isCreator, isViewer, loading: roleLoading } = useUserRole();
 
   return (
     <header className="sticky top-0 z-30 bg-white/90 dark:bg-gray-950/90 backdrop-blur-sm border-b border-gray-100 dark:border-gray-800">
@@ -43,18 +45,33 @@ export default function SiteHeader({ searchValue }: { searchValue?: string }) {
                 {t('friends')}
               </button>
               <NotificationBell userId={userId} />
-              <button
-                onClick={() => router.push('/studio')}
-                className="hidden sm:block px-3.5 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-              >
-                {t('studio')}
-              </button>
-              <button
-                onClick={() => router.push('/studio')}
-                className="px-3.5 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs sm:text-sm font-semibold rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors whitespace-nowrap"
-              >
-                {t('go_live')}
-              </button>
+              {/* Role-aware CTA — while role is still loading, fall back to the
+                  original always-visible Studio/Go Live buttons so there is no
+                  layout flash or regression for existing creators on slow loads. */}
+              {(roleLoading || isCreator) && (
+                <>
+                  <button
+                    onClick={() => router.push('/studio')}
+                    className="hidden sm:block px-3.5 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                  >
+                    {t('studio')}
+                  </button>
+                  <button
+                    onClick={() => router.push('/studio')}
+                    className="px-3.5 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs sm:text-sm font-semibold rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors whitespace-nowrap"
+                  >
+                    {t('go_live')}
+                  </button>
+                </>
+              )}
+              {!roleLoading && isViewer && (
+                <button
+                  onClick={() => router.push('/become-creator')}
+                  className="px-3.5 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs sm:text-sm font-semibold rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors whitespace-nowrap"
+                >
+                  Become Creator
+                </button>
+              )}
             </>
           )}
           {status !== 'authenticated' && (
