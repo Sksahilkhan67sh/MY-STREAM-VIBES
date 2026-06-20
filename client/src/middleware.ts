@@ -6,20 +6,21 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn   = !!req.auth;
   const isLoginPage  = pathname === '/login';
-  const isHostPage   = pathname.startsWith('/host') || pathname.startsWith('/studio');
+  // Protect both /studio (new) and /host (legacy redirect) behind auth
+  const isProtected  = pathname.startsWith('/studio') || pathname.startsWith('/host');
   const isApiAuth    = pathname.startsWith('/api/auth');
-  const isCoHost     = pathname.startsWith('/cohost');   // ← FIX: allow co-host pages through
+  const isCoHost     = pathname.startsWith('/cohost');
 
   // Always allow: auth API routes and co-host invite pages
   if (isApiAuth || isCoHost) return NextResponse.next();
 
-  // Redirect logged-in users away from login page
+  // Redirect logged-in users away from login page → studio
   if (isLoggedIn && isLoginPage) {
-    return NextResponse.redirect(new URL('/host', req.nextUrl));
+    return NextResponse.redirect(new URL('/studio', req.nextUrl));
   }
 
-  // Protect /host — redirect to login if not authenticated
-  if (!isLoggedIn && isHostPage) {
+  // Protect /studio and /host — redirect to login if not authenticated
+  if (!isLoggedIn && isProtected) {
     return NextResponse.redirect(new URL('/login', req.nextUrl));
   }
 
