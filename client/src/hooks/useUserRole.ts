@@ -50,13 +50,13 @@ export function useUserRole() {
 
   useEffect(() => {
     if (status !== 'authenticated' || !userId) {
-      if (status === 'unauthenticated') setState({ role: null, hasSelectedRole: false, loading: false });
+      if (status === 'unauthenticated') setState({ role: null, hasSelectedRole: false, loading: false, error: false });
       return;
     }
     // Hydrate instantly from cache, then revalidate in background
     try {
       const cached = sessionStorage.getItem(CACHE_KEY(userId));
-      if (cached) setState({ ...JSON.parse(cached), loading: false });
+      if (cached) setState({ ...JSON.parse(cached), loading: false, error: false });
     } catch {}
     refetch();
   }, [status, userId, refetch]);
@@ -67,7 +67,7 @@ export function useUserRole() {
       `/api/users/${encodeURIComponent(userId)}/role`,
       { role }
     );
-    const next: RoleState = { role: data.role, hasSelectedRole: true, loading: false };
+    const next: RoleState = { role: data.role, hasSelectedRole: true, loading: false, error: false };
     setState(next);
     try { sessionStorage.setItem(CACHE_KEY(userId), JSON.stringify(next)); } catch {}
     return data;
@@ -79,7 +79,7 @@ export function useUserRole() {
       `/api/users/become-creator`,
       { userId }
     );
-    const next: RoleState = { role: data.role, hasSelectedRole: true, loading: false };
+    const next: RoleState = { role: data.role, hasSelectedRole: true, loading: false, error: false };
     setState(next);
     try { sessionStorage.setItem(CACHE_KEY(userId), JSON.stringify(next)); } catch {}
     return data;
