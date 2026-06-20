@@ -3,5 +3,27 @@
   "installCommand": "npm install --ignore-scripts",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "redirects": [
+    {
+      "source": "/host",
+      "destination": "/studio",
+      "permanent": false
+    },
+    {
+      "source": "/host/ppv/:roomId",
+      "destination": "/studio",
+      "permanent": false
+    },
+    {
+      "source": "/earnings",
+      "destination": "/studio?tab=earnings",
+      "permanent": false
+    },
+    {
+      "source": "/billing",
+      "destination": "/studio?tab=billing",
+      "permanent": false
+    }
+  ]
 }
