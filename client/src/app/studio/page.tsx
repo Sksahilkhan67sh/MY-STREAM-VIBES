@@ -293,7 +293,7 @@ function StudioInner() {
   const [toastMsg, setToastMsg]       = useState('');
 
   const userId = session?.user?.id ?? session?.user?.email ?? '';
-  const { role, hasSelectedRole, loading: roleLoading, error: roleError, refetch: refetchRole } = useUserRole();
+  const { role, hasSelectedRole, hasChannel, loading: roleLoading, error: roleError, refetch: refetchRole } = useUserRole();
 
   const toast = (m: string) => { setToastMsg(m); setTimeout(() => setToastMsg(''), 3000); };
 
@@ -375,11 +375,14 @@ function StudioInner() {
   }, [status, router]);
 
   // ── Role guard: VIEWER → onboarding (if never chosen) or /become-creator ──
+  // CREATOR/ADMIN without a channel yet (no username set) → /create-channel.
+  // This is the studio-access rule: role === CREATOR AND a channel exists.
   useEffect(() => {
     if (status !== 'authenticated' || roleLoading || roleError) return;
     if (!hasSelectedRole) { router.replace('/onboarding'); return; }
     if (role === 'VIEWER') { router.replace('/become-creator'); return; }
-  }, [status, roleLoading, roleError, hasSelectedRole, role, router]);
+    if (!hasChannel) { router.replace('/create-channel'); return; }
+  }, [status, roleLoading, roleError, hasSelectedRole, role, hasChannel, router]);
 
   if (status === 'loading' || status === 'unauthenticated' || roleLoading) {
     return (
@@ -404,7 +407,7 @@ function StudioInner() {
     );
   }
 
-  if (!hasSelectedRole || role === 'VIEWER') {
+  if (!hasSelectedRole || role === 'VIEWER' || !hasChannel) {
     return (
       <div className="min-h-screen bg-[#070707] flex items-center justify-center">
         <div className="w-5 h-5 rounded-full border-2 border-zinc-700 border-t-[#ff3520] animate-spin" />
