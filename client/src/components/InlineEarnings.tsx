@@ -55,8 +55,8 @@ export default function InlineEarnings({hostToken,onBack}:Props){
   const monthlyData=Object.entries(monthlyMap).map(([name,amount])=>({name,amount})).slice(-6);
 
   return(
-    <motion.div initial={{x:'100%'}}animate={{x:0}}exit={{x:'100%'}}transition={{type:'spring',damping:30,stiffness:280}}
-      className="fixed inset-0 z-[200] overflow-y-auto bg-zinc-950" style={{fontFamily:"'DM Sans','Inter',sans-serif"}}>
+    <motion.div initial={{opacity:0}}animate={{opacity:1}}exit={{opacity:0}}transition={{duration:0.2}}
+      className="min-h-screen bg-zinc-950 overflow-y-auto" style={{fontFamily:"'DM Sans','Inter',sans-serif"}}>
       <nav className="sticky top-0 z-10 flex items-center justify-between px-4 py-4 border-b border-zinc-800/60"style={{background:'rgba(9,9,11,0.95)',backdropFilter:'blur(16px)'}}>
         <div className="flex items-center gap-3"><button onClick={onBack}className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"><ArrowLeft className="w-4 h-4"/></button><div><h1 className="text-sm font-bold text-zinc-100">Earnings</h1><p className="text-xs text-zinc-500">Donation revenue</p></div></div>
         <div className="flex gap-1 p-1 rounded-xl"style={{background:'rgba(255,255,255,0.04)'}}>
