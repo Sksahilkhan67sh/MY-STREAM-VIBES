@@ -200,7 +200,7 @@ export default function PricingPage() {
         </a>
         <div className="flex items-center gap-3">
           {session ? (
-            <button onClick={() => router.push('/host')} className="text-sm font-semibold text-zinc-300 hover:text-white transition-colors">
+            <button onClick={() => router.push('/studio')} className="text-sm font-semibold text-zinc-300 hover:text-white transition-colors">
               Go to dashboard →
             </button>
           ) : (
