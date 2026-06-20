@@ -50,7 +50,7 @@ export default function SiteHeader({ searchValue }: { searchValue?: string }) {
                 {t('studio')}
               </button>
               <button
-                onClick={() => router.push('/host')}
+                onClick={() => router.push('/studio')}
                 className="px-3.5 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs sm:text-sm font-semibold rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors whitespace-nowrap"
               >
                 {t('go_live')}
