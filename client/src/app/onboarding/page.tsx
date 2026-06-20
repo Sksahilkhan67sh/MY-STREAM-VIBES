@@ -26,7 +26,7 @@ export default function OnboardingPage() {
     setError('');
     try {
       await setRole(role);
-      router.replace(role === 'CREATOR' ? '/studio' : '/');
+      router.replace(role === 'CREATOR' ? '/create-channel' : '/');
     } catch {
       setError('Something went wrong. Please try again.');
       setChoosing(null);
