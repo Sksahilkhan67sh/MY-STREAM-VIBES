@@ -143,7 +143,38 @@ router.get('/user/:userId', async (req, res) => {
       where: { userId: req.params.userId, status: 'active' },
       include: { tier: true },
     });
-    res.json({ memberships: memberships.map(m => ({ ...m, tier: { ...m.tier, perks: JSON.parse(m.tier.perks) } })) });
+
+    // MembershipTier.creatorId is a plain string (no Prisma relation defined
+    // on that model to User), so the creator's display info is fetched in a
+    // second query rather than via a nested include.
+    const creatorIds = [...new Set(memberships.map(m => m.tier.creatorId))];
+    const creators = creatorIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: creatorIds } },
+          select: {
+            id: true, name: true, username: true, avatarUrl: true,
+            streams: { where: { isLive: true, isPublic: true }, select: { roomId: true }, take: 1 },
+          },
+        })
+      : [];
+    const creatorById = new Map(creators.map(c => [c.id, c]));
+
+    res.json({
+      memberships: memberships.map(m => {
+        const creator = creatorById.get(m.tier.creatorId);
+        return {
+          ...m,
+          tier: { ...m.tier, perks: JSON.parse(m.tier.perks) },
+          creator: creator
+            ? {
+                id: creator.id, name: creator.name, username: creator.username, avatarUrl: creator.avatarUrl,
+                isLive: creator.streams.length > 0,
+                liveRoomId: creator.streams[0]?.roomId || null,
+              }
+            : null,
+        };
+      }),
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch memberships' });
   }
