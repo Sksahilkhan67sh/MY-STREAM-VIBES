@@ -91,6 +91,29 @@ router.get('/config', async (req: Request, res: Response) => {
   }
 });
 
+// ── GET /api/donations/config/by-user/:userId ──────────────────────────────────
+// Additive — read-only payout *status* (not secrets) keyed purely on the
+// signed-in user, no hostToken/stream required. Lets the Stream Creation
+// Wizard show "Stripe Connected" / "Razorpay Connected" / "UPI Connected"
+// in Step 3 (Monetization) before any stream exists. Returns only booleans
+// and the masked config already produced by getDonationConfig — never raw
+// secrets, same masking the existing /config route already applies.
+router.get('/config/by-user/:userId', async (req: Request, res: Response) => {
+  try {
+    const config = await getDonationConfig(req.params.userId);
+    res.json({
+      configured:      !!config,
+      stripeConnected:   !!config?.stripePublishableKey,
+      razorpayConnected: !!config?.razorpayKeyId,
+      upiConnected:      !!config?.upiId,
+      currency:          config?.currency ?? 'INR',
+    });
+  } catch (err) {
+    console.error('[donations/config/by-user]', err);
+    res.status(500).json({ error: 'Failed to get payout status' });
+  }
+});
+
 // ── PUT /api/donations/config ─────────────────────────────────────────────────
 router.put('/config', async (req: Request, res: Response) => {
   try {
@@ -105,6 +128,25 @@ router.put('/config', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[donations/config PUT]', err);
     res.status(500).json({ error: 'Failed to save config' });
+  }
+});
+
+// ── PUT /api/donations/config/by-user/:userId ──────────────────────────────────
+// Additive write counterpart to GET /config/by-user/:userId. The existing
+// PUT /config above requires a hostToken from an active stream, which makes
+// it impossible to configure a payout destination from Settings → Payouts
+// before any stream exists. This route lets a signed-in creator manage their
+// own payout config directly. Same ConfigSchema/upsertDonationConfig as the
+// existing route — no new validation rules, no new storage shape.
+router.put('/config/by-user/:userId', async (req: Request, res: Response) => {
+  try {
+    const parsed = ConfigSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const config = await upsertDonationConfig(req.params.userId, parsed.data);
+    res.json({ ok: true, currency: config.currency });
+  } catch (err) {
+    console.error('[donations/config/by-user PUT]', err);
+    res.status(500).json({ error: 'Failed to save payout config' });
   }
 });
 
