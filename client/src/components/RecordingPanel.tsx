@@ -11,6 +11,12 @@ interface Recording {
 
 interface RecordingPanelProps {
   roomId: string; hostToken: string; streams: MediaStream[];
+  // When true, recording starts automatically the moment camera/screen
+  // tracks are actually available (streams.length > 0) — used to honor a
+  // "Enable Replay Recording" choice made in the Stream Creation Wizard.
+  // Defaults to false so every existing caller of RecordingPanel keeps its
+  // current manual-start behavior unchanged.
+  autoStart?: boolean;
 }
 
 function formatSize(bytes: number) {
@@ -24,12 +30,13 @@ function formatDur(sec: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function RecordingPanel({ roomId, hostToken, streams }: RecordingPanelProps) {
+export default function RecordingPanel({ roomId, hostToken, streams, autoStart = false }: RecordingPanelProps) {
   const [recording, setRecording]   = useState(false);
   const [elapsed, setElapsed]       = useState(0);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
+  const autoStartedRef = useRef(false);
 
   const mrRef         = useRef<MediaRecorder | null>(null);
   const chunksRef     = useRef<Blob[]>([]);
@@ -131,6 +138,18 @@ export default function RecordingPanel({ roomId, hostToken, streams }: Recording
     }
     setLoading(false);
   };
+
+  // ── Auto-start (wizard preference) ──────────────────────────────────────
+  // Mirrors the manual "Enable camera or screen first" guard inside
+  // startRecording itself — this just waits for that condition to become
+  // true instead of requiring a click, then fires the exact same function
+  // a host would trigger manually. Fires once per mount.
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current || recording || streams.length === 0) return;
+    autoStartedRef.current = true;
+    startRecording();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, streams.length, recording]);
 
   const stopRecording = async () => {
     setLoading(true);
