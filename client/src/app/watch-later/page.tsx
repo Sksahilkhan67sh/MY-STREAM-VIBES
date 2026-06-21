@@ -97,7 +97,7 @@ export default function WatchLaterPage() {
           <div className="text-center py-16">
             <Bookmark className="w-10 h-10 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
             <p className="text-sm text-gray-400 mb-4">Nothing saved yet. Tap the bookmark icon on any stream to save it here.</p>
-            <button onClick={() => router.push('/')} className="text-red-500 text-sm font-semibold hover:underline">Browse streams →</button>
+            <button onClick={() => router.push('/feed')} className="text-red-500 text-sm font-semibold hover:underline">Browse streams →</button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
