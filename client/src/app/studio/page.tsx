@@ -30,6 +30,8 @@ import ModerationPanel       from '@/components/ModerationPanel';
 import ClipCreator           from '@/components/ClipCreator';
 import AITitleGenerator      from '@/components/AITitleGenerator';
 import AISummaryExport       from '@/components/AISummaryExport';
+import PayoutsSettings       from '@/components/PayoutsSettings';
+import StreamCreationWizard  from '@/components/StreamCreationWizard';
 
 // Business panels
 import InlineAnalytics       from '@/components/InlineAnalytics';
@@ -56,7 +58,7 @@ import {
   BadgeCheck, Handshake, Settings, Crown, Eye, TrendingUp,
   ExternalLink, Trash2, Check, X, Plus,
   // UI
-  ChevronRight, LogOut, Menu, Zap,
+  ChevronRight, LogOut, Menu, Zap, Wallet,
 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -69,9 +71,15 @@ const LS_ROOM_ID    = (uid: string) => `sv_roomId_${uid}`;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface WizardPrefs {
+  moderation?: boolean; aiSummary?: boolean; autoClips?: boolean;
+  recording?: boolean; captions?: boolean; superChat?: boolean;
+  memberships?: boolean; ppv?: boolean; donations?: boolean;
+}
 interface StreamData {
   roomId: string; hostToken: string; livekitToken: string;
   viewerUrl: string; expiresAt: string; scheduledAt?: string; title?: string;
+  wizardPrefs?: WizardPrefs | null;
 }
 interface RecentStream {
   roomId: string; title: string; isLive: boolean; createdAt: string;
@@ -138,6 +146,7 @@ const NAV_GROUPS = [
       { id: 'verification',  label: 'Verification', icon: BadgeCheck,   accent: '#3b82f6' },
       { id: 'sponsorship',   label: 'Sponsorship',  icon: Handshake,    accent: '#8b5cf6' },
       { id: 'channel',       label: 'Channel',      icon: Settings,     accent: '#71717a' },
+      { id: 'payouts',       label: 'Payouts',      icon: Wallet,       accent: '#16a34a' },
     ],
   },
 ];
@@ -340,8 +349,18 @@ function StudioInner() {
       .catch(() => {});
   }, []);
 
+  // ── Load payout status (for the Stream Creation Wizard's Monetization step) ──
+  const [payoutStatus, setPayoutStatus] = useState<{ stripeConnected: boolean; razorpayConnected: boolean; upiConnected: boolean } | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`${API}/api/donations/config/by-user/${encodeURIComponent(userId)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setPayoutStatus(d))
+      .catch(() => setPayoutStatus({ stripeConnected: false, razorpayConnected: false, upiConnected: false }));
+  }, [userId]);
+
   // ── Load creator hub data lazily (only when a hub tab is active) ──
-  const HUB_TABS = new Set(['overview','streams-list','memberships','merch','community','verification','sponsorship','channel']);
+  const HUB_TABS = new Set(['overview','streams-list','memberships','merch','community','verification','sponsorship','channel','payouts']);
   useEffect(() => {
     if (!userId || !HUB_TABS.has(activeTab)) return;
     if (profile) return; // already loaded
@@ -712,133 +731,23 @@ function StudioInner() {
 
               {/* ══ GO LIVE ══ */}
               {activeTab === 'live' && (
-                <div className="flex items-center justify-center min-h-full px-4 py-12">
-                  <div className="w-full max-w-sm">
-                    <div className="mb-8">
-                      <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Create a stream</h1>
-                      <p className="text-zinc-500 text-sm">Go live instantly or schedule for later.</p>
-                    </div>
-
-                    <div className="flex gap-1 p-1 mb-6 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-                      {(['live','scheduled'] as const).map(m => (
-                        <button key={m}
-                          onClick={() => { setMode(m); if (m === 'live') setScheduledAt(null); }}
-                          className={['flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all',
-                            mode === m ? 'bg-white/[0.10] text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'].join(' ')}
-                        >
-                          {m === 'live' ? <Radio className="w-3.5 h-3.5" /> : <Calendar className="w-3.5 h-3.5" />}
-                          {m === 'live' ? 'Go Live' : 'Schedule'}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Stream title</label>
-                        <input
-                          value={title} onChange={e => setTitle(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter' && mode === 'live') createStream(); }}
-                          placeholder="My live stream" autoFocus style={{ fontSize:'16px' }}
-                          className="w-full px-4 py-3 text-sm bg-white/[0.04] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/20 transition-colors"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
-                          Password <span className="text-zinc-700 font-normal normal-case">(optional)</span>
-                        </label>
-                        <input
-                          type="password" value={password} onChange={e => setPassword(e.target.value)}
-                          placeholder="Leave blank for public" style={{ fontSize:'16px' }}
-                          className="w-full px-4 py-3 text-sm bg-white/[0.04] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/20 transition-colors"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08]">
-                        <div>
-                          <p className="text-sm font-semibold text-white">List on Stream Vault</p>
-                          <p className="text-zinc-500 text-xs mt-0.5">Show in public browse, search, and categories</p>
-                        </div>
-                        <button type="button" onClick={() => setIsPublic(v => !v)} aria-pressed={isPublic}
-                          className={['relative w-10 h-6 rounded-full transition-colors flex-shrink-0', isPublic ? 'bg-[#ff3520]' : 'bg-white/10'].join(' ')}>
-                          <span className={['absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform', isPublic ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
-                        </button>
-                      </div>
-
-                      <AnimatePresence>
-                        {isPublic && (
-                          <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
-                            <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Category</label>
-                            <select value={categoryId} onChange={e => setCategoryId(e.target.value)}
-                              className="w-full px-4 py-3 text-sm bg-white/[0.04] border border-white/[0.08] rounded-xl text-white focus:outline-none focus:border-white/20 transition-colors">
-                              <option value="" className="bg-zinc-900">Select a category</option>
-                              {categories.map(c => (
-                                <option key={c.id} value={c.id} className="bg-zinc-900">{c.icon} {c.name}</option>
-                              ))}
-                            </select>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      <AnimatePresence>
-                        {mode === 'scheduled' && parsedSchedule && (
-                          <motion.div
-                            initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
-                            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#ff3520]/10 border border-[#ff3520]/20">
-                            <Clock className="w-4 h-4 text-[#ff3520] flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[#ff3520] text-xs font-semibold">Scheduled</p>
-                              <p className="text-zinc-400 text-xs truncate">
-                                {parsedSchedule.toLocaleDateString('en-US',{month:'short',day:'numeric'})} at{' '}
-                                {parsedSchedule.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
-                              </p>
-                            </div>
-                            <button onClick={() => { setScheduledAt(null); setShowSchedule(true); }} className="text-xs text-zinc-500 hover:text-white">Edit</button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      {error && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-4 py-2.5 rounded-xl">{error}</p>}
-
-                      {mode === 'live' ? (
-                        <button onClick={() => createStream()} disabled={loading}
-                          className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-[#ff3520] hover:bg-[#e02e1a] disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
-                          {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Zap className="w-4 h-4" />}
-                          {loading ? 'Creating...' : 'Create stream'}
-                        </button>
-                      ) : (
-                        <button onClick={() => { if (!title.trim()) { setError('Enter a stream title first'); return; } setError(''); setShowSchedule(true); }}
-                          disabled={loading}
-                          className="w-full py-3.5 rounded-xl text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
-                          style={{ background:'linear-gradient(135deg,#ff3520,#c81405)' }}>
-                          {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Calendar className="w-4 h-4" />}
-                          {loading ? 'Scheduling...' : 'Pick date & time'}
-                        </button>
-                      )}
-                    </div>
-
-                    <p className="text-zinc-700 text-xs text-center mt-5">Stream link expires after 24 hours</p>
-
-                    {recentStreams.length > 0 && (
-                      <div className="mt-8">
-                        <p className="text-zinc-600 text-[11px] font-bold uppercase tracking-widest mb-3">Recent</p>
-                        <div className="space-y-2">
-                          {recentStreams.slice(0,3).map(s => (
-                            <div key={s.roomId} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-white/10 transition-colors">
-                              <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
-                                {s.isLive ? <div className="w-2 h-2 rounded-full bg-[#ff3520] animate-pulse" /> : <Play className="w-3.5 h-3.5 text-zinc-600" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-white text-xs font-semibold truncate">{s.title}</p>
-                                <p className="text-zinc-600 text-[10px]">{new Date(s.createdAt).toLocaleDateString()}</p>
-                              </div>
-                              {s.isLive && <span className="text-[#ff3520] text-[10px] font-bold flex-shrink-0">LIVE</span>}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <StreamCreationWizard
+                  userId={userId}
+                  password={password}
+                  onPasswordChange={setPassword}
+                  categories={categories}
+                  payoutStatus={payoutStatus}
+                  onCreated={(created, wizardData) => {
+                    const newStream: StreamData = {
+                      ...created,
+                      title: wizardData.title.trim(),
+                      scheduledAt: (wizardData.scheduleEnabled && wizardData.scheduledAt) ? wizardData.scheduledAt : undefined,
+                    };
+                    setStream(newStream);
+                    setTitle(wizardData.title.trim());
+                    try { sessionStorage.setItem('sv_stream', JSON.stringify(newStream)); } catch {}
+                  }}
+                />
               )}
 
               {/* ══ SCHEDULE / CALENDAR ══ */}
@@ -1231,6 +1140,10 @@ function StudioInner() {
                     )}
                   </div>
                 </div>
+              )}
+
+              {activeTab === 'payouts' && !hubLoading && (
+                <PayoutsSettings userId={userId} />
               )}
 
             </motion.div>
