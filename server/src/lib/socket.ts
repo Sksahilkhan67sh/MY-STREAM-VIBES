@@ -61,12 +61,13 @@ export function initSocket(httpServer: HttpServer) {
       if (nickname) socket.to(roomId).emit('viewer-joined', { nickname });
     });
 
-    socket.on('chat-message', ({ roomId, message, nickname }) => {
+    socket.on('chat-message', ({ roomId, message, nickname, avatarUrl }) => {
       if (!message?.trim() || message.length > 500) return;
       if (!roomId) return;
       io.to(roomId).emit('chat-message', {
         id:        Date.now().toString(),
         nickname:  nickname || 'Anonymous',
+        avatarUrl: typeof avatarUrl === 'string' ? avatarUrl : null,
         message:   message.trim(),
         timestamp: new Date().toISOString(),
       });
