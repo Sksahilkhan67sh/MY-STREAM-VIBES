@@ -6,6 +6,7 @@ import CategoryPills from '@/components/discover/CategoryPills';
 import StreamCard from '@/components/discover/StreamCard';
 import { apiGet } from '@/lib/api';
 import type { CategoryLite, StreamCard as StreamCardType } from '@/lib/discover-types';
+import { useUserRole } from '@/hooks/useUserRole';
 
 const LANGUAGES = [
   { code: '', label: 'Any language' },
@@ -23,6 +24,7 @@ export default function CategoryBrowsePage() {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
   const slug = params.slug;
+  const { isCreator } = useUserRole();
 
   const [categories, setCategories] = useState<CategoryLite[]>([]);
   const [streams, setStreams] = useState<StreamCardType[]>([]);
@@ -121,9 +123,11 @@ export default function CategoryBrowsePage() {
         ) : streams.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">No live streams match these filters right now.</p>
-            <button onClick={() => router.push('/studio')} className="px-6 py-3 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors">
-              Start streaming →
-            </button>
+            {isCreator && (
+              <button onClick={() => router.push('/studio')} className="px-6 py-3 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors">
+                Start streaming →
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 pb-12">
