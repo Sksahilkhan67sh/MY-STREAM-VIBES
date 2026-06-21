@@ -128,60 +128,69 @@ router.get('/moderation-log/:streamId', async (req, res) => {
 });
 
 // ── AI Clip & Reel Generator ─────────────────────────────────────────────────
+// Pure heuristics on transcript/reaction data — no AI API call, no cost.
+// Extracted into its own function so it can be triggered automatically when
+// a stream ends (if the creator enabled "Auto Clips" in the wizard), as well
+// as from the existing manual endpoint below. Behavior is unchanged either way.
+export async function generateClipsForStream(roomId: string, requestedBy?: string) {
+  const stream = await prisma.stream.findUnique({
+    where: { roomId },
+    include: {
+      analyticsEvents: { where: { event: 'reaction' }, orderBy: { timestamp: 'asc' } },
+      transcript: { include: { segments: { orderBy: { startMs: 'asc' } } } },
+      clips: true,
+      analytics: true,
+    },
+  });
+  if (!stream) return null;
+
+  // Group reaction events into buckets by minute to find engagement peaks
+  const buckets = new Map<number, number>();
+  for (const ev of stream.analyticsEvents) {
+    const minuteBucket = Math.floor((new Date(ev.timestamp).getTime() - (stream.goneLiveAt ? new Date(stream.goneLiveAt).getTime() : 0)) / 60000);
+    buckets.set(minuteBucket, (buckets.get(minuteBucket) ?? 0) + 1);
+  }
+
+  // Pick top-3 engagement peaks as suggested clip windows
+  const peaks = [...buckets.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([min, count]) => ({
+      startSec: Math.max(0, (min - 1) * 60),
+      endSec: (min + 1) * 60,
+      engagementScore: count,
+      suggestedTitle: `Highlight at ${min}m`,
+    }));
+
+  // If no analytics data, generate evenly spaced highlights as fallback
+  if (peaks.length === 0 && stream.analytics) {
+    const dur = stream.analytics.durationSeconds;
+    if (dur > 120) {
+      for (let i = 0; i < 3; i++) {
+        const start = Math.floor((dur / 4) * (i + 1) - 30);
+        peaks.push({ startSec: Math.max(0, start), endSec: start + 60, engagementScore: 0, suggestedTitle: `Clip ${i + 1}` });
+      }
+    }
+  }
+
+  // Create clip records in DB for the suggested windows
+  const created = await Promise.all(peaks.map(p =>
+    prisma.streamClip.create({
+      data: { streamId: stream.id, title: p.suggestedTitle, startSec: p.startSec, endSec: p.endSec, status: 'suggested', createdBy: requestedBy ?? 'ai' },
+    })
+  ));
+
+  return created.map((c, i) => ({ ...c, engagementScore: peaks[i]?.engagementScore ?? 0 }));
+}
+
 // POST /api/ai-features/generate-clips/:streamId
 // Uses heuristics on transcript segments (high engagement moments) to suggest clip timestamps.
 router.post('/generate-clips/:streamId', async (req, res) => {
   try {
     const { requestedBy } = z.object({ requestedBy: z.string().optional() }).parse(req.body);
-
-    const stream = await prisma.stream.findUnique({
-      where: { roomId: req.params.streamId },
-      include: {
-        analyticsEvents: { where: { event: 'reaction' }, orderBy: { timestamp: 'asc' } },
-        transcript: { include: { segments: { orderBy: { startMs: 'asc' } } } },
-        clips: true,
-        analytics: true,
-      },
-    });
-    if (!stream) return res.status(404).json({ error: 'Stream not found' });
-
-    // Group reaction events into buckets by minute to find engagement peaks
-    const buckets = new Map<number, number>();
-    for (const ev of stream.analyticsEvents) {
-      const minuteBucket = Math.floor((new Date(ev.timestamp).getTime() - (stream.goneLiveAt ? new Date(stream.goneLiveAt).getTime() : 0)) / 60000);
-      buckets.set(minuteBucket, (buckets.get(minuteBucket) ?? 0) + 1);
-    }
-
-    // Pick top-3 engagement peaks as suggested clip windows
-    const peaks = [...buckets.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([min, count]) => ({
-        startSec: Math.max(0, (min - 1) * 60),
-        endSec: (min + 1) * 60,
-        engagementScore: count,
-        suggestedTitle: `Highlight at ${min}m`,
-      }));
-
-    // If no analytics data, generate evenly spaced highlights as fallback
-    if (peaks.length === 0 && stream.analytics) {
-      const dur = stream.analytics.durationSeconds;
-      if (dur > 120) {
-        for (let i = 0; i < 3; i++) {
-          const start = Math.floor((dur / 4) * (i + 1) - 30);
-          peaks.push({ startSec: Math.max(0, start), endSec: start + 60, engagementScore: 0, suggestedTitle: `Clip ${i + 1}` });
-        }
-      }
-    }
-
-    // Create clip records in DB for the suggested windows
-    const created = await Promise.all(peaks.map(p =>
-      prisma.streamClip.create({
-        data: { streamId: stream.id, title: p.suggestedTitle, startSec: p.startSec, endSec: p.endSec, status: 'suggested', createdBy: requestedBy ?? 'ai' },
-      })
-    ));
-
-    res.json({ clips: created.map((c, i) => ({ ...c, engagementScore: peaks[i]?.engagementScore ?? 0 })) });
+    const clips = await generateClipsForStream(req.params.streamId, requestedBy);
+    if (clips === null) return res.status(404).json({ error: 'Stream not found' });
+    res.json({ clips });
   } catch (err) {
     res.status(500).json({ error: 'Failed to generate clips' });
   }
