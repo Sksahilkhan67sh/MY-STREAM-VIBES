@@ -622,7 +622,7 @@ function StudioInner() {
 
         {/* Logo */}
         <div className="flex items-center justify-between px-5 py-5 border-b border-white/[0.06]">
-          <a href="/" className="flex items-center gap-2.5">
+          <a href="/feed" className="flex items-center gap-2.5">
             <img src="/logo.png" alt="StreamVault" className="w-7 h-7 object-contain" />
             <span className="font-bold text-white text-base tracking-tight">StreamVault</span>
           </a>
