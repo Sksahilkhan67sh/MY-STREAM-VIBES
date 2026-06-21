@@ -193,6 +193,24 @@ router.get('/following/:userId', async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
+    // For creators not currently live, fetch their most recent past stream
+    // separately — needed by the Following page's "Last Stream" column.
+    // Kept as a second query rather than a nested include because Prisma
+    // can't easily express "most recent regardless of live status" inside
+    // the same include without conflicting with the live-only one above.
+    const notLiveCreatorIds = follows.filter(f => f.creator.streams.length === 0).map(f => f.creator.id);
+    const lastStreams = notLiveCreatorIds.length
+      ? await prisma.stream.findMany({
+          where: { userId: { in: notLiveCreatorIds }, isPublic: true },
+          select: { userId: true, title: true, createdAt: true, thumbnailUrl: true },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+    const lastStreamByCreator = new Map<string, typeof lastStreams[number]>();
+    for (const s of lastStreams) {
+      if (s.userId && !lastStreamByCreator.has(s.userId)) lastStreamByCreator.set(s.userId, s);
+    }
+
     res.json({
       following: follows.map(f => ({
         creatorId: f.creator.id,
@@ -202,6 +220,7 @@ router.get('/following/:userId', async (req, res) => {
         notifyOnLive: f.notifyOnLive,
         isLive: f.creator.streams.length > 0,
         liveStream: f.creator.streams[0] || null,
+        lastStream: f.creator.streams.length === 0 ? (lastStreamByCreator.get(f.creator.id) || null) : null,
       })),
     });
   } catch (err) {
