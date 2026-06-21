@@ -7,18 +7,18 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const REACTIONS = ['❤️', '😂', '🔥', '👏', '😮', '🎉'];
 
 interface Message {
-  id: string; nickname: string; message: string; timestamp: string;
+  id: string; nickname: string; message: string; timestamp: string; avatarUrl?: string | null;
 }
 interface FloatingReaction {
   id: number; emoji: string; x: number;
 }
 
 interface ChatPanelProps {
-  roomId: string; identity: string; nickname: string;
+  roomId: string; identity: string; nickname: string; avatarUrl?: string | null;
   isHost?: boolean; socket?: Socket | null;
 }
 
-export default function ChatPanel({ roomId, identity, nickname, isHost, socket: externalSocket }: ChatPanelProps) {
+export default function ChatPanel({ roomId, identity, nickname, avatarUrl, isHost, socket: externalSocket }: ChatPanelProps) {
   const [messages, setMessages]   = useState<Message[]>([]);
   const [input, setInput]         = useState('');
   const [viewerCount, setViewerCount] = useState(0);
@@ -104,7 +104,7 @@ export default function ChatPanel({ roomId, identity, nickname, isHost, socket: 
       // moderation service unreachable — allow message through rather than block chat
     }
 
-    socketRef.current.emit('chat-message', { roomId, message: text, nickname });
+    socketRef.current.emit('chat-message', { roomId, message: text, nickname, avatarUrl });
     setInput('');
   };
 
@@ -154,11 +154,20 @@ export default function ChatPanel({ roomId, identity, nickname, isHost, socket: 
           <p className="text-xs text-gray-300 dark:text-gray-600 text-center py-6">No messages yet</p>
         )}
         {messages.map(msg => (
-          <div key={msg.id} className="text-sm">
-            <span className={`font-semibold mr-1 ${msg.nickname === 'Host' ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
-              {msg.nickname}
-            </span>
-            <span className="text-gray-500 dark:text-gray-400">{msg.message}</span>
+          <div key={msg.id} className="flex items-start gap-2 text-sm">
+            {msg.avatarUrl ? (
+              <img src={msg.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover flex-shrink-0 mt-0.5" />
+            ) : (
+              <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400">{msg.nickname?.[0]?.toUpperCase() || '?'}</span>
+              </div>
+            )}
+            <div>
+              <span className={`font-semibold mr-1 ${msg.nickname === 'Host' ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                {msg.nickname}
+              </span>
+              <span className="text-gray-500 dark:text-gray-400">{msg.message}</span>
+            </div>
           </div>
         ))}
         <div ref={bottomRef} />
