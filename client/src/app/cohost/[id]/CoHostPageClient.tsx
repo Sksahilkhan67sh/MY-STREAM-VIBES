@@ -78,7 +78,7 @@ export default function CoHostPageClient() {
         <div className="text-4xl mb-4">🚫</div>
         <h2 className="font-bold text-gray-900 dark:text-gray-100 mb-2 text-lg">Access Denied</h2>
         <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">{error}</p>
-        <a href="/" className="inline-block px-6 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg">
+        <a href="/feed" className="inline-block px-6 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg">
           Back to home
         </a>
       </div>
