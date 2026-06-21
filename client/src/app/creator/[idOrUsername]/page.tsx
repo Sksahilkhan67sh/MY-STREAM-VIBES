@@ -93,7 +93,7 @@ export default function CreatorProfilePage() {
         <SiteHeader />
         <div className="text-center py-24 px-4">
           <p className="text-gray-400 dark:text-gray-500 mb-4">This creator doesn&apos;t exist.</p>
-          <button onClick={() => router.push('/')} className="text-red-500 font-semibold text-sm hover:underline">
+          <button onClick={() => router.push('/feed')} className="text-red-500 font-semibold text-sm hover:underline">
             Back to home
           </button>
         </div>
