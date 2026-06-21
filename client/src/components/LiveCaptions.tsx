@@ -152,16 +152,23 @@ export function HostCaptionsControl({
   socket,
   roomId,
   hostToken,
+  autoStart = false,
 }: {
   socket: Socket | null;
   roomId: string;
   hostToken: string;
+  // When true, captions are started automatically once a socket connection
+  // is available — used to honor a "Enable Live Captions" choice made in the
+  // Stream Creation Wizard, fired the moment the host's session is ready
+  // rather than at wizard-completion time (no microphone exists yet then).
+  autoStart?: boolean;
 }) {
   const [isActive, setIsActive]     = useState(false);
   const [language, setLanguage]     = useState('en');
   const [showPanel, setShowPanel]   = useState(false);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
+  const autoStartedRef = useRef(false);
 
   const audioCtxRef    = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
@@ -234,6 +241,19 @@ export function HostCaptionsControl({
     socket.on('caption:error', ({ message }: { message: string }) => setError(message));
     return () => { socket.off('caption:started'); socket.off('caption:stopped'); socket.off('caption:error'); };
   }, [socket]);
+
+  // ── Auto-start (wizard preference) ──────────────────────────────────────
+  // Fires once, only when autoStart is requested and a socket connection
+  // exists. getUserMedia requires a user gesture in some browsers, but the
+  // host has already granted mic access to join the broadcast itself, so
+  // this typically succeeds silently; if the browser blocks it, the existing
+  // error UI below surfaces it exactly like a manual toggle failure would.
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current || !socket || isActive) return;
+    autoStartedRef.current = true;
+    toggle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, socket]);
 
   // Cleanup on unmount
   useEffect(() => () => stopCapture(), [stopCapture]);
