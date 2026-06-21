@@ -2,19 +2,25 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import { signIn, useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function LoginPage() {
+function LoginInner() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  // A viewer who hit a stream page while signed out is sent here with
+  // ?callbackUrl=/s/<roomId> so they land back where they meant to go,
+  // instead of always being dumped into Studio.
+  const callbackUrl = searchParams.get('callbackUrl') || '/studio';
+
   useEffect(() => {
-    if (status === 'authenticated') router.replace('/studio');
-  }, [status, router]);
+    if (status === 'authenticated') router.replace(callbackUrl);
+  }, [status, router, callbackUrl]);
 
   if (status === 'loading' || status === 'authenticated') {
     return (
@@ -28,7 +34,7 @@ export default function LoginPage() {
     setLoading(provider);
     setError('');
     try {
-      await signIn(provider, { callbackUrl: '/studio' });
+      await signIn(provider, { callbackUrl });
     } catch {
       setError('Something went wrong. Please try again.');
       setLoading(null);
@@ -130,5 +136,17 @@ export default function LoginPage() {
         </p>
       </motion.div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
+        <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-gray-900 animate-spin" />
+      </div>
+    }>
+      <LoginInner />
+    </Suspense>
   );
 }
