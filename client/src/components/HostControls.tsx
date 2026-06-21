@@ -37,10 +37,22 @@ import ModerationPanel       from './ModerationPanel';
 import ClipCreator           from './ClipCreator';
 import AITitleGenerator      from './AITitleGenerator';
 import AISummaryExport       from './AISummaryExport';
+import { HostCaptionsControl } from './LiveCaptions';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-interface StreamData { roomId: string; hostToken: string; livekitToken: string; viewerUrl: string; expiresAt: string; title?: string; }
+interface WizardPrefs {
+  moderation?: boolean;
+  aiSummary?: boolean;
+  autoClips?: boolean;
+  recording?: boolean;
+  captions?: boolean;
+  superChat?: boolean;
+  memberships?: boolean;
+  ppv?: boolean;
+  donations?: boolean;
+}
+interface StreamData { roomId: string; hostToken: string; livekitToken: string; viewerUrl: string; expiresAt: string; title?: string; wizardPrefs?: WizardPrefs | null; }
 interface HostControlsProps { stream: StreamData; appUrl: string; onCopy: () => void; copied: boolean; }
 
 // ── SVG Icons ─────────────────────────────────────────────────
@@ -768,6 +780,12 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
             </div>
           )}
           <ThemeToggle />
+          <HostCaptionsControl
+            socket={socketInstance}
+            roomId={stream.roomId}
+            hostToken={stream.hostToken}
+            autoStart={!!stream.wizardPrefs?.captions}
+          />
           <button onClick={() => { setPanelTab('chat'); setPanelOpen(true); }}
             className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
             {Icons.chat}<span className="hidden xs:inline sm:inline">Chat</span>
@@ -1163,23 +1181,42 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
                 </div>
               </div>
             )}
-
-            {/*
-              ── RECORDING PANEL — ALWAYS MOUNTED, NEVER DESTROYED ──
-              This stays in the DOM at all times so the MediaRecorder
-              is never killed when the user closes the panel or switches tabs.
-              It is simply hidden/shown with CSS visibility.
-            */}
-            <div className={activePanel === 'recording' ? 'block p-4' : 'hidden'}>
-              <RecordingPanel
-                roomId={stream.roomId}
-                hostToken={stream.hostToken}
-                streams={activeStreams}
-              />
-            </div>
           </div>
         )}
       </Panel>
+
+      {/*
+        ── RECORDING PANEL — ALWAYS MOUNTED, NEVER DESTROYED ──
+        Relocated outside <Panel> (which fully unmounts when the host closes
+        the side drawer) so an in-progress MediaRecorder, and any wizard
+        "Enable Replay Recording" auto-start, survive panel open/close and
+        tab switching. Exactly ONE <RecordingPanel> is ever rendered below —
+        only the surrounding backdrop/drawer chrome toggles visibility, so
+        there is never a second MediaRecorder competing for the same tracks.
+      */}
+      {(panelOpen && panelTab === 'tools' && activePanel === 'recording') && (
+        <div onClick={() => setActivePanel(null)} className="fixed inset-0 bg-black/30 z-40" />
+      )}
+      <div
+        className={
+          panelOpen && panelTab === 'tools' && activePanel === 'recording'
+            ? 'fixed right-0 top-0 bottom-0 w-full sm:w-80 bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800 z-50 flex flex-col shadow-2xl'
+            : 'hidden'
+        }
+      >
+        <button onClick={() => setActivePanel(null)}
+          className="flex items-center gap-2 px-4 py-3.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 border-b border-gray-100 dark:border-gray-800 w-full transition-colors flex-shrink-0">
+          {Icons.back} Back to tools
+        </button>
+        <div className="p-4 overflow-y-auto">
+          <RecordingPanel
+            roomId={stream.roomId}
+            hostToken={stream.hostToken}
+            streams={activeStreams}
+            autoStart={!!stream.wizardPrefs?.recording}
+          />
+        </div>
+      </div>
 
       {showRtmp && (
         <RtmpModal
