@@ -151,4 +151,51 @@ router.post('/become-creator', async (req, res) => {
   }
 });
 
+// ── Viewer Settings (account info + privacy + notification preferences) ────
+// Additive — new fields only, default values preserve today's exact
+// behavior for every existing user until they explicitly change something.
+
+// GET /api/users/:id/settings
+router.get('/:id/settings', async (req, res) => {
+  try {
+    const user = await resolveUser(req.params.id);
+    res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      profilePrivate: user.profilePrivate,
+      emailNotifsEnabled: user.emailNotifsEnabled,
+      pushNotifsEnabled: user.pushNotifsEnabled,
+    });
+  } catch (err) {
+    console.error('GET /users/:id/settings error:', err);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+const UpdateSettingsSchema = z.object({
+  profilePrivate: z.boolean().optional(),
+  emailNotifsEnabled: z.boolean().optional(),
+  pushNotifsEnabled: z.boolean().optional(),
+});
+
+// PATCH /api/users/:id/settings
+router.patch('/:id/settings', async (req, res) => {
+  try {
+    const data = UpdateSettingsSchema.parse(req.body);
+    const user = await resolveUser(req.params.id);
+    const updated = await prisma.user.update({ where: { id: user.id }, data });
+    res.json({
+      profilePrivate: updated.profilePrivate,
+      emailNotifsEnabled: updated.emailNotifsEnabled,
+      pushNotifsEnabled: updated.pushNotifsEnabled,
+    });
+  } catch (err: any) {
+    if (err?.issues) return res.status(400).json({ error: 'Invalid request', details: err.issues });
+    console.error('PATCH /users/:id/settings error:', err);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
 export default router;
