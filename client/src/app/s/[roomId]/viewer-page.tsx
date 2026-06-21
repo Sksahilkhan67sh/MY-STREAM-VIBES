@@ -16,6 +16,7 @@ import { DonateButton, DonationLeaderboard } from '@/components/donations/Donati
 import PPVGate from '@/components/ppv/PPVGate';
 import RatingWidget from '@/components/RatingWidget';
 import SaveButton from '@/components/discover/SaveButton';
+import { CaptionOverlay } from '@/components/LiveCaptions';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -30,6 +31,7 @@ interface StreamInfo {
   viewerCount:  number;
   isPPV:        boolean;
   ppvPrice:     number | null;
+  wizardPrefs?: { donations?: boolean; superChat?: boolean } | null;
 }
 
 export default function ViewerPage() {
@@ -47,6 +49,13 @@ export default function ViewerPage() {
   const [socketReady, setSocketReady] = useState(false);
   const [chatOpen, setChatOpen]   = useState(false);
   const [showDonate, setShowDonate] = useState(false);
+  const [captionsOn, setCaptionsOn] = useState(false);
+
+  // Defaults to true (the previous, unconditional behavior) whenever a
+  // stream has no wizardPrefs at all — only an explicit `false` from the
+  // wizard hides the donate button. This guarantees every stream created
+  // before this preference existed keeps behaving exactly as it did.
+  const donationsEnabled = stream?.wizardPrefs?.donations !== false;
 
   // ── Analytics: auto-tracks join/leave/watch-time ──
   const { trackEvent: trackAnalytics } = useAnalytics({
@@ -197,9 +206,23 @@ export default function ViewerPage() {
             <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
           </div>
           {socketReady && <PollWidget roomId={roomId} socket={socket} />}
+          {socketReady && (
+            <CaptionOverlay socket={socket} roomId={roomId} show={captionsOn} onToggle={() => setCaptionsOn(v => !v)} />
+          )}
           {/* Desktop donate button — bottom-left of video */}
-          <div className="absolute bottom-6 left-6 z-20">
-            <DonateButton onClick={() => setShowDonate(true)} />
+          <div className="absolute bottom-6 left-6 z-20 flex items-center gap-2">
+            {donationsEnabled && <DonateButton onClick={() => setShowDonate(true)} />}
+            <button
+              onClick={() => setCaptionsOn(v => !v)}
+              title={captionsOn ? 'Hide captions' : 'Show captions'}
+              className={`px-3 py-2 rounded-full text-xs font-bold border transition-colors ${
+                captionsOn
+                  ? 'bg-white text-black border-white'
+                  : 'bg-black/50 text-white border-white/30 hover:bg-black/70'
+              }`}
+            >
+              CC
+            </button>
           </div>
         </div>
 
@@ -208,6 +231,9 @@ export default function ViewerPage() {
           <div className="flex-1 min-h-0 bg-black relative overflow-hidden">
             <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
             {socketReady && <PollWidget roomId={roomId} socket={socket} />}
+            {socketReady && (
+              <CaptionOverlay socket={socket} roomId={roomId} show={captionsOn} onToggle={() => setCaptionsOn(v => !v)} />
+            )}
           </div>
           {/* Title bar + chat toggle + donate */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 flex-shrink-0">
@@ -216,7 +242,18 @@ export default function ViewerPage() {
               <span className="truncate">{stream.title}</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-              <DonateButton onClick={() => setShowDonate(true)} />
+              {donationsEnabled && <DonateButton onClick={() => setShowDonate(true)} />}
+              <button
+                onClick={() => setCaptionsOn(v => !v)}
+                title={captionsOn ? 'Hide captions' : 'Show captions'}
+                className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  captionsOn
+                    ? 'bg-white text-black border-white'
+                    : 'text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                }`}
+              >
+                CC
+              </button>
               <button
                 onClick={() => setChatOpen(o => !o)}
                 className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors"
@@ -236,7 +273,7 @@ export default function ViewerPage() {
       <div className="hidden lg:flex w-80 flex-shrink-0 border-l border-zinc-800/60 flex-col">
         {/* Leaderboard above chat */}
         <div className="px-3 pt-3 flex items-center justify-between gap-2">
-          <div className="flex-1"><DonationLeaderboard roomId={roomId} socket={socket} currency="INR" /></div>
+          {donationsEnabled && <div className="flex-1"><DonationLeaderboard roomId={roomId} socket={socket} currency="INR" /></div>}
           <SaveButton streamId={stream.id} className="!bg-zinc-800 hover:!bg-zinc-700 flex-shrink-0" />
         </div>
         <div className="px-3 pt-2"><RatingWidget streamId={stream.id} /></div>
