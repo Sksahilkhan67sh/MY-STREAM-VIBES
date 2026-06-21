@@ -17,7 +17,14 @@ const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
 async function notifyFollowersOfGoLive(creatorId: string, streamTitle: string, roomId: string) {
   const [creator, followers] = await Promise.all([
     prisma.user.findUnique({ where: { id: creatorId }, select: { name: true, username: true } }),
-    prisma.follow.findMany({ where: { creatorId, notifyOnLive: true }, select: { followerId: true } }),
+    // pushNotifsEnabled is the in-app/real-time notification channel this
+    // Notification model actually powers (the bell icon) — a viewer who has
+    // turned off notifications globally in Settings should not get one here
+    // just because notifyOnLive happens to be true for this one creator.
+    prisma.follow.findMany({
+      where: { creatorId, notifyOnLive: true, follower: { pushNotifsEnabled: true } },
+      select: { followerId: true },
+    }),
   ]);
   if (!followers.length) return;
 
