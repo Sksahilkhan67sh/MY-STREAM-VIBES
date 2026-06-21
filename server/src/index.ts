@@ -43,6 +43,7 @@ import notifsRouter                          from './routes/notifs';
 import aiFeaturesRouter                      from './routes/ai-features';
 import sponsorshipRouter                     from './routes/sponsorship';
 import usersRouter                           from './routes/users';
+import streamDraftsRouter                    from './routes/stream-drafts';
 
 const app        = express();
 const httpServer = createServer(app);
@@ -111,6 +112,7 @@ app.use('/api/notifs',        notifsRouter);
 app.use('/api/ai-features',   aiFeaturesRouter);
 app.use('/api/sponsorship',   sponsorshipRouter);
 app.use('/api/users',         usersRouter);
+app.use('/api/stream-drafts', streamDraftsRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
