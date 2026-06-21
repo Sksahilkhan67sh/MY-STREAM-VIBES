@@ -33,6 +33,15 @@ model User {
   bio         String?
   socialLinks Json?   @default("{}")
 
+  // ── Viewer settings (additive) ──────────────────────────────
+  // Defaults match today's actual behavior exactly: history/follows were
+  // always visible (no privacy concept existed before), and all
+  // notifications were always sent. No existing user's experience changes
+  // until they explicitly flip one of these off.
+  profilePrivate      Boolean @default(false)
+  emailNotifsEnabled  Boolean @default(true)
+  pushNotifsEnabled   Boolean @default(true)
+
   streams          Stream[]
   subscription     Subscription[]   @relation("UserSubscription")
   rtmpDestinations RtmpDestination[]
