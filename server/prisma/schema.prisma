@@ -220,6 +220,14 @@ model Stream {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  // ── Stream Creation Wizard ──────────────────────────────────
+  // JSON blob of the creator's wizard toggle choices (moderation, AI summary,
+  // auto-clips, captions, recording, super chat, memberships, ppv, donations,
+  // notify followers, community post, countdown). Nullable — streams created
+  // before the wizard existed, or via any other path, simply have null here
+  // and every consumer treats null/missing keys as "off", so nothing breaks.
+  wizardPrefs  String?   @db.Text
+
   // ── Discovery fields ────────────────────────────────────────
   isPublic     Boolean   @default(false)
   categoryId   String?
@@ -568,6 +576,21 @@ model MultiStreamSession {
 }
 
 // ── NEW MODELS ────────────────────────────────────────────────────────────────
+
+// Stream Creation Wizard — autosaved draft, one row per creator. Lets wizard
+// progress survive a page refresh or accidental navigation before "Start
+// Stream" is pressed and a real Stream row exists. Fully additive (new
+// table, no changes to any existing table).
+model StreamWizardDraft {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  data      String   @db.Text // JSON blob of all wizard step fields
+  step      Int      @default(1)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
 
 model StreamSummary {
   id               String   @id @default(cuid())
