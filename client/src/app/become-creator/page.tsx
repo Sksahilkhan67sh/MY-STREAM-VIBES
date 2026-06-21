@@ -120,7 +120,7 @@ export default function BecomeCreatorPage() {
         </button>
         <p className="text-zinc-700 text-xs text-center mt-4">No new account. No data loss. Your existing profile carries over.</p>
 
-        <button onClick={() => router.push('/')} className="w-full text-center text-xs text-zinc-600 hover:text-zinc-400 mt-6">
+        <button onClick={() => router.push('/feed')} className="w-full text-center text-xs text-zinc-600 hover:text-zinc-400 mt-6">
           Not right now, take me back
         </button>
       </motion.div>
