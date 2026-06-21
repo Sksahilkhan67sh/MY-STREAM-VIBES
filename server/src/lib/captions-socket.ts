@@ -15,11 +15,11 @@ export function registerCaptionHandlers(io: IoServer): void {
 
   // Broadcast caption segments to all viewers in the room
   captionsService.on('segment', ({ roomId, segment }) => {
-    io.to(`room:${roomId}`).emit('caption:segment', segment);
+    io.to(roomId).emit('caption:segment', segment);
   });
 
   captionsService.on('error', ({ roomId, message }) => {
-    io.to(`room:${roomId}`).emit('caption:error', { message });
+    io.to(roomId).emit('caption:error', { message });
   });
 
   io.on('connection', (socket: Socket) => {
@@ -35,7 +35,7 @@ export function registerCaptionHandlers(io: IoServer): void {
         const session = await captionsService.startSession(roomId, stream.id, language ?? 'en', provider ?? 'deepgram');
         socket.emit('caption:started', session);
         // Notify all viewers
-        io.to(`room:${roomId}`).emit('caption:status', { active: true, language: session.language });
+        io.to(roomId).emit('caption:status', { active: true, language: session.language });
       } catch (err) {
         socket.emit('caption:error', { message: (err as Error).message });
       }
@@ -55,7 +55,7 @@ export function registerCaptionHandlers(io: IoServer): void {
         if (!stream || stream.hostToken !== hostToken) return;
         await captionsService.stopSession(roomId);
         socket.emit('caption:stopped', { ok: true });
-        io.to(`room:${roomId}`).emit('caption:status', { active: false });
+        io.to(roomId).emit('caption:status', { active: false });
       } catch (err) {
         socket.emit('caption:error', { message: (err as Error).message });
       }
