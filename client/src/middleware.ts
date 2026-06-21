@@ -6,8 +6,9 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn   = !!req.auth;
   const isLoginPage  = pathname === '/login';
-  // Protect both /studio (new) and /host (legacy redirect) behind auth
-  const isProtected  = pathname.startsWith('/studio') || pathname.startsWith('/host');
+  // Protect /studio (new), /host (legacy redirect), and /s/[roomId] (watching
+  // a stream now requires sign-in — see token.ts for why) behind auth.
+  const isProtected  = pathname.startsWith('/studio') || pathname.startsWith('/host') || pathname.startsWith('/s/');
   const isApiAuth    = pathname.startsWith('/api/auth');
   const isCoHost     = pathname.startsWith('/cohost');
 
@@ -19,9 +20,13 @@ export default auth((req) => {
     return NextResponse.redirect(new URL('/studio', req.nextUrl));
   }
 
-  // Protect /studio and /host — redirect to login if not authenticated
+  // Protect /studio, /host, and /s/[roomId] — redirect to login if not
+  // authenticated, carrying the original destination as callbackUrl so the
+  // visitor lands back where they meant to go (e.g. the stream they clicked).
   if (!isLoggedIn && isProtected) {
-    return NextResponse.redirect(new URL('/login', req.nextUrl));
+    const loginUrl = new URL('/login', req.nextUrl);
+    loginUrl.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
