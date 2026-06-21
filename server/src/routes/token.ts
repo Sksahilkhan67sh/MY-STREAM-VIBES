@@ -8,12 +8,26 @@ const router = Router();
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8);
 
 // POST /api/token/viewer
+// Requires a signed-in viewer. `userId` must correspond to a real account —
+// this is intentional: guest/anonymous viewing has been removed so that
+// chat identity, follows, and watch history are always tied to a real
+// account, and a viewer's displayed name/avatar can never be spoofed by
+// client-supplied text the way a free-typed nickname could be before.
 router.post('/viewer', async (req, res) => {
   try {
-    const { roomId, nickname, password } = req.body;
+    const { roomId, userId, password } = req.body;
 
-    const stream = await prisma.stream.findUnique({ where: { roomId } });
+    if (!userId) {
+      return res.status(401).json({ error: 'Sign in required to watch streams.' });
+    }
+
+    const [stream, user] = await Promise.all([
+      prisma.stream.findUnique({ where: { roomId } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, username: true, avatarUrl: true } }),
+    ]);
+
     if (!stream) return res.status(404).json({ error: 'Stream not found' });
+    if (!user)   return res.status(401).json({ error: 'Sign in required to watch streams.' });
     if (new Date() > stream.expiresAt) {
       return res.status(410).json({ error: 'Stream link has expired' });
     }
@@ -29,12 +43,19 @@ router.post('/viewer', async (req, res) => {
       if (!valid) return res.status(401).json({ error: 'Invalid password' });
     }
 
-    // Always append nanoid suffix to prevent identity collision when multiple viewers share the same nickname
-    const safeNick = nickname ? nickname.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase().slice(0, 20) : 'viewer';
-    const identity = `viewer-${safeNick}-${nanoid()}`;
+    const displayName = user.name || user.username || 'Viewer';
+    // Unique per join (not just per account) so the same person watching
+    // from two tabs/devices doesn't collide on one LiveKit identity and
+    // silently disconnect one of their own sessions.
+    const identity = `viewer-${user.id}-${nanoid()}`;
     const token = await createViewerToken(roomId, identity);
 
-    res.json({ token, identity });
+    res.json({
+      token,
+      identity,
+      nickname: displayName,
+      avatarUrl: user.avatarUrl || null,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to generate token' });
