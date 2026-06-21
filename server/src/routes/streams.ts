@@ -3,10 +3,35 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { customAlphabet } from 'nanoid';
 import { createHostToken } from '../lib/livekit-server';
+import { generateClipsForStream } from './ai-features';
 import prisma from '../lib/prisma';
 
 const router = Router();
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
+
+// ── Notify Followers on go-live (real implementation) ──────────────────────
+// Previously notifyOnLive was stored on Follow but never read anywhere, and
+// the goingLiveNow transition was detected but unused. This wires the two
+// together using the existing Notification model — purely additive, no
+// schema change, no existing notification path touched.
+async function notifyFollowersOfGoLive(creatorId: string, streamTitle: string, roomId: string) {
+  const [creator, followers] = await Promise.all([
+    prisma.user.findUnique({ where: { id: creatorId }, select: { name: true, username: true } }),
+    prisma.follow.findMany({ where: { creatorId, notifyOnLive: true }, select: { followerId: true } }),
+  ]);
+  if (!followers.length) return;
+
+  const creatorName = creator?.name || creator?.username || 'A creator you follow';
+  await prisma.notification.createMany({
+    data: followers.map(f => ({
+      userId:    f.followerId,
+      type:      'live',
+      title:     `${creatorName} is live`,
+      body:      streamTitle,
+      actionUrl: `/s/${roomId}`,
+    })),
+  });
+}
 
 const CreateStreamSchema = z.object({
   title:          z.string().min(1).max(100),
@@ -20,6 +45,9 @@ const CreateStreamSchema = z.object({
   language:       z.string().default('en'),
   country:        z.string().optional(),
   tags:           z.array(z.string()).max(10).optional(),
+  // ── Stream Creation Wizard (additive) ──
+  thumbnailUrl:   z.string().optional(),
+  wizardPrefs:    z.record(z.any()).optional(),
 });
 
 // POST /api/streams
@@ -68,6 +96,8 @@ router.post('/', async (req, res) => {
         language:    data.language,
         country:     data.country || null,
         tags:        JSON.stringify(data.tags || []),
+        thumbnailUrl: data.thumbnailUrl || null,
+        wizardPrefs:  data.wizardPrefs ? JSON.stringify(data.wizardPrefs) : null,
       },
     });
 
@@ -77,6 +107,7 @@ router.post('/', async (req, res) => {
       livekitToken,
       viewerUrl:   `/s/${roomId}`,
       expiresAt:   stream.expiresAt,
+      wizardPrefs: data.wizardPrefs || null,
     });
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors });
@@ -102,6 +133,7 @@ router.get('/:roomId', async (req, res) => {
         viewerCount:  true,
         passwordHash: true,
         thumbnailUrl: true,
+        wizardPrefs:  true,
         category:     { select: { id: true, name: true, slug: true, icon: true } },
         user:         { select: { id: true, name: true, username: true, avatarUrl: true } },
       },
@@ -122,6 +154,9 @@ router.get('/:roomId', async (req, res) => {
       if (tiers.length > 0) { isPPV = true; ppvPrice = tiers[0].price; }
     } catch {} // TicketTier may not exist yet — ignore
 
+    let wizardPrefs: Record<string, any> | null = null;
+    try { wizardPrefs = stream.wizardPrefs ? JSON.parse(stream.wizardPrefs) : null; } catch {}
+
     res.json({
       id:          stream.id,
       roomId:      stream.roomId,
@@ -138,6 +173,7 @@ router.get('/:roomId', async (req, res) => {
       creator:     stream.user,
       isPPV,
       ppvPrice,
+      wizardPrefs,
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to get stream' });
@@ -147,19 +183,50 @@ router.get('/:roomId', async (req, res) => {
 // PATCH /api/streams/:roomId
 router.patch('/:roomId', async (req, res) => {
   try {
-    const { hostToken, isLive } = req.body;
+    const { hostToken, isLive, description, tags, wizardPrefs } = req.body;
     const stream = await prisma.stream.findUnique({ where: { roomId: req.params.roomId } });
     if (!stream)                         return res.status(404).json({ error: 'Stream not found' });
     if (stream.hostToken !== hostToken)  return res.status(403).json({ error: 'Unauthorized' });
 
-    const goingLiveNow = isLive === true && !stream.isLive;
+    const goingLiveNow    = isLive === true  && !stream.isLive;
+    const goingOfflineNow = isLive === false && stream.isLive;
     const updated = await prisma.stream.update({
       where: { roomId: req.params.roomId },
       data:  {
         ...(isLive !== undefined && { isLive }),
         ...(goingLiveNow && { goneLiveAt: new Date() }),
+        // ── Additive: wizard can patch these after creation too ──
+        ...(description !== undefined && { description }),
+        ...(Array.isArray(tags) && { tags: JSON.stringify(tags) }),
+        ...(wizardPrefs !== undefined && { wizardPrefs: wizardPrefs ? JSON.stringify(wizardPrefs) : null }),
       },
     });
+
+    // ── Auto Clips (real, free — heuristics only, no AI API cost) ───────────
+    // Only fires once, the instant a stream transitions from live to offline,
+    // and only if the creator enabled "Auto Clips" in the Stream Creation
+    // Wizard. Fire-and-forget — must never fail or delay the end-stream
+    // request itself.
+    if (goingOfflineNow) {
+      let prefs: Record<string, any> | null = null;
+      try { prefs = stream.wizardPrefs ? JSON.parse(stream.wizardPrefs) : null; } catch {}
+      if (prefs?.autoClips) {
+        generateClipsForStream(updated.roomId, 'auto-clips-wizard').catch(err =>
+          console.error('[streams] auto-clips generation failed:', err)
+        );
+      }
+    }
+
+    // ── Notify Followers (real, in-app) ─────────────────────────────────────
+    // Only fires the instant a stream transitions to live, and only for
+    // followers who opted in via notifyOnLive (default true). Fire-and-forget
+    // — a notification failure must never fail the go-live request itself.
+    if (goingLiveNow && stream.userId) {
+      notifyFollowersOfGoLive(stream.userId, updated.title, updated.roomId).catch(err =>
+        console.error('[streams] follower notify failed:', err)
+      );
+    }
+
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update stream' });
