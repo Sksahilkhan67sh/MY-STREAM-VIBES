@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { incrementViewerCount, decrementViewerCount } from './redis';
+import { registerCaptionHandlers } from './captions-socket';
 import prisma from './prisma';
 
 let io: SocketServer;
@@ -107,6 +108,10 @@ export function initSocket(httpServer: HttpServer) {
       }
     });
   });
+
+  // Live captions — built previously but never registered. Adding its own
+  // connection listener is safe; Socket.IO fires every registered listener.
+  registerCaptionHandlers(io);
 
   console.log('✅ Socket.io initialized');
   return io;
