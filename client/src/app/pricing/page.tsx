@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { useUserRole } from '@/hooks/useUserRole';
 import {
   Check, X, Zap, Star, Building2, Sparkles,
   ArrowRight, Loader2, Shield,
@@ -93,6 +94,7 @@ const FEATURE_ROWS = [
 export default function PricingPage() {
   const router             = useRouter();
   const { data: session }  = useSession();
+  const { isCreator } = useUserRole();
   const [plans, setPlans]  = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
@@ -200,8 +202,8 @@ export default function PricingPage() {
         </a>
         <div className="flex items-center gap-3">
           {session ? (
-            <button onClick={() => router.push('/studio')} className="text-sm font-semibold text-zinc-300 hover:text-white transition-colors">
-              Go to dashboard →
+            <button onClick={() => router.push(isCreator ? '/studio' : '/feed')} className="text-sm font-semibold text-zinc-300 hover:text-white transition-colors">
+              {isCreator ? 'Go to dashboard →' : 'Browse streams →'}
             </button>
           ) : (
             <button onClick={() => router.push('/login')} className="text-sm font-semibold text-zinc-300 hover:text-white transition-colors">
