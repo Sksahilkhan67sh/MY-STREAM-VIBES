@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell } from 'lucide-react';
 import { apiGet, apiPatch, API } from '@/lib/api';
+import { useNotificationSocket } from './NotificationSocketContext';
 
 interface Notif {
   id: string; type: string; title: string; body: string;
@@ -21,6 +22,7 @@ export default function NotificationBell({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { onNotification } = useNotificationSocket();
 
   const load = async () => {
     try {
@@ -32,9 +34,21 @@ export default function NotificationBell({ userId }: { userId: string }) {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 30000); // poll every 30s
+    const interval = setInterval(load, 30000); // poll every 30s — backstop if the socket below ever misses one
     return () => clearInterval(interval);
   }, [userId]);
+
+  // Real-time: bump the bell instantly instead of waiting for the next poll.
+  useEffect(() => {
+    const unsubscribe = onNotification((n) => {
+      setUnread(u => u + 1);
+      setNotifs(prev => [
+        { id: n.id, type: n.type, title: n.title, body: n.body, actionUrl: n.actionUrl ?? undefined, isRead: n.isRead, createdAt: n.createdAt },
+        ...prev,
+      ].slice(0, 20));
+    });
+    return unsubscribe;
+  }, [onNotification]);
 
   // Close on outside click
   useEffect(() => {
