@@ -90,3 +90,55 @@ export async function decrementViewerCount(roomId: string): Promise<number> {
     return Math.max(0, val ?? 0);
   } catch { return 0; }
 }
+
+// ── Generic cache helpers ───────────────────────────────────────────────────
+// Used by search/feed/creator-profile caching. Same in-memory fallback
+// pattern as viewer counts: if Redis isn't available, callers simply miss
+// the cache every time and fall through to a live DB query — never an
+// error, never a behavior change, just slower without Redis configured.
+const memCache = new Map<string, { value: string; expiresAt: number }>();
+
+export async function getCache<T>(key: string): Promise<T | null> {
+  if (!available || !client) {
+    const entry = memCache.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt < Date.now()) { memCache.delete(key); return null; }
+    try { return JSON.parse(entry.value) as T; } catch { return null; }
+  }
+  try {
+    const val = await client.get(key);
+    return val ? (JSON.parse(val) as T) : null;
+  } catch { return null; }
+}
+
+export async function setCache(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  const serialized = JSON.stringify(value);
+  if (!available || !client) {
+    memCache.set(key, { value: serialized, expiresAt: Date.now() + ttlSeconds * 1000 });
+    // Bound the in-memory fallback so a long-running no-Redis instance can't leak memory.
+    if (memCache.size > 2000) {
+      const oldestKey = memCache.keys().next().value;
+      if (oldestKey) memCache.delete(oldestKey);
+    }
+    return;
+  }
+  try { await client.set(key, serialized, { EX: ttlSeconds }); } catch { /* non-fatal */ }
+}
+
+export async function deleteCache(keyOrPrefix: string, isPrefix = false): Promise<void> {
+  if (!available || !client) {
+    if (!isPrefix) { memCache.delete(keyOrPrefix); return; }
+    for (const k of memCache.keys()) if (k.startsWith(keyOrPrefix)) memCache.delete(k);
+    return;
+  }
+  try {
+    if (!isPrefix) { await client.del(keyOrPrefix); return; }
+    // SCAN rather than KEYS — safe to run against production Redis without blocking it.
+    let cursor = 0;
+    do {
+      const reply = await client.scan(cursor, { MATCH: `${keyOrPrefix}*`, COUNT: 100 });
+      cursor = reply.cursor;
+      if (reply.keys.length) await client.del(reply.keys);
+    } while (cursor !== 0);
+  } catch { /* non-fatal */ }
+}
