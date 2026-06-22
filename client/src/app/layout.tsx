@@ -4,6 +4,8 @@ import { ThemeProvider } from '@/components/ThemeContext';
 import { SessionProvider } from 'next-auth/react';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import { I18nProvider } from '@/components/I18nContext';
+import { NotificationSocketProvider } from '@/components/NotificationSocketContext';
+import NotificationToastHost from '@/components/NotificationToastHost';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://my-stream-vibes-client.vercel.app'),
@@ -50,7 +52,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionProvider>
           <ThemeProvider>
             <I18nProvider>
-              {children}
+              <NotificationSocketProvider>
+                {children}
+                <NotificationToastHost />
+              </NotificationSocketProvider>
             </I18nProvider>
           </ThemeProvider>
         </SessionProvider>
