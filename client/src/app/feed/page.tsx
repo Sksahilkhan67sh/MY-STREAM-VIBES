@@ -23,6 +23,8 @@ export default function FeedPage() {
   const [recommended, setRecommended] = useState<StreamCardType[]>([]);
   const [fromFollowed, setFromFollowed] = useState<StreamCardType[]>([]);
   const [becauseYouLiked, setBecauseYouLiked] = useState<StreamCardType[]>([]);
+  const [recommendedReplays, setRecommendedReplays] = useState<StreamCardType[]>([]);
+  const [usedFallback, setUsedFallback] = useState(false);
   const [topCreators, setTopCreators] = useState<CreatorSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,15 +54,23 @@ export default function FeedPage() {
         setLiveNow(live.streams);
 
         // AI-powered recommendations for signed-in viewers; generic fallback otherwise
+        let usedRealRecommendedCreators = false;
         if (userId) {
           try {
-            const ai = await apiGet<{ forYou: StreamCardType[]; fromFollowed: StreamCardType[]; becauseYouLiked: StreamCardType[] }>(
-              `/api/ai-features/recommendations/${encodeURIComponent(userId)}`
-            );
+            const ai = await apiGet<{
+              forYou: StreamCardType[]; fromFollowed: StreamCardType[]; becauseYouLiked: StreamCardType[];
+              recommendedCreators?: CreatorSearchResult[]; recommendedReplays?: StreamCardType[]; usedFallback?: boolean;
+            }>(`/api/ai-features/recommendations/${encodeURIComponent(userId)}`);
             if (!cancelled) {
               setRecommended(ai.forYou);
               setFromFollowed(ai.fromFollowed);
               setBecauseYouLiked(ai.becauseYouLiked);
+              setRecommendedReplays(ai.recommendedReplays || []);
+              setUsedFallback(!!ai.usedFallback);
+              if (ai.recommendedCreators && ai.recommendedCreators.length > 0) {
+                setTopCreators(ai.recommendedCreators);
+                usedRealRecommendedCreators = true;
+              }
             }
           } catch {
             const rec = await apiGet<{ streams: StreamCardType[] }>(`/api/discover/recommended?userId=${encodeURIComponent(userId)}`);
@@ -71,21 +81,25 @@ export default function FeedPage() {
           if (!cancelled) setRecommended(rec.streams);
         }
 
-        // Top creators — derive from search with empty-ish broad query isn't supported,
-        // so pull from the most-viewed live streams' creators as a reasonable proxy.
-        const seen = new Set<string>();
-        const creators: CreatorSearchResult[] = [];
-        for (const s of [...trending.mostViewed, ...live.streams]) {
-          if (s.user && !seen.has(s.user.id)) {
-            seen.add(s.user.id);
-            creators.push({
-              id: s.user.id, name: s.user.name, username: s.user.username,
-              avatarUrl: s.user.avatarUrl, bio: null, followerCount: 0, streamCount: 0,
-            });
+        // Top creators fallback — only used when there's no real
+        // recommendedCreators signal (logged-out visitor, or a signed-in
+        // user whose recommendation call failed/returned none). Derives a
+        // reasonable proxy from the most-viewed live streams' creators.
+        if (!usedRealRecommendedCreators) {
+          const seen = new Set<string>();
+          const creators: CreatorSearchResult[] = [];
+          for (const s of [...trending.mostViewed, ...live.streams]) {
+            if (s.user && !seen.has(s.user.id)) {
+              seen.add(s.user.id);
+              creators.push({
+                id: s.user.id, name: s.user.name, username: s.user.username,
+                avatarUrl: s.user.avatarUrl, bio: null, followerCount: 0, streamCount: 0,
+              });
+            }
+            if (creators.length >= 8) break;
           }
-          if (creators.length >= 8) break;
+          if (!cancelled) setTopCreators(creators);
         }
-        setTopCreators(creators);
       } catch {
         // discovery API may be unreachable (server down / not yet deployed) — show empty states
       } finally {
@@ -122,10 +136,13 @@ export default function FeedPage() {
           {/* Live Now */}
           <StreamRow title="Live Now" icon="🔴" streams={liveNow} emptyText="No one is live right now — check back soon." />
 
-          {/* Recommended */}
+          {/* Recommended — honest labeling: if there's no real personalization
+              signal yet (brand-new account), this is trending content, not
+              a personalized pick, so it's labeled accordingly rather than
+              implying personalization that didn't happen. */}
           <StreamRow
-            title="Recommended For You"
-            icon="⭐"
+            title={usedFallback ? 'Trending Now' : 'Recommended For You'}
+            icon={usedFallback ? '🔥' : '⭐'}
             streams={recommended}
             emptyText="Follow creators and watch a few streams to get personalized picks."
           />
@@ -136,12 +153,15 @@ export default function FeedPage() {
           {becauseYouLiked.length > 0 && (
             <StreamRow title="Because You Liked Similar Streams" icon="💜" streams={becauseYouLiked} />
           )}
+          {recommendedReplays.length > 0 && (
+            <StreamRow title="Replays You Might Like" icon="📼" streams={recommendedReplays} />
+          )}
 
           {/* Top Creators */}
           {topCreators.length > 0 && (
             <section className="mb-10">
               <h2 className="flex items-center gap-2 text-base sm:text-lg font-bold mb-4 px-4 sm:px-8">
-                <span>🎥</span> Top Creators
+                <span>🎥</span> {usedFallback ? 'Popular Creators' : 'Recommended Creators'}
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 px-4 sm:px-8">
                 {topCreators.map(c => <CreatorCard key={c.id} creator={c} />)}
