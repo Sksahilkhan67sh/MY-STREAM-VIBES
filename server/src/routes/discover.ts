@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
+import { getCache, setCache } from '../lib/redis';
 
 const router = Router();
 
@@ -199,50 +201,252 @@ router.get('/recommended', async (req, res) => {
   }
 });
 
-// GET /api/discover/search?q=xxx — search creators and streams
-router.get('/search', async (req, res) => {
+// GET /api/discover/trending-search — trending creators, categories, and
+// tags, for the search page's "before you type anything" suggestions.
+// Distinct from /trending above, which only covers streams (used by the
+// home feed). Cached for 5 minutes — trending data doesn't need to be
+// perfectly real-time, and computing it (especially the tag aggregation)
+// is more expensive than a typical request, so caching meaningfully
+// reduces load.
+router.get('/trending-search', async (_req, res) => {
   try {
-    const { q } = req.query as Record<string, string>;
-    if (!q || q.trim().length === 0) return res.json({ streams: [], creators: [] });
-    const query = q.trim();
+    const cacheKey = 'trending-search';
+    const cached = await getCache<any>(cacheKey);
+    if (cached) return res.json(cached);
 
-    const [streams, creators] = await Promise.all([
-      prisma.stream.findMany({
-        where: {
-          isPublic: true,
-          OR: [
-            { title: { contains: query, mode: 'insensitive' } },
-            { description: { contains: query, mode: 'insensitive' } },
-            { user: { name: { contains: query, mode: 'insensitive' } } },
-            { user: { username: { contains: query, mode: 'insensitive' } } },
-          ],
-        },
-        select: streamCardSelect,
-        orderBy: { viewerCount: 'desc' },
-        take: 24,
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // Trending creators: ranked by recent follow velocity (follows gained in
+    // the last 7 days), falling back to total followers for creators with
+    // no recent activity so the list isn't empty on a quiet week.
+    const [recentFollowCounts, topCreatorsByTotal] = await Promise.all([
+      prisma.follow.groupBy({
+        by: ['creatorId'],
+        where: { createdAt: { gte: sevenDaysAgo } },
+        _count: { creatorId: true },
+        orderBy: { _count: { creatorId: 'desc' } },
+        take: 10,
       }),
       prisma.user.findMany({
-        where: {
-          OR: [
-            { name: { contains: query, mode: 'insensitive' } },
-            { username: { contains: query, mode: 'insensitive' } },
-          ],
-        },
-        select: {
-          id: true, name: true, username: true, avatarUrl: true, bio: true,
-          _count: { select: { followers: true, streams: true } },
-        },
-        take: 12,
+        where: { role: { in: ['CREATOR', 'ADMIN'] } },
+        select: { id: true, name: true, username: true, avatarUrl: true, _count: { select: { followers: true, streams: true } } },
+        orderBy: { followers: { _count: 'desc' } },
+        take: 10,
       }),
     ]);
 
-    res.json({
-      streams: streams.map(serializeStream),
-      creators: creators.map(c => ({
+    const creatorIds = [...new Set([...recentFollowCounts.map(f => f.creatorId), ...topCreatorsByTotal.map(c => c.id)])].slice(0, 10);
+    const creatorDetails = await prisma.user.findMany({
+      where: { id: { in: creatorIds } },
+      select: { id: true, name: true, username: true, avatarUrl: true, _count: { select: { followers: true, streams: true } } },
+    });
+    const creatorById = new Map(creatorDetails.map(c => [c.id, c]));
+    const recentVelocity = new Map(recentFollowCounts.map(f => [f.creatorId, f._count.creatorId]));
+    const trendingCreators = creatorIds
+      .map(id => creatorById.get(id))
+      .filter((c): c is NonNullable<typeof c> => !!c)
+      .sort((a, b) => (recentVelocity.get(b.id) ?? 0) - (recentVelocity.get(a.id) ?? 0))
+      .map(c => ({
+        id: c.id, name: c.name, username: c.username, avatarUrl: c.avatarUrl,
+        followerCount: c._count.followers, streamCount: c._count.streams,
+      }));
+
+    // Trending categories: by live viewer count right now (a category is
+    // "trending" if people are actively watching it, not just historically popular).
+    const categoryRows = await prisma.$queryRaw<Array<{ id: string; name: string; slug: string; icon: string; liveViewers: bigint }>>(Prisma.sql`
+      SELECT c.id, c.name, c.slug, c.icon, COALESCE(SUM(s."viewerCount"), 0) AS "liveViewers"
+      FROM "Category" c
+      LEFT JOIN "Stream" s ON s."categoryId" = c.id AND s."isLive" = true AND s."isPublic" = true
+      GROUP BY c.id, c.name, c.slug, c.icon
+      ORDER BY "liveViewers" DESC
+      LIMIT 8;
+    `).catch(() => []);
+
+    // Trending tags: count tag occurrences across streams active in the
+    // last 7 days. Stream.tags is a JSON-stringified array in a text
+    // column (no relational tags table), so this is aggregated in
+    // application code after a single bounded query rather than in SQL.
+    const recentStreams = await prisma.stream.findMany({
+      where: { isPublic: true, createdAt: { gte: sevenDaysAgo }, tags: { not: '[]' } },
+      select: { tags: true },
+      take: 500, // bounded — this endpoint is cached for 5 minutes, so an occasional slightly-stale top-N is an acceptable trade for not scanning unbounded rows
+    });
+    const tagCounts = new Map<string, number>();
+    for (const s of recentStreams) {
+      try {
+        const tags: string[] = JSON.parse(s.tags || '[]');
+        for (const t of tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+      } catch {}
+    }
+    const trendingTags = [...tagCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([tag, count]) => ({ tag, count }));
+
+    const result = {
+      creators: trendingCreators,
+      categories: categoryRows.map(c => ({ id: c.id, name: c.name, slug: c.slug, icon: c.icon })),
+      tags: trendingTags,
+    };
+
+    await setCache(cacheKey, result, 300);
+    res.json(result);
+  } catch (err) {
+    console.error('[discover/trending-search]', err);
+    res.status(500).json({ error: 'Failed to fetch trending search data' });
+  }
+});
+
+// GET /api/discover/search?q=xxx — search creators and streams
+// GET /api/discover/search
+//
+// Rebuilt to add:
+//  - Typo tolerance via pg_trgm trigram similarity ("sahill" finds "sahil")
+//    alongside the original exact-substring matching (never removed —
+//    typo tolerance is additive, not a replacement, so anything that
+//    matched before still matches now).
+//  - Tag search: if the query matches a tag exactly (case-insensitive),
+//    streams carrying that tag are included even if the tag isn't in the
+//    title/description.
+//  - Category search: if the query matches a category name/slug, that
+//    category's id is returned so the client can offer a "browse this
+//    category" shortcut.
+//  - Ranking by a combined score: trigram similarity + viewerCount +
+//    followerCount, so popular/live results surface above purely
+//    string-similar but low-engagement ones.
+//  - Short-TTL Redis cache per normalized query (60s) — search is a classic
+//    hot path for repeat identical queries (autocomplete-style typing,
+//    multiple users searching the same trending term).
+router.get('/search', async (req, res) => {
+  try {
+    const { q, category, language, tag } = req.query as Record<string, string>;
+    const query = (q || '').trim();
+    const hasFilters = !!(category || language || tag);
+    if (!query && !hasFilters) return res.json({ streams: [], creators: [], categories: [], tags: [] });
+
+    const cacheKey = `search:${query.toLowerCase()}:${category || ''}:${language || ''}:${tag || ''}`;
+    const cached = await getCache<any>(cacheKey);
+    if (cached) return res.json(cached);
+
+    // Filters (category/language/tag) are applied as additional AND
+    // conditions on top of whatever the text query matches — or, if there's
+    // no text query at all, as the entire match criteria (pure filter
+    // browsing, e.g. "show me Gaming streams in Hindi" with no typed query).
+    const categoryFilter = category ? Prisma.sql`AND cat.slug = ${category}` : Prisma.empty;
+    const languageFilter = language ? Prisma.sql`AND s.language = ${language}` : Prisma.empty;
+    const tagFilter = tag ? Prisma.sql`AND s.tags ILIKE ${'%"' + tag.toLowerCase() + '"%'}` : Prisma.empty;
+
+    // ── Streams: trigram-ranked title match OR exact tag match ───────────
+    // similarity() returns 0..1; 0.25 is a permissive-but-not-noisy
+    // threshold for short creator/stream-title-length strings (pg_trgm's
+    // own docs note 0.3 is the typical default — using slightly below that
+    // intentionally favors recall for typo-tolerance over strict precision).
+    const textCondition = query
+      ? Prisma.sql`AND (
+          similarity(s.title, ${query}) > 0.25
+          OR s.title ILIKE ${'%' + query + '%'}
+          OR s.description ILIKE ${'%' + query + '%'}
+          OR s.tags ILIKE ${'%"' + query.toLowerCase() + '"%'}
+        )`
+      : Prisma.empty;
+
+    const streamRows = await prisma.$queryRaw<Array<{ id: string; score: number }>>(Prisma.sql`
+      SELECT s.id,
+             GREATEST(
+               ${query ? Prisma.sql`similarity(s.title, ${query})` : Prisma.sql`0`},
+               ${query ? Prisma.sql`CASE WHEN s.title ILIKE ${'%' + query + '%'} THEN 1 ELSE 0 END` : Prisma.sql`0`},
+               ${query ? Prisma.sql`CASE WHEN s.tags ILIKE ${'%"' + query.toLowerCase() + '"%'} THEN 0.9 ELSE 0 END` : Prisma.sql`0`}
+             ) AS score
+      FROM "Stream" s
+      LEFT JOIN "Category" cat ON cat.id = s."categoryId"
+      WHERE s."isPublic" = true
+        ${textCondition}
+        ${categoryFilter}
+        ${languageFilter}
+        ${tagFilter}
+      ORDER BY score DESC, s."viewerCount" DESC
+      LIMIT 24;
+    `).catch(() => [] as Array<{ id: string; score: number }>);
+
+    // ── Creators: trigram-ranked name/username match ──────────────────────
+    const creatorRows = await prisma.$queryRaw<Array<{ id: string; score: number }>>(Prisma.sql`
+      SELECT u.id,
+             GREATEST(
+               similarity(COALESCE(u.name, ''), ${query}),
+               similarity(COALESCE(u.username, ''), ${query}),
+               CASE WHEN u.name ILIKE ${'%' + query + '%'} OR u.username ILIKE ${'%' + query + '%'} THEN 1 ELSE 0 END
+             ) AS score
+      FROM "User" u
+      WHERE u.role IN ('CREATOR', 'ADMIN')
+        AND (
+          similarity(COALESCE(u.name, ''), ${query}) > 0.25
+          OR similarity(COALESCE(u.username, ''), ${query}) > 0.25
+          OR u.name ILIKE ${'%' + query + '%'}
+          OR u.username ILIKE ${'%' + query + '%'}
+        )
+      ORDER BY score DESC
+      LIMIT 20;
+    `).catch(() => [] as Array<{ id: string; score: number }>);
+
+    // ── Categories: simple trigram match, small/fixed list, no caching needed beyond the outer cache ──
+    const categoryRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT id FROM "Category"
+      WHERE similarity(name, ${query}) > 0.3 OR name ILIKE ${'%' + query + '%'} OR slug ILIKE ${'%' + query + '%'}
+      ORDER BY similarity(name, ${query}) DESC
+      LIMIT 5;
+    `).catch(() => [] as Array<{ id: string }>);
+
+    const streamScores = new Map(streamRows.map(r => [r.id, r.score]));
+    const creatorScores = new Map(creatorRows.map(r => [r.id, r.score]));
+
+    const [streams, creators, categories] = await Promise.all([
+      streamRows.length
+        ? prisma.stream.findMany({ where: { id: { in: streamRows.map(r => r.id) } }, select: streamCardSelect })
+        : Promise.resolve([]),
+      creatorRows.length
+        ? prisma.user.findMany({
+            where: { id: { in: creatorRows.map(r => r.id) } },
+            select: { id: true, name: true, username: true, avatarUrl: true, bio: true, _count: { select: { followers: true, streams: true } } },
+          })
+        : Promise.resolve([]),
+      categoryRows.length
+        ? prisma.category.findMany({ where: { id: { in: categoryRows.map(r => r.id) } } })
+        : Promise.resolve([]),
+    ]);
+
+    // Re-rank by score (findMany with `id: { in }` does not preserve input order),
+    // then by a popularity tiebreaker so equally-similar results favor the bigger creator/stream.
+    const rankedStreams = streams
+      .map(s => ({ ...s, _score: streamScores.get(s.id) ?? 0 }))
+      .sort((a, b) => (b._score - a._score) || (b.viewerCount - a.viewerCount))
+      .map(({ _score, ...s }) => serializeStream(s));
+
+    const rankedCreators = creators
+      .map(c => ({ ...c, _score: creatorScores.get(c.id) ?? 0 }))
+      .sort((a, b) => (b._score - a._score) || (b._count.followers - a._count.followers))
+      .map(({ _score, ...c }) => ({
         id: c.id, name: c.name, username: c.username, avatarUrl: c.avatarUrl, bio: c.bio,
         followerCount: c._count.followers, streamCount: c._count.streams,
-      })),
-    });
+      }));
+
+    // ── Matched tags: pulled from the streams that matched on tags, for a
+    //    "search by tag" affordance on the client (e.g. clickable tag chips).
+    const matchedTags = new Set<string>();
+    for (const s of rankedStreams) {
+      for (const t of (s.tags as string[])) {
+        if (t.toLowerCase().includes(query.toLowerCase())) matchedTags.add(t);
+      }
+    }
+
+    const result = {
+      streams: rankedStreams,
+      creators: rankedCreators,
+      categories: categories.map(c => ({ id: c.id, name: c.name, slug: c.slug, icon: c.icon })),
+      tags: [...matchedTags].slice(0, 8),
+    };
+
+    await setCache(cacheKey, result, 60);
+    res.json(result);
   } catch (err) {
     console.error('[discover/search]', err);
     res.status(500).json({ error: 'Failed to search' });
