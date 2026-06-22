@@ -22,7 +22,12 @@ function SearchResults() {
 
   const [streams, setStreams] = useState<StreamCardType[]>([]);
   const [creators, setCreators] = useState<CreatorSearchResult[]>([]);
+  const [matchedCategories, setMatchedCategories] = useState<CategoryLite[]>([]);
+  const [matchedTags, setMatchedTags] = useState<string[]>([]);
   const [categories, setCategories] = useState<CategoryLite[]>([]);
+  const [trendingCreators, setTrendingCreators] = useState<CreatorSearchResult[]>([]);
+  const [trendingCategories, setTrendingCategories] = useState<CategoryLite[]>([]);
+  const [trendingTags, setTrendingTags] = useState<{ tag: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [category, setCategory] = useState('');
@@ -31,6 +36,9 @@ function SearchResults() {
 
   useEffect(() => {
     apiGet<{ categories: CategoryLite[] }>('/api/discover/categories').then(d => setCategories(d.categories)).catch(() => {});
+    apiGet<{ creators: CreatorSearchResult[]; categories: CategoryLite[]; tags: { tag: string; count: number }[] }>('/api/discover/trending-search')
+      .then(d => { setTrendingCreators(d.creators); setTrendingCategories(d.categories); setTrendingTags(d.tags); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -42,9 +50,14 @@ function SearchResults() {
     if (category) qs.set('category', category);
     if (language) qs.set('language', language);
     if (tag) qs.set('tag', tag);
-    apiGet<{ streams: StreamCardType[]; creators: CreatorSearchResult[] }>(`/api/discover/search?${qs.toString()}`)
-      .then(d => { setStreams(d.streams); setCreators(d.creators); })
-      .catch(() => { setStreams([]); setCreators([]); })
+    apiGet<{ streams: StreamCardType[]; creators: CreatorSearchResult[]; categories?: CategoryLite[]; tags?: string[] }>(`/api/discover/search?${qs.toString()}`)
+      .then(d => {
+        setStreams(d.streams);
+        setCreators(d.creators);
+        setMatchedCategories(d.categories || []);
+        setMatchedTags(d.tags || []);
+      })
+      .catch(() => { setStreams([]); setCreators([]); setMatchedCategories([]); setMatchedTags([]); })
       .finally(() => setLoading(false));
   }, [q, category, language, tag]);
 
@@ -94,11 +107,73 @@ function SearchResults() {
             <div className="w-6 h-6 rounded-full border-2 border-gray-300 border-t-gray-900 dark:border-t-white animate-spin" />
           </div>
         ) : !hasQuery ? (
-          <p className="text-sm text-gray-400 dark:text-gray-500">Type something in the search bar, or use filters, to find creators and streams.</p>
+          <div className="space-y-8">
+            {trendingCreators.length > 0 && (
+              <section>
+                <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Trending Creators</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                  {trendingCreators.map(c => <CreatorCard key={c.id} creator={c} />)}
+                </div>
+              </section>
+            )}
+            {trendingCategories.length > 0 && (
+              <section>
+                <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Trending Categories</h2>
+                <div className="flex flex-wrap gap-2">
+                  {trendingCategories.map(c => (
+                    <a key={c.id} href={`/browse/${c.slug}`} className="text-sm font-semibold px-4 py-2 rounded-full bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                      {c.icon} {c.name}
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
+            {trendingTags.length > 0 && (
+              <section>
+                <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Trending Tags</h2>
+                <div className="flex flex-wrap gap-2">
+                  {trendingTags.map(t => (
+                    <button key={t.tag} onClick={() => setTag(t.tag)} className="text-sm font-semibold px-4 py-2 rounded-full bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                      #{t.tag}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+            {trendingCreators.length === 0 && trendingCategories.length === 0 && trendingTags.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-gray-500">Type something in the search bar, or use filters, to find creators and streams.</p>
+            )}
+          </div>
         ) : !hasResults ? (
           <p className="text-sm text-gray-400 dark:text-gray-500">No results found{q ? <> for &ldquo;{q}&rdquo;</> : ''}.</p>
         ) : (
           <>
+            {matchedCategories.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mb-6">
+                <span className="text-xs text-gray-400">Browse category:</span>
+                {matchedCategories.map(c => (
+                  <a key={c.id} href={`/browse/${c.slug}`} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    {c.icon} {c.name}
+                  </a>
+                ))}
+              </div>
+            )}
+            {matchedTags.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mb-6">
+                <span className="text-xs text-gray-400">Tags:</span>
+                {matchedTags.map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTag(t)}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                      tag === t ? 'bg-red-500 text-white' : 'bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    #{t}
+                  </button>
+                ))}
+              </div>
+            )}
             {creators.length > 0 && (
               <section className="mb-10">
                 <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Creators</h2>
