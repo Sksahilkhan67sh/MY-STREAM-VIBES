@@ -4,41 +4,13 @@ import bcrypt from 'bcryptjs';
 import { customAlphabet } from 'nanoid';
 import { createHostToken } from '../lib/livekit-server';
 import { generateClipsForStream } from './ai-features';
+import { notifyFollowersOfGoLive } from '../lib/notification.service';
+import { finalizeStreamAnalytics } from '../services/analytics.service';
+import { enqueueOrRunInline, QUEUE_NAMES } from '../lib/queues';
 import prisma from '../lib/prisma';
 
 const router = Router();
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10);
-
-// ── Notify Followers on go-live (real implementation) ──────────────────────
-// Previously notifyOnLive was stored on Follow but never read anywhere, and
-// the goingLiveNow transition was detected but unused. This wires the two
-// together using the existing Notification model — purely additive, no
-// schema change, no existing notification path touched.
-async function notifyFollowersOfGoLive(creatorId: string, streamTitle: string, roomId: string) {
-  const [creator, followers] = await Promise.all([
-    prisma.user.findUnique({ where: { id: creatorId }, select: { name: true, username: true } }),
-    // pushNotifsEnabled is the in-app/real-time notification channel this
-    // Notification model actually powers (the bell icon) — a viewer who has
-    // turned off notifications globally in Settings should not get one here
-    // just because notifyOnLive happens to be true for this one creator.
-    prisma.follow.findMany({
-      where: { creatorId, notifyOnLive: true, follower: { pushNotifsEnabled: true } },
-      select: { followerId: true },
-    }),
-  ]);
-  if (!followers.length) return;
-
-  const creatorName = creator?.name || creator?.username || 'A creator you follow';
-  await prisma.notification.createMany({
-    data: followers.map(f => ({
-      userId:    f.followerId,
-      type:      'live',
-      title:     `${creatorName} is live`,
-      body:      streamTitle,
-      actionUrl: `/s/${roomId}`,
-    })),
-  });
-}
 
 const CreateStreamSchema = z.object({
   title:          z.string().min(1).max(100),
@@ -212,26 +184,48 @@ router.patch('/:roomId', async (req, res) => {
     // ── Auto Clips (real, free — heuristics only, no AI API cost) ───────────
     // Only fires once, the instant a stream transitions from live to offline,
     // and only if the creator enabled "Auto Clips" in the Stream Creation
-    // Wizard. Fire-and-forget — must never fail or delay the end-stream
-    // request itself.
+    // Wizard. Runs through the background job queue when Redis is available
+    // (so a server restart mid-generation doesn't silently lose the job),
+    // otherwise runs inline exactly as before.
     if (goingOfflineNow) {
       let prefs: Record<string, any> | null = null;
       try { prefs = stream.wizardPrefs ? JSON.parse(stream.wizardPrefs) : null; } catch {}
       if (prefs?.autoClips) {
-        generateClipsForStream(updated.roomId, 'auto-clips-wizard').catch(err =>
-          console.error('[streams] auto-clips generation failed:', err)
-        );
+        enqueueOrRunInline(
+          QUEUE_NAMES.AUTO_CLIPS,
+          'generate-clips',
+          { roomId: updated.roomId, requestedBy: 'auto-clips-wizard' },
+          async (data) => { await generateClipsForStream(data.roomId, data.requestedBy); }
+        ).catch(err => console.error('[streams] auto-clips generation failed:', err));
       }
+
+      // ── Analytics finalization ──────────────────────────────────────────
+      // finalizeStreamAnalytics already existed and is complete (peak
+      // concurrent viewers, retention curve, device/country breakdowns) but
+      // previously required a manual API call to ever run for a given
+      // stream. This is the one place every stream's live→offline
+      // transition already happens, so it's the correct automatic trigger.
+      enqueueOrRunInline(
+        QUEUE_NAMES.ANALYTICS_AGGREGATION,
+        'finalize-analytics',
+        { roomId: updated.roomId },
+        async (data) => { await finalizeStreamAnalytics(data.roomId); }
+      ).catch(err => console.error('[streams] analytics finalization failed:', err));
     }
 
-    // ── Notify Followers (real, in-app) ─────────────────────────────────────
+    // ── Notify Followers (real, in-app + real-time) ──────────────────────────
     // Only fires the instant a stream transitions to live, and only for
-    // followers who opted in via notifyOnLive (default true). Fire-and-forget
-    // — a notification failure must never fail the go-live request itself.
+    // followers who opted in via notifyOnLive (default true). Runs through
+    // the background job queue (retries on failure, survives a server
+    // restart mid-job) when Redis is configured; otherwise runs inline
+    // exactly as before — never blocks or fails the go-live request itself.
     if (goingLiveNow && stream.userId) {
-      notifyFollowersOfGoLive(stream.userId, updated.title, updated.roomId).catch(err =>
-        console.error('[streams] follower notify failed:', err)
-      );
+      enqueueOrRunInline(
+        QUEUE_NAMES.NOTIFICATIONS,
+        'follower-go-live',
+        { creatorId: stream.userId, streamTitle: updated.title, roomId: updated.roomId },
+        async (data) => { await notifyFollowersOfGoLive(data.creatorId, data.streamTitle, data.roomId); }
+      ).catch(err => console.error('[streams] follower notify failed:', err));
     }
 
     res.json(updated);
