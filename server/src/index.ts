@@ -75,6 +75,19 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 const limiter      = rateLimit({ windowMs: 15*60*1000, max: 200, standardHeaders: true, legacyHeaders: false });
 const tokenLimiter = rateLimit({ windowMs: 15*60*1000, max: 500, standardHeaders: true, legacyHeaders: false });
 const aiLimiter    = rateLimit({ windowMs: 60*1000,    max: 10,  standardHeaders: true, legacyHeaders: false });
+// Search runs raw trigram-similarity SQL across Stream/User — more
+// expensive per-request than a typical indexed lookup, and a classic
+// autocomplete-typing hot path, so it gets its own tighter limiter rather
+// than just relying on the blanket /api limiter above.
+const searchLimiter = rateLimit({ windowMs: 60*1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many searches, please slow down.' } });
+// Donations touch real money — keep this tight regardless of how generous
+// the blanket limiter is, since this endpoint is the highest-value target
+// for abuse (e.g. scripted donation-amount probing, payment gateway abuse).
+const donationsLimiter = rateLimit({ windowMs: 15*60*1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests, please try again later.' } });
+// Notification fan-out endpoints (mark-read, mark-all-read) are
+// low-value-but-frequent UI actions; the limit here is generous but still
+// bounded so a buggy client polling in a tight loop can't hammer the DB.
+const notifsLimiter = rateLimit({ windowMs: 60*1000, max: 60, standardHeaders: true, legacyHeaders: false });
 
 app.set('trust proxy', 1);
 app.use('/api', limiter);
@@ -86,7 +99,7 @@ app.use('/api/reminders',     remindersRouter);
 app.use('/api/polls',         pollsRouter);
 app.use('/api/cohosts',       coHostsRouter);
 app.use('/api/analytics',     analyticsRouter);
-app.use('/api/donations',     donationsRouter);
+app.use('/api/donations',     donationsLimiter, donationsRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/ppv',           ppvRouter);
 app.use('/api/captions',      captionsRouter);
@@ -98,7 +111,9 @@ app.use('/api/replays',       replaysRouter);
 app.use('/api/moderation',    moderationRouter);
 app.use('/api/clips',         clipsRouter);
 app.use('/api/ai',            aiLimiter, aiRouter);
+app.use('/api/discover/search', searchLimiter); // must come before the broader /api/discover mount below
 app.use('/api/discover',      discoverRouter);
+app.use('/api/notifs',        notifsLimiter, notifsRouter);
 app.use('/api/creators',      creatorsRouter);
 app.use('/api/history',       historyRouter);
 app.use('/api/watchlater',    watchlaterRouter);
@@ -128,6 +143,7 @@ async function main() {
     console.log('✅ Prisma connected');
     await connectRedis();
     startScheduler();
+    startWorkers();
     recoverActivePolls().catch(console.error);
     recoverReminders().catch(console.error);
     httpServer.listen(PORT, '0.0.0.0', () => {
@@ -140,5 +156,19 @@ async function main() {
   }
 }
 
+// Graceful shutdown — let in-flight jobs finish/checkpoint cleanly rather
+// than killing the BullMQ workers mid-job, which is the whole point of
+// moving these operations off the request/response path in the first place.
+async function shutdown(signal: string) {
+  console.log(`\n${signal} received, shutting down gracefully...`);
+  await stopWorkers().catch(() => {});
+  httpServer.close(() => process.exit(0));
+  // Force-exit if close() hangs (e.g. a stuck socket connection)
+  setTimeout(() => process.exit(1), 10_000);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
+
 import { startScheduler } from './jobs/scheduler';
+import { startWorkers, stopWorkers } from './lib/workers';
 main();
