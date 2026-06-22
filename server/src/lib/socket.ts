@@ -40,6 +40,21 @@ export function initSocket(httpServer: HttpServer) {
   io.on('connection', (socket) => {
     let currentRoom: string | null = null;
 
+    // ── Real-time notifications ──────────────────────────────────────────
+    // Joins a per-user room so notification.service.ts can push directly to
+    // this specific person's connected tab(s), independent of any stream
+    // room they may also be watching. A user can have multiple tabs open;
+    // Socket.IO rooms support multiple sockets joining the same room, so
+    // every open tab receives the push.
+    socket.on('subscribe-notifications', ({ userId }) => {
+      if (!userId || typeof userId !== 'string') return;
+      socket.join(`notify:${userId}`);
+    });
+    socket.on('unsubscribe-notifications', ({ userId }) => {
+      if (!userId || typeof userId !== 'string') return;
+      socket.leave(`notify:${userId}`);
+    });
+
     socket.on('join-room', async ({ roomId, nickname }) => {
       if (!roomId) return;
       if (currentRoom && currentRoom !== roomId) {
