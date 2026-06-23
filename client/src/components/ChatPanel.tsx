@@ -50,6 +50,22 @@ export default function ChatPanel({ roomId, identity, nickname, avatarUrl, isHos
 
     const onCount = (c: number) => setViewerCount(c);
     const onMsg   = (m: Message) => setMessages(prev => [...prev.slice(-199), m]);
+    // Replayed once right after this socket joins the room — fills in
+    // messages that were sent before this ChatPanel instance existed (e.g.
+    // the host/co-host had the chat tab closed, or this is a fresh
+    // reconnect). Server sends this only to the joining socket, not
+    // broadcast, so it can't duplicate anything other connected clients
+    // already have.
+    const onHistory = (history: Message[]) => {
+      if (!Array.isArray(history) || history.length === 0) return;
+      setMessages(prev => {
+        // Avoid duplicating messages this instance may have already
+        // received live (e.g. a fast reconnect racing the history replay).
+        const seen = new Set(prev.map(m => m.id));
+        const merged = [...history.filter(m => !seen.has(m.id)), ...prev];
+        return merged.slice(-199);
+      });
+    };
     const onRxn   = ({ emoji, id }: { emoji: string; id: number }) => {
       const x = 10 + Math.random() * 80;
       setReactions(prev => [...prev, { id, emoji, x }]);
@@ -62,6 +78,7 @@ export default function ChatPanel({ roomId, identity, nickname, avatarUrl, isHos
     sock.on('disconnect', onDisconnect);
     sock.on('viewer-count', onCount);
     sock.on('chat-message', onMsg);
+    sock.on('chat-history', onHistory);
     sock.on('reaction', onRxn);
 
     return () => {
@@ -69,6 +86,7 @@ export default function ChatPanel({ roomId, identity, nickname, avatarUrl, isHos
       sock.off('disconnect', onDisconnect);
       sock.off('viewer-count', onCount);
       sock.off('chat-message', onMsg);
+      sock.off('chat-history', onHistory);
       sock.off('reaction', onRxn);
       if (ownSocketRef.current) {
         ownSocketRef.current.disconnect();
