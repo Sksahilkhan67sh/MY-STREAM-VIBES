@@ -45,8 +45,12 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-[#070707] flex items-center justify-center px-4 py-12" style={{ fontFamily:"'DM Sans','Inter',sans-serif" }}>
       <div className="w-full max-w-2xl">
         <div className="text-center mb-10">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">
+            Welcome to Stream Vault
+          </p>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2">Choose your experience</h1>
-          <p className="text-zinc-500 text-sm">You can switch to creator mode anytime later.</p>
+          <p className="text-zinc-500 text-sm mb-1">You can switch to creator mode anytime later.</p>
+          <p className="text-zinc-600 text-xs">Creator Platform by Aligncraft</p>
         </div>
 
         {error && (
