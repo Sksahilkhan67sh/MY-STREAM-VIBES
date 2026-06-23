@@ -226,7 +226,7 @@ export default function ViewerPage() {
         {/* Desktop: video fills entire column */}
         <div className="hidden lg:block flex-1 w-full h-full relative" style={{ height: '100%' }}>
           <div className="absolute inset-0">
-            <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
+            <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} isLive={stream.isLive} />
           </div>
           {socketReady && <PollWidget roomId={roomId} socket={socket} />}
           {socketReady && (
@@ -252,7 +252,7 @@ export default function ViewerPage() {
         {/* Mobile: video fills available height, chat toggles below */}
         <div className="flex lg:hidden flex-col w-full h-full">
           <div className="flex-1 min-h-0 bg-black relative overflow-hidden">
-            <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} />
+            <StreamPlayer roomId={roomId} token={token} title={stream.title} isHost={false} isLive={stream.isLive} />
             {socketReady && <PollWidget roomId={roomId} socket={socket} />}
             {socketReady && (
               <CaptionOverlay socket={socket} roomId={roomId} show={captionsOn} onToggle={() => setCaptionsOn(v => !v)} />
