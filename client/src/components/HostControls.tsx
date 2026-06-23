@@ -959,7 +959,16 @@ function HostStudio({ stream, appUrl, onCopy, copied }: HostControlsProps) {
 
         {panelTab === 'chat' && (
           <div className="flex-1 min-h-0">
-            <ChatPanel roomId={stream.roomId} identity={`host-${stream.roomId}`} nickname="Host" isHost />
+            {/* Share the studio's persistent socket (created once for the whole
+                hosting session above) instead of letting ChatPanel open its own
+                connection. Previously ChatPanel had no socket prop here, so it
+                created a brand-new private socket every time this tab mounted —
+                closing the chat tab and reopening it (or switching to "tools"
+                and back) tore down that socket and its local message state
+                completely, making chat look like it "disappeared" for the host.
+                Passing the shared socket means the room connection — and now
+                also the server-replayed chat history — survives the tab toggle. */}
+            <ChatPanel roomId={stream.roomId} identity={`host-${stream.roomId}`} nickname="Host" isHost socket={socketInstance} />
           </div>
         )}
 
