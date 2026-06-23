@@ -594,15 +594,22 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
           </div>
         </div>
 
-        {/* Chat panel */}
-        <AnimatePresence>
-          {showChat && (
-            <motion.div initial={{ width: 0, opacity: 0 }} animate={{ width: 288, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ duration: 0.2 }}
-              className="flex-shrink-0 border-l border-gray-100 dark:border-gray-800 overflow-hidden">
-              <ChatPanel roomId={roomId} identity={`cohost-${name}`} nickname={name} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Chat panel — ChatPanel itself stays mounted at all times (just
+            visually collapsed to width 0 when hidden) instead of being
+            unmounted by the showChat conditional. Previously, hiding chat
+            unmounted ChatPanel entirely, which tore down its socket
+            connection and local message list — every message the co-host
+            had received vanished, and reopening chat started from a blank
+            room with a brand-new connection. Keeping it mounted preserves
+            both; the slide width/opacity animation looks identical. */}
+        <div
+          className={`flex-shrink-0 border-l border-gray-100 dark:border-gray-800 overflow-hidden transition-all duration-200 ${showChat ? 'w-[288px] opacity-100' : 'w-0 opacity-0 border-l-0'}`}
+          aria-hidden={!showChat}
+        >
+          <div className="w-[288px] h-full">
+            <ChatPanel roomId={roomId} identity={`cohost-${name}`} nickname={name} />
+          </div>
+        </div>
       </div>
     </div>
   );
