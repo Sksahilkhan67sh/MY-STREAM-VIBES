@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { getQueueConnection } from './queue-connection';
+import { getQueueConnectionOptions } from './queue-connection';
 import { QUEUE_NAMES } from './queues';
 import { generateClipsForStream } from '../routes/ai-features';
 import { notifyFollowersOfGoLive } from './notification.service';
@@ -16,9 +16,9 @@ import { finalizeStreamAnalytics } from '../services/analytics.service';
 const workers: Worker[] = [];
 
 function makeWorker<T>(queueName: string, processor: (job: Job<T>) => Promise<void>): Worker | null {
-  const conn = getQueueConnection();
-  if (!conn) return null;
-  const worker = new Worker<T>(queueName, processor, { connection: conn, concurrency: 5 });
+  const connection = getQueueConnectionOptions();
+  if (!connection) return null;
+  const worker = new Worker<T>(queueName, processor, { connection, concurrency: 5 });
   worker.on('failed', (job, err) => {
     console.error(`[worker:${queueName}] job ${job?.id} failed after ${job?.attemptsMade} attempt(s):`, err?.message);
   });
