@@ -675,6 +675,10 @@ function StudioInner() {
               <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
+          <div className="mt-3 pt-3 border-t border-white/[0.06] text-center">
+            <p className="text-zinc-600 text-[10px]">Stream Vault · Version 1.0</p>
+            <p className="text-zinc-700 text-[10px]">Creator Platform by Aligncraft</p>
+          </div>
         </div>
       </aside>
 
