@@ -14,9 +14,15 @@ function LoginInner() {
   const [error, setError] = useState('');
 
   // A viewer who hit a stream page while signed out is sent here with
-  // ?callbackUrl=/s/<roomId> so they land back where they meant to go,
-  // instead of always being dumped into Studio.
-  const callbackUrl = searchParams.get('callbackUrl') || '/studio';
+  // ?callbackUrl=/s/<roomId> so they land back where they meant to go —
+  // that explicit case is untouched. When there's no explicit callbackUrl
+  // (e.g. clicking "Log in" from the landing page, or a brand-new user's
+  // first sign-in), default to "/" rather than hardcoding "/studio" — "/"
+  // already contains the correct role-aware redirect (no role yet →
+  // onboarding once; role exists → /feed or /studio as appropriate; see
+  // app/page.tsx). Defaulting to /studio here used to send viewers into
+  // creator-only territory on every sign-in with no explicit destination.
+  const callbackUrl = searchParams.get('callbackUrl') || '/';
 
   useEffect(() => {
     if (status === 'authenticated') router.replace(callbackUrl);
