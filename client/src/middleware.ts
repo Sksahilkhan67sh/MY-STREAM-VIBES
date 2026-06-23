@@ -15,9 +15,17 @@ export default auth((req) => {
   // Always allow: auth API routes and co-host invite pages
   if (isApiAuth || isCoHost) return NextResponse.next();
 
-  // Redirect logged-in users away from login page → studio
+  // Redirect logged-in users away from login page. Send them to "/" rather
+  // than hardcoding "/studio" — middleware has no Postgres access and can't
+  // check `role` (role lives in the DB, not the JWT; see useUserRole.ts), so
+  // it can never know whether this user is a Viewer or a Creator. "/" already
+  // contains the correct role-aware redirect (role exists → /feed or
+  // /studio/create-channel as appropriate; no role yet → /onboarding, shown
+  // exactly once) — see app/page.tsx. Hardcoding /studio here used to send
+  // viewers into creator-only territory on every single login, which is what
+  // produced the "asked to choose a role multiple times" symptom.
   if (isLoggedIn && isLoginPage) {
-    return NextResponse.redirect(new URL('/studio', req.nextUrl));
+    return NextResponse.redirect(new URL('/', req.nextUrl));
   }
 
   // Protect /studio, /host, and /s/[roomId] — redirect to login if not
