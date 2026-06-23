@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import {
   LiveKitRoom, useTracks, VideoTrack, RoomAudioRenderer,
   isTrackReference, type TrackReference,
@@ -13,6 +13,12 @@ interface StreamPlayerProps {
   token: string;
   title: string;
   isHost: boolean;
+  // Authoritative "is this stream actually live" signal (from the stream
+  // record / socket events), NOT inferred from track presence. Optional and
+  // defaults to true so existing host/co-host usage (which never had this
+  // concept and never passes it) renders exactly as before — this prop only
+  // changes behavior for callers that opt in by passing it.
+  isLive?: boolean;
 }
 
 // ── Single participant stream section (main + optional PiP) ───
@@ -78,7 +84,7 @@ function StreamSection({
 }
 
 // ── Video Stage: adaptive layout for 1–4+ participants ────────
-function VideoStage({ title }: { title: string }) {
+function VideoStage({ title, isLive }: { title: string; isLive: boolean }) {
   const tracks = useTracks(
     [Track.Source.Camera, Track.Source.ScreenShare],
     { onlySubscribed: true }
@@ -101,8 +107,48 @@ function VideoStage({ title }: { title: string }) {
   const coHostIdentities = Array.from(new Set(coHostTracks.map(t => t.participant.identity)));
   const coHostCount = coHostIdentities.length;
 
-  const hasHost    = hostTracks.length > 0;
-  const hasCoHost  = coHostTracks.length > 0;
+  const hasHostNow    = hostTracks.length > 0;
+  const hasCoHostNow  = coHostTracks.length > 0;
+  const hasAnyTrackNow = hasHostNow || hasCoHostNow;
+
+  // ── Debounce track loss ──────────────────────────────────────────────
+  // Entering/exiting fullscreen (and other layout transitions) can cause
+  // LiveKit's track subscriptions to briefly report empty while the video
+  // elements are torn down and reattached — that's NOT the host ending the
+  // stream. Without this debounce, VideoStage would flash "Waiting for host
+  // to go live…" over an still-active broadcast every time a viewer hit
+  // fullscreen. We only treat tracks as "really gone" if they stay empty
+  // for longer than a short transition window. The very first render (no
+  // tracks yet while LiveKit is still connecting) is exempt from the delay
+  // so genuine pre-stream viewers still see the waiting state immediately.
+  const [settledNoTracks, setSettledNoTracks] = useState(false);
+  const hadTracksRef = useRef(false);
+  if (hasAnyTrackNow) hadTracksRef.current = true;
+
+  useEffect(() => {
+    if (hasAnyTrackNow) {
+      setSettledNoTracks(false);
+      return;
+    }
+    if (!hadTracksRef.current) {
+      // Never had tracks this session — genuinely waiting for host, show immediately.
+      setSettledNoTracks(true);
+      return;
+    }
+    // Had tracks before, lost them just now — wait briefly before treating
+    // this as real, to ride out fullscreen/renegotiation blips.
+    const timer = setTimeout(() => setSettledNoTracks(true), 4000);
+    return () => clearTimeout(timer);
+  }, [hasAnyTrackNow]);
+
+  // Final "show waiting screen" decision: tracks have been confirmed absent
+  // for the debounce window AND the stream isn't reporting itself as live
+  // anyway. When isLive is true but tracks are briefly empty, keep showing
+  // the last frame/black video area rather than the waiting overlay.
+  const showWaiting = !hasAnyTrackNow && settledNoTracks && !isLive;
+
+  const hasHost   = hasHostNow;
+  const hasCoHost = hasCoHostNow;
   const totalStreams = (hasHost ? 1 : 0) + coHostCount;
 
   const toggleFullscreen = () => {
@@ -137,7 +183,7 @@ function VideoStage({ title }: { title: string }) {
     <div ref={containerRef} className="relative w-full h-full bg-zinc-950 flex flex-col overflow-hidden group">
 
       {/* Waiting state */}
-      {!hasHost && !hasCoHost && (
+      {showWaiting && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-zinc-600">
           <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
             <Radio className="w-8 h-8 text-zinc-700" />
@@ -239,7 +285,7 @@ function VideoStage({ title }: { title: string }) {
   );
 }
 
-export default function StreamPlayer({ roomId, token, title, isHost }: StreamPlayerProps) {
+export default function StreamPlayer({ roomId, token, title, isHost, isLive = true }: StreamPlayerProps) {
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'ws://localhost:7880';
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
@@ -248,7 +294,7 @@ export default function StreamPlayer({ roomId, token, title, isHost }: StreamPla
         audio={isHost} video={false}
         style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
       >
-        <VideoStage title={title} />
+        <VideoStage title={title} isLive={isLive} />
       </LiveKitRoom>
     </div>
   );
