@@ -109,10 +109,11 @@ export default function LandingPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
-    name: 'StreamVault',
-    description: 'Live streaming platform for creators — go live, build a community, and get paid for it.',
+    name: 'Stream Vault',
+    description: 'Stream Vault is a creator platform by Aligncraft — go live, build a community, and get paid for it.',
     applicationCategory: 'MultimediaApplication',
     operatingSystem: 'Any',
+    creator: { '@type': 'Organization', name: 'Aligncraft' },
     featureList: [
       'Live streaming with camera and screen share',
       'AI title and summary generation',
@@ -159,7 +160,7 @@ export default function LandingPage() {
 
           <motion.h1
             {...fade(0.1)}
-            className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight mb-4 sm:mb-6"
+            className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight mb-3 sm:mb-4"
             style={{ letterSpacing: '-0.03em' }}
           >
             Watch live.<br />
@@ -167,11 +168,25 @@ export default function LandingPage() {
           </motion.h1>
 
           <motion.p
+            {...fade(0.15)}
+            className="text-sm font-semibold text-gray-400 dark:text-gray-500 mb-6 sm:mb-8"
+          >
+            Creator Platform by Aligncraft
+          </motion.p>
+
+          <motion.p
             {...fade(0.2)}
-            className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-xl mx-auto mb-8 sm:mb-10 leading-relaxed px-2"
+            className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-xl mx-auto mb-3 leading-relaxed px-2"
           >
             Stream Vault is where creators build a real audience and get paid for it — and where
             viewers find live content worth showing up for.
+          </motion.p>
+
+          <motion.p
+            {...fade(0.22)}
+            className="text-sm text-gray-400 dark:text-gray-500 max-w-md mx-auto mb-8 sm:mb-10 leading-relaxed px-2"
+          >
+            Built to help creators stream, grow communities, and monetize their audience.
           </motion.p>
 
           <motion.div {...fade(0.3)} className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -357,13 +372,26 @@ export default function LandingPage() {
         </section>
 
         {/* Footer */}
-        <footer className="border-t border-gray-100 dark:border-gray-800 py-6 sm:py-8 px-4 sm:px-8 transition-colors duration-200">
-          <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-2 sm:gap-0 justify-between text-xs text-gray-400 dark:text-gray-600">
-            <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="StreamVault" className="w-5 h-5 object-contain" />
-              <span>StreamVault</span>
+        <footer className="border-t border-gray-100 dark:border-gray-800 py-8 sm:py-10 px-4 sm:px-8 transition-colors duration-200">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-0 justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <img src="/logo.png" alt="Stream Vault" className="w-5 h-5 object-contain" />
+                <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">Stream Vault</span>
+              </div>
+              <nav className="flex items-center gap-5 text-xs font-medium text-gray-400 dark:text-gray-500">
+                <button onClick={() => router.push('/about')} className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">About</button>
+                <button onClick={() => router.push('/privacy')} className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Privacy</button>
+                <button onClick={() => router.push('/terms')} className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Terms</button>
+                <button onClick={() => router.push('/contact')} className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Contact</button>
+              </nav>
             </div>
-            <span>Live streaming for creators</span>
+            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-0 justify-between text-xs text-gray-400 dark:text-gray-600">
+              <span>© 2026 Aligncraft. All Rights Reserved.</span>
+              <button onClick={() => router.push('/company')} className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                Creator Platform by Aligncraft
+              </button>
+            </div>
           </div>
         </footer>
       </div>
