@@ -53,12 +53,17 @@ function LoginInner() {
         className="w-full max-w-sm"
       >
         {/* Logo */}
-        <div className="flex items-center gap-2 mb-8 justify-center">
-  <img src="/logo.png" alt="StreamVault" className="w-8 h-8 object-contain" />
-  <span className="font-bold text-lg tracking-tight text-gray-900 dark:text-gray-100">
-    StreamVault
-  </span>
-</div>
+        <div className="flex flex-col items-center gap-1.5 mb-8">
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="Stream Vault" className="w-8 h-8 object-contain" />
+            <span className="font-bold text-lg tracking-tight text-gray-900 dark:text-gray-100">
+              Stream Vault
+            </span>
+          </div>
+          <span className="text-[11px] font-medium text-gray-400 dark:text-gray-600">
+            A Product of Aligncraft
+          </span>
+        </div>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
           <div className="mb-6">
