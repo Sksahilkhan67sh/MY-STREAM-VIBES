@@ -48,20 +48,29 @@ interface PlanPreview {
 export default function LandingPage() {
   const router = useRouter();
   const { status } = useSession();
-  const { hasSelectedRole, loading: roleLoading } = useUserRole();
+  const { role, hasSelectedRole, hasChannel, loading: roleLoading } = useUserRole();
 
   const [liveNow, setLiveNow] = useState<StreamCardType[]>([]);
   const [topCreators, setTopCreators] = useState<CreatorSearchResult[]>([]);
   const [plans, setPlans] = useState<PlanPreview[]>([]);
 
   // ── Send signed-in users onward — landing is for visitors, not the inbox ──
-  // Mirrors the same logic /feed already uses: no role chosen yet → onboarding,
-  // role already chosen → the real feed. A logged-out visitor sees the page
-  // below exactly as everyone always has.
+  // No role chosen yet → onboarding (shown exactly once, ever). Role already
+  // chosen → send each role to where it actually belongs: a Viewer to /feed,
+  // a Creator to /studio (or /create-channel first, if they haven't set one
+  // up yet). This is also where /login now sends already-authenticated
+  // visitors (see middleware.ts) — so this one effect is the single source
+  // of truth for "where does a returning user with a role land", instead of
+  // duplicating that decision in multiple places.
   useEffect(() => {
     if (status !== 'authenticated' || roleLoading) return;
-    router.replace(hasSelectedRole ? '/feed' : '/onboarding');
-  }, [status, roleLoading, hasSelectedRole, router]);
+    if (!hasSelectedRole) { router.replace('/onboarding'); return; }
+    if (role === 'CREATOR' || role === 'ADMIN') {
+      router.replace(hasChannel ? '/studio' : '/create-channel');
+    } else {
+      router.replace('/feed');
+    }
+  }, [status, roleLoading, hasSelectedRole, role, hasChannel, router]);
 
   useEffect(() => {
     let cancelled = false;
