@@ -154,6 +154,16 @@ export default function SettingsPage() {
                 <LogOut className="w-4 h-4" /> Sign out
               </button>
             </section>
+
+            {/* Platform Information */}
+            <section>
+              <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Platform Information</h2>
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800 p-4 text-xs text-gray-400 dark:text-gray-600 space-y-1">
+                <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">Stream Vault</p>
+                <p>Version 1.0</p>
+                <p>Built by Aligncraft</p>
+              </div>
+            </section>
           </div>
         )}
       </div>
