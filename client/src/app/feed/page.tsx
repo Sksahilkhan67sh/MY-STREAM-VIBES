@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import SiteHeader from '@/components/discover/SiteHeader';
+import ViewerFooter from '@/components/brand/ViewerFooter';
 import CategoryPills from '@/components/discover/CategoryPills';
 import StreamRow from '@/components/discover/StreamRow';
 import CreatorCard from '@/components/discover/CreatorCard';
@@ -189,17 +190,7 @@ export default function FeedPage() {
         </div>
       )}
 
-      <footer className="border-t border-gray-100 dark:border-gray-800 py-6 px-4 sm:px-8 mt-6">
-        <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-0 justify-between text-xs text-gray-400 dark:text-gray-600">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="StreamVault" className="w-5 h-5 object-contain" />
-            <span>StreamVault</span>
-          </div>
-          <button onClick={() => router.push('/')} className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-            About StreamVault
-          </button>
-        </div>
-      </footer>
+      <ViewerFooter />
     </div>
   );
 }
