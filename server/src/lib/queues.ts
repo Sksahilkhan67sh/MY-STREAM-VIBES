@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { getQueueConnection, isQueueAvailable } from './queue-connection';
+import { getQueueConnectionOptions, isQueueAvailable } from './queue-connection';
 
 /**
  * Background job queues for expensive/non-critical operations that were
@@ -22,11 +22,11 @@ export const QUEUE_NAMES = {
 const queues = new Map<string, Queue>();
 
 function getQueue(name: string): Queue | null {
-  const conn = getQueueConnection();
-  if (!conn) return null;
+  const connection = getQueueConnectionOptions();
+  if (!connection) return null;
   if (queues.has(name)) return queues.get(name)!;
   const queue = new Queue(name, {
-    connection: conn,
+    connection,
     defaultJobOptions: {
       attempts: 3,
       backoff: { type: 'exponential', delay: 5000 },
