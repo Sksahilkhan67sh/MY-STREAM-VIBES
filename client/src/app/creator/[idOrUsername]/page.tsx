@@ -310,6 +310,10 @@ export default function CreatorProfilePage() {
             </div>
           )}
         </div>
+
+        <footer className="border-t border-gray-100 dark:border-gray-800 mt-10 py-6 text-center">
+          <p className="text-xs text-gray-400 dark:text-gray-600">Powered by Aligncraft</p>
+        </footer>
       </div>
     </div>
   );
