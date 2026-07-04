@@ -183,6 +183,10 @@ const NAV_GROUPS = [
 
 const ALL_TABS = NAV_GROUPS.flatMap(g => g.items.map(i => i.id));
 
+// Which group a given tab id belongs to — used to auto-expand the right
+// group in the (now collapsible) sidebar below.
+const groupOf = (tabId: string) => NAV_GROUPS.find(g => g.items.some(i => i.id === tabId))?.group;
+
 const STREAM_TOOL_TABS     = new Set(['thumbnail','clips','moderation','notifications','ai-title','ai-summary']);
 const STREAM_REQUIRED_TABS = new Set(['analytics','ppv',...STREAM_TOOL_TABS]);
 
@@ -296,6 +300,16 @@ function StudioInner() {
   })();
 
   const [activeTab, setActiveTab]           = useState(initialTab);
+  // Sidebar restructure: 22 flat nav items across 5 groups were all shown
+  // at once (the exact "too much at a glance" clutter problem the UX brief
+  // flags). Groups are now collapsible accordions — only the group
+  // containing the current tab starts expanded. Switching tabs (from
+  // anywhere: sidebar clicks, "Go to Analytics" buttons elsewhere in the
+  // page, etc.) auto-expands that tab's group via the effect below, so the
+  // active item is never hidden inside a collapsed section.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    () => new Set(groupOf(initialTab) ? [groupOf(initialTab) as string] : [])
+  );
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const [stream, setStream]                 = useState<StreamData | null>(null);
   const [title, setTitle]                   = useState('');
@@ -335,6 +349,16 @@ function StudioInner() {
   const { role, hasSelectedRole, hasChannel, loading: roleLoading, error: roleError, refetch: refetchRole } = useUserRole();
 
   const toast = (m: string) => { setToastMsg(m); setTimeout(() => setToastMsg(''), 3000); };
+
+  // Keep the active tab's sidebar group expanded no matter how activeTab
+  // changed (sidebar click, a "Back to Analytics" button elsewhere on the
+  // page, the ?tab= query param, etc.) — otherwise switching tabs from
+  // outside the sidebar could leave the active item buried in a collapsed
+  // group with no visual indication of where you are.
+  useEffect(() => {
+    const g = groupOf(activeTab);
+    if (g) setExpandedGroups(prev => (prev.has(g) ? prev : new Set(prev).add(g)));
+  }, [activeTab]);
 
   // ── Restore stream + tokens on mount ──
   useEffect(() => {
@@ -661,16 +685,48 @@ function StudioInner() {
           </button>
         </div>
 
-        {/* Nav groups */}
+        {/* Nav groups — collapsible; only the group containing activeTab
+            starts expanded (see expandedGroups state above). Cuts the
+            sidebar from 22 always-visible items down to ~4-5 at a glance,
+            while the active tab is always reachable in one click since its
+            group auto-expands. */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
-          {NAV_GROUPS.map(group => (
-            <div key={group.group} className="mb-5">
-              <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-3 mb-1.5">
-                {group.group}
-              </p>
-              {group.items.map(item => <NavItem key={item.id} item={item} />)}
-            </div>
-          ))}
+          {NAV_GROUPS.map(group => {
+            const isOpen = expandedGroups.has(group.group);
+            return (
+              <div key={group.group} className="mb-2">
+                <button
+                  onClick={() => setExpandedGroups(prev => {
+                    const next = new Set(prev);
+                    if (next.has(group.group)) next.delete(group.group); else next.add(group.group);
+                    return next;
+                  })}
+                  className="w-full flex items-center justify-between px-3 py-1.5 mb-1 group"
+                  aria-expanded={isOpen}
+                >
+                  <span className="text-[10px] font-bold text-zinc-600 group-hover:text-zinc-400 uppercase tracking-widest transition-colors">
+                    {group.group}
+                  </span>
+                  <ChevronRight
+                    className={`w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+                  />
+                </button>
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="overflow-hidden"
+                    >
+                      {group.items.map(item => <NavItem key={item.id} item={item} />)}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
         </nav>
 
         {/* User footer */}
