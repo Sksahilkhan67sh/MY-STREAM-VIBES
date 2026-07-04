@@ -109,6 +109,9 @@ export default function SiteHeader({ searchValue }: { searchValue?: string }) {
               <div className="relative" ref={profileRef}>
                 <button
                   onClick={() => setProfileOpen(o => !o)}
+                  aria-label="Account menu"
+                  aria-expanded={profileOpen}
+                  aria-haspopup="true"
                   className="flex items-center gap-1.5 p-0.5 pr-1.5 rounded-full hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
                 >
                   {session?.user?.image ? (
