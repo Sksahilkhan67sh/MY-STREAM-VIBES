@@ -680,7 +680,7 @@ function StudioInner() {
             <img src="/logo.png" alt="StreamVault" className="w-7 h-7 object-contain" />
             <span className="font-bold text-white text-base tracking-tight">StreamVault</span>
           </a>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-zinc-500 hover:text-white">
+          <button onClick={() => setSidebarOpen(false)} aria-label="Close menu" className="lg:hidden text-zinc-500 hover:text-white">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -773,7 +773,7 @@ function StudioInner() {
 
         {/* Mobile top bar */}
         <div className="lg:hidden flex items-center justify-between px-4 py-3.5 border-b border-white/[0.06] bg-[#0d0d0d]">
-          <button onClick={() => setSidebarOpen(true)} className="text-zinc-400 hover:text-white">
+          <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="text-zinc-400 hover:text-white">
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
