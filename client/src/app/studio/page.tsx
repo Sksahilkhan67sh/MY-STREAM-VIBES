@@ -43,8 +43,14 @@ import { StudioPanelSkeleton } from '@/components/ui/Skeleton';
 import HostControls          from '@/components/HostControls';
 import StreamCreationWizard  from '@/components/StreamCreationWizard';
 
-const dynamicPanel = (loader: Parameters<typeof dynamicImport>[0]) =>
-  dynamicImport(loader, { loading: () => <StudioPanelSkeleton />, ssr: false });
+// Generic over the component's own props (P) so each dynamic import below
+// keeps its real prop types (roomId, hostToken, onClose, etc.) instead of
+// collapsing to `unknown` — a non-generic version of this helper type-checks
+// fine on the `dynamicImport` call itself but breaks every call site that
+// passes props, since TS can no longer see what props each panel expects.
+function dynamicPanel<P extends object>(loader: () => Promise<{ default: React.ComponentType<P> }>) {
+  return dynamicImport(loader, { loading: () => <StudioPanelSkeleton />, ssr: false });
+}
 
 const ScheduleModal          = dynamicPanel(() => import('@/components/ScheduleModal'));
 const StreamCalendar         = dynamicPanel(() => import('@/components/StreamCalendar'));
