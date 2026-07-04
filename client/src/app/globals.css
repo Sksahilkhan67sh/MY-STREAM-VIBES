@@ -113,6 +113,17 @@ button, a, input, select {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* ── Mobile bottom nav spacing ──
+   Applied to <body> by MobileBottomNav.tsx while it's mounted, so fixed
+   bottom-nav bar never overlaps the last bit of page content. 56px is the
+   nav's own content height; the safe-area inset is handled separately by
+   the nav's own .pb-safe padding, so it isn't double-counted here. */
+@media (max-width: 639px) {
+  body.has-bottom-nav {
+    padding-bottom: 56px;
+  }
+}
+
 /* ── Force LiveKit room containers to fill parent height ──
    Scoped tightly — do NOT use [class*="lk-"] globally as it
    breaks the landing page and any non-viewer route. ── */
