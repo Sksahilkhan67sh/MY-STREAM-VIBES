@@ -480,7 +480,11 @@ export async function getBillingHistory(userId: string) {
         include: { plan: true },
       })
     : [];
-  const subMap = new Map(subs.map(s => [s.id, s]));
+  // Explicit tuple type below — without it, `.map(s => [s.id, s])` widens to
+  // `(string | typeof subs[number])[]` instead of a tuple, so the Map's
+  // value type collapses to `unknown` and every `sub?.field` access below
+  // fails to type-check even though `sub` is really a subscription-with-plan.
+  const subMap = new Map<string, typeof subs[number]>(subs.map(s => [s.id, s]));
 
   return invoices.map(inv => {
     const sub = inv.subscriptionId ? subMap.get(inv.subscriptionId) : null;
