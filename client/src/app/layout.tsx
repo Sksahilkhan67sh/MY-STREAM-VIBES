@@ -6,6 +6,7 @@ import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import { I18nProvider } from '@/components/I18nContext';
 import { NotificationSocketProvider } from '@/components/NotificationSocketContext';
 import NotificationToastHost from '@/components/NotificationToastHost';
+import MobileBottomNav from '@/components/navigation/MobileBottomNav';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://my-stream-vibes-client.vercel.app'),
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NotificationSocketProvider>
                 {children}
                 <NotificationToastHost />
+                <MobileBottomNav />
               </NotificationSocketProvider>
             </I18nProvider>
           </ThemeProvider>
