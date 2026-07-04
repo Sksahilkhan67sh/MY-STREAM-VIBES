@@ -753,6 +753,23 @@ function StudioInner() {
           )}
         </AnimatePresence>
 
+        {/* Floating Go Live button — mobile only, matches the brief's
+            "Floating Go Live Button" ask for the creator experience.
+            Studio already has its own drawer nav (the hamburger + slide-out
+            sidebar above) so this isn't a bottom nav bar — just a quick
+            shortcut back to the Go Live tab, hidden once you're already
+            there so it doesn't sit on top of the wizard/HostControls UI. */}
+        {activeTab !== 'live' && (
+          <button
+            onClick={() => setActiveTab('live')}
+            aria-label="Go live"
+            className="lg:hidden fixed bottom-5 right-5 z-50 flex items-center gap-2 pl-4 pr-5 py-3.5 rounded-full bg-[#ff3520] text-white text-sm font-bold shadow-[0_8px_24px_rgba(255,53,32,0.4)] active:scale-95 transition-transform"
+          >
+            <Radio className="w-4 h-4" />
+            Go Live
+          </button>
+        )}
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
