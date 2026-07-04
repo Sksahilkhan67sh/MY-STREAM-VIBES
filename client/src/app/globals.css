@@ -10,6 +10,18 @@
   --surface: rgba(20,20,22,0.9);
 }
 
+/* ── Keyboard focus ──
+   No focus-visible styling existed anywhere before this — keyboard/screen-
+   reader users were relying entirely on each browser's inconsistent default
+   outline, which also has poor contrast against Studio's near-black
+   background. `:focus-visible` (not `:focus`) is used deliberately so this
+   only shows for keyboard/AT navigation, not on every mouse click. */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 * { box-sizing: border-box; }
 
 html {
