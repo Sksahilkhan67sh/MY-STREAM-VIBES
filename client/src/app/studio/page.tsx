@@ -18,27 +18,51 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+// Aliased: this file also exports a route-config constant named `dynamic`
+// (see `export const dynamic = 'force-dynamic'` above), which would
+// otherwise collide with the next/dynamic import.
+import dynamicImport from 'next/dynamic';
+import { StudioPanelSkeleton } from '@/components/ui/Skeleton';
 
 // Stream-control components
+//
+// Code-splitting note: `/studio` defaults to the 'live' tab, which renders
+// either StreamCreationWizard (no active stream — the common case) or
+// HostControls (actively live). Both are kept as regular eager imports
+// since one of them is on the critical render path for every visit.
+//
+// Everything else here is a secondary tab (Schedule, Replays, Thumbnail,
+// Moderation, AI tools, Analytics, Earnings, Billing, Pricing, PPV,
+// Payouts) that's only needed once the creator clicks into that tab, so
+// each is loaded as its own chunk via next/dynamic. This previously all
+// loaded eagerly regardless of which tab (if any) the creator opened,
+// meaning ~300KB of source across ~15 components shipped up front. Same
+// components, same props, same behavior — just fetched on demand, with
+// StudioPanelSkeleton shown in the ~one network round-trip it takes to
+// fetch the chunk instead of a blank panel.
 import HostControls          from '@/components/HostControls';
-import ScheduleModal         from '@/components/ScheduleModal';
-import StreamCalendar        from '@/components/StreamCalendar';
-import ThumbnailUploader     from '@/components/ThumbnailUploader';
-import EmailNotificationPanel from '@/components/EmailNotificationPanel';
-import ReplayLibrary         from '@/components/ReplayLibrary';
-import ModerationPanel       from '@/components/ModerationPanel';
-import ClipCreator           from '@/components/ClipCreator';
-import AITitleGenerator      from '@/components/AITitleGenerator';
-import AISummaryExport       from '@/components/AISummaryExport';
-import PayoutsSettings       from '@/components/PayoutsSettings';
 import StreamCreationWizard  from '@/components/StreamCreationWizard';
 
+const dynamicPanel = (loader: Parameters<typeof dynamicImport>[0]) =>
+  dynamicImport(loader, { loading: () => <StudioPanelSkeleton />, ssr: false });
+
+const ScheduleModal          = dynamicPanel(() => import('@/components/ScheduleModal'));
+const StreamCalendar         = dynamicPanel(() => import('@/components/StreamCalendar'));
+const ThumbnailUploader      = dynamicPanel(() => import('@/components/ThumbnailUploader'));
+const EmailNotificationPanel = dynamicPanel(() => import('@/components/EmailNotificationPanel'));
+const ReplayLibrary          = dynamicPanel(() => import('@/components/ReplayLibrary'));
+const ModerationPanel        = dynamicPanel(() => import('@/components/ModerationPanel'));
+const ClipCreator            = dynamicPanel(() => import('@/components/ClipCreator'));
+const AITitleGenerator       = dynamicPanel(() => import('@/components/AITitleGenerator'));
+const AISummaryExport        = dynamicPanel(() => import('@/components/AISummaryExport'));
+const PayoutsSettings        = dynamicPanel(() => import('@/components/PayoutsSettings'));
+
 // Business panels
-import InlineAnalytics       from '@/components/InlineAnalytics';
-import InlineEarnings        from '@/components/InlineEarnings';
-import InlineBilling         from '@/components/InlineBilling';
-import InlinePricing         from '@/components/InlinePricing';
-import InlinePPV             from '@/components/InlinePPV';
+const InlineAnalytics        = dynamicPanel(() => import('@/components/InlineAnalytics'));
+const InlineEarnings         = dynamicPanel(() => import('@/components/InlineEarnings'));
+const InlineBilling          = dynamicPanel(() => import('@/components/InlineBilling'));
+const InlinePricing          = dynamicPanel(() => import('@/components/InlinePricing'));
+const InlinePPV              = dynamicPanel(() => import('@/components/InlinePPV'));
 
 // Creator-hub helpers
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
