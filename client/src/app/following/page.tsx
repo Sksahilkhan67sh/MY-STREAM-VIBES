@@ -71,7 +71,7 @@ export default function FollowingPage() {
         ) : following.length === 0 ? (
           <div className="text-center py-16">
             <Users className="w-10 h-10 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
-            <p className="text-sm text-gray-400 mb-4">You're not following anyone yet.</p>
+            <p className="text-sm text-gray-400 mb-4">You&apos;re not following anyone yet.</p>
             <button onClick={() => router.push('/feed')} className="text-red-500 text-sm font-semibold hover:underline">Discover creators →</button>
           </div>
         ) : (

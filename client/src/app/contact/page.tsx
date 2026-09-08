@@ -16,8 +16,8 @@ export default function ContactPage() {
         <li>Press &amp; media — for interviews or coverage requests</li>
       </ul>
       <p>
-        Add your team's preferred email addresses or a contact form here once
-        they're finalized.
+        Add your team&apos;s preferred email addresses or a contact form here once
+        they&apos;re finalized.
       </p>
     </LegalPageShell>
   );

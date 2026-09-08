@@ -13,9 +13,9 @@ export default function MaintenancePage() {
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
     >
       <img src="/logo.png" alt="Stream Vault" className="w-10 h-10 object-contain mb-5" />
-      <h1 className="text-xl font-bold mb-2">We'll be right back</h1>
+      <h1 className="text-xl font-bold mb-2">We&apos;ll be right back</h1>
       <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mb-10 leading-relaxed">
-        Stream Vault is undergoing scheduled maintenance. We're working to get
+        Stream Vault is undergoing scheduled maintenance. We&apos;re working to get
         everything back up as quickly as possible.
       </p>
       <div className="text-xs text-gray-400 dark:text-gray-600">

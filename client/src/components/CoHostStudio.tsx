@@ -255,7 +255,6 @@ function CoHostInner({ roomId, title, name, appUrl }: Omit<CoHostStudioProps, 'l
             const stream = cameraVideoRef.current?.srcObject as MediaStream | null;
             const liveTracks = stream?.getVideoTracks().filter(t => t.readyState === 'live');
             if (liveTracks?.length) {
-              // eslint-disable-next-line @typescript-eslint/no-var-requires
               cameraTrackRef.current = new (require('livekit-client').LocalVideoTrack)(liveTracks[0], undefined, false);
             }
           }

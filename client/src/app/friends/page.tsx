@@ -80,7 +80,7 @@ export default function FriendsPage() {
         ) : friends.length === 0 ? (
           <div className="text-center py-16">
             <UserPlus className="w-10 h-10 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
-            <p className="text-sm text-gray-400">No friends yet. Visit a creator's profile or a viewer's activity to add friends.</p>
+            <p className="text-sm text-gray-400">No friends yet. Visit a creator&apos;s profile or a viewer&apos;s activity to add friends.</p>
           </div>
         ) : (
           <>

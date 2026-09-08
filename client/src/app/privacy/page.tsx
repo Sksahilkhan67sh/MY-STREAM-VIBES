@@ -6,8 +6,8 @@ export default function PrivacyPage() {
   return (
     <LegalPageShell title="Privacy Policy">
       <p>
-        This page is a placeholder. Replace this content with Aligncraft's full
-        privacy policy covering what data Stream Vault collects, how it's used,
+        This page is a placeholder. Replace this content with Aligncraft&apos;s full
+        privacy policy covering what data Stream Vault collects, how it&apos;s used,
         and the choices available to you.
       </p>
       <p>

@@ -165,9 +165,9 @@ export default function ModerationPanel({ roomId, hostToken, userId, viewers = [
 
       {/* Tabs */}
       <div className="flex border-b border-white/10">
-        {([['viewers', 'Viewers', <Users className="w-3 h-3" />],
-           ['filters', 'Chat Filters', <Filter className="w-3 h-3" />],
-           ['log', 'Log', <History className="w-3 h-3" />]] as const).map(([t, label, icon]) => (
+        {([['viewers', 'Viewers', <Users key="viewers-icon" className="w-3 h-3" />],
+           ['filters', 'Chat Filters', <Filter key="filters-icon" className="w-3 h-3" />],
+           ['log', 'Log', <History key="log-icon" className="w-3 h-3" />]] as const).map(([t, label, icon]) => (
           <button
             key={t}
             onClick={() => setTab(t)}

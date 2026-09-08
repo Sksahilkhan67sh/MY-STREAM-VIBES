@@ -67,7 +67,7 @@ export default function BecomeCreatorPage() {
           <div className="w-14 h-14 rounded-2xl bg-[#ff3520]/15 border border-[#ff3520]/25 flex items-center justify-center mx-auto mb-4">
             <Radio className="w-7 h-7 text-[#ff3520]" />
           </div>
-          <h1 className="text-xl font-bold text-white mb-2">You're already a creator</h1>
+          <h1 className="text-xl font-bold text-white mb-2">You&apos;re already a creator</h1>
           <p className="text-sm text-zinc-500 mb-6">Head to your studio to go live or manage your channel.</p>
           <a href="/studio" className="inline-flex items-center gap-2 px-6 py-3 bg-[#ff3520] text-white text-sm font-semibold rounded-xl hover:bg-[#e02e1a]">
             Go to Studio <ArrowRight className="w-4 h-4" />

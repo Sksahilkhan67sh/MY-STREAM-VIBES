@@ -356,7 +356,7 @@ export default function StreamSchedulerBanner({
             {emailSent && (
               <div className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#22c55e' }}>
                 <CheckCircle className="w-4 h-4" />
-                Email reminder set! We'll notify you 5 min before.
+                Email reminder set! We&apos;ll notify you 5 min before.
               </div>
             )}
           </div>
