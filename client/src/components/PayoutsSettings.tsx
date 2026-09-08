@@ -110,7 +110,7 @@ export default function PayoutsSettings({ userId }: Props) {
       <h1 className="text-xl font-bold text-white mb-1.5">Payouts</h1>
       <p className="text-sm text-zinc-500 mb-6">
         Configure where Super Chat, donations, memberships, and PPV money goes.
-        Set this up once here — you won't be asked again when going live.
+        Set this up once here — you won&apos;t be asked again when going live.
       </p>
 
       {toast && (

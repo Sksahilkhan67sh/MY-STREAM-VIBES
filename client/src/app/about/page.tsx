@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
@@ -19,10 +20,10 @@ export default function AboutPage() {
     <div className="min-h-screen bg-[#070707] text-zinc-100" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 sm:px-12 py-5 border-b border-zinc-800/50">
-        <a href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <img src="/logo.png" alt="Stream Vault" className="w-7 h-7 object-contain" />
           <span className="font-bold text-zinc-100">Stream Vault</span>
-        </a>
+        </Link>
         <button
           onClick={() => router.push(session ? '/feed' : '/login')}
           className="text-sm font-semibold text-zinc-300 hover:text-white transition-colors"

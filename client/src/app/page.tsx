@@ -316,7 +316,7 @@ export default function LandingPage() {
                   className="p-5 rounded-xl bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800"
                 >
                   <MessageSquare className="w-4 h-4 text-red-400 mb-3" />
-                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed mb-3">"{t.quote}"</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed mb-3">&quot;{t.quote}&quot;</p>
                   <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">{t.name}</p>
                 </motion.div>
               ))}

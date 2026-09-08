@@ -187,7 +187,7 @@ export default function InlinePricing({ hostToken, onBack, onSuccess }: Props) {
       style={{ fontFamily:"'DM Sans','Inter',sans-serif" }}>
       <div className="text-center p-8">
         <CheckCircle className="w-16 h-16 mx-auto mb-4 text-green-400"/>
-        <h2 className="text-2xl font-black text-zinc-100 mb-2">You're on {successPlan}!</h2>
+        <h2 className="text-2xl font-black text-zinc-100 mb-2">You&apos;re on {successPlan}!</h2>
         <p className="text-zinc-400 text-sm">Taking you back to your stream…</p>
       </div>
     </motion.div>

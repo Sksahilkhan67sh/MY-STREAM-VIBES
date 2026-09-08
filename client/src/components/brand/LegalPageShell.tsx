@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 
@@ -10,10 +11,10 @@ export default function LegalPageShell({ title, children }: { title: string; chi
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
     >
       <nav className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 border-b border-gray-100 dark:border-gray-800">
-        <a href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <img src="/logo.png" alt="Stream Vault" className="w-7 h-7 object-contain" />
           <span className="font-bold text-base sm:text-lg tracking-tight">Stream Vault</span>
-        </a>
+        </Link>
         <button
           onClick={() => router.push('/')}
           className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"

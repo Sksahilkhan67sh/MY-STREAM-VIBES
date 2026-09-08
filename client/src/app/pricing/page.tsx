@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -196,10 +197,10 @@ export default function PricingPage() {
 
       {/* ── Nav ── */}
       <nav className="flex items-center justify-between px-6 sm:px-12 py-5 border-b border-zinc-800/50">
-        <a href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <img src="/logo.png" alt="Stream Vault" className="w-7 h-7 object-contain" />
           <span className="font-bold text-zinc-100">Stream Vault</span>
-        </a>
+        </Link>
         <div className="flex items-center gap-3">
           {session ? (
             <button onClick={() => router.push(isCreator ? '/studio' : '/feed')} className="text-sm font-semibold text-zinc-300 hover:text-white transition-colors">

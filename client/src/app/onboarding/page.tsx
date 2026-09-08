@@ -71,7 +71,7 @@ export default function OnboardingPage() {
             Welcome to Stream Vault
           </p>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2">Choose your experience</h1>
-          <p className="text-zinc-500 text-sm mb-1">This only takes a second — you won't be asked again.</p>
+          <p className="text-zinc-500 text-sm mb-1">This only takes a second — you won&apos;t be asked again.</p>
           <p className="text-zinc-600 text-xs">Creator Platform by Aligncraft</p>
         </div>
 

@@ -365,7 +365,7 @@ export default function DonationModal({ roomId, streamerName, onClose }: Donatio
             className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white"
             style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}
           >
-            ✓ I've paid
+            ✓ I&apos;ve paid
           </button>
         </div>
       </div>

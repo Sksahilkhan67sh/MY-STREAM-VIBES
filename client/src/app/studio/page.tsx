@@ -471,7 +471,7 @@ function StudioInner() {
     return (
       <div className="min-h-screen bg-[#070707] flex items-center justify-center px-4">
         <div className="text-center max-w-xs">
-          <p className="text-zinc-400 text-sm mb-4">Couldn't load your account. Please check your connection and try again.</p>
+          <p className="text-zinc-400 text-sm mb-4">Couldn&apos;t load your account. Please check your connection and try again.</p>
           <button onClick={() => refetchRole()} className="px-5 py-2.5 bg-[#ff3520] text-white text-sm font-semibold rounded-xl hover:bg-[#e02e1a]">
             Retry
           </button>
@@ -1008,7 +1008,7 @@ function StudioInner() {
                   </div>
                   {recentStreams.length === 0 && (
                     <div className="text-center py-20">
-                      <p className="text-zinc-500 mb-4">You haven't streamed yet.</p>
+                      <p className="text-zinc-500 mb-4">You haven&apos;t streamed yet.</p>
                       <button onClick={() => setActiveTab('live')} className="px-6 py-3 bg-[#ff3520] text-white text-sm font-semibold rounded-xl hover:bg-[#e02e1a]">Start your first stream →</button>
                     </div>
                   )}
@@ -1145,7 +1145,7 @@ function StudioInner() {
                     {profile?.isVerified ? (
                       <div className="text-center py-4">
                         <BadgeCheck className="w-12 h-12 text-blue-400 mx-auto mb-3" />
-                        <h2 className="font-bold text-lg text-white">You're Verified!</h2>
+                        <h2 className="font-bold text-lg text-white">You&apos;re Verified!</h2>
                         <p className="text-sm text-zinc-400 mt-1">Tier: <span className="font-semibold capitalize">{profile.verifiedTier}</span></p>
                       </div>
                     ) : verification?.status === 'pending' ? (

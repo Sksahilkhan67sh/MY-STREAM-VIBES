@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "test": "tsx --test src/**/*.test.ts",
     "start": "node dist/index.js",
     "start:prod": "npx prisma migrate deploy && node dist/index.js",
     "db:generate": "prisma generate",

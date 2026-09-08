@@ -143,7 +143,7 @@ export default function DonationAlert({ socket, roomId }: DonationAlertProps) {
                     className="text-xs text-zinc-300 mt-1.5 italic line-clamp-2"
                     style={{ borderLeft: '2px solid rgba(255,53,32,0.4)', paddingLeft: 8 }}
                   >
-                    "{current.message}"
+                    &quot;{current.message}&quot;
                   </motion.p>
                 )}
               </div>

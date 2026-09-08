@@ -287,7 +287,7 @@ export default function TicketPurchaseModal({
             }}
             className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white"
             style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}>
-            ✓ I've paid
+            ✓ I&apos;ve paid
           </button>
         </div>
       </div>
@@ -305,7 +305,7 @@ export default function TicketPurchaseModal({
           style={{ background: 'rgba(255,53,32,0.12)', border: '2px solid rgba(255,53,32,0.3)' }}>
           <Ticket className="w-8 h-8 text-[#ff3520]" />
         </motion.div>
-        <h2 className="text-xl font-black text-zinc-100">You're in! 🎉</h2>
+        <h2 className="text-xl font-black text-zinc-100">You&apos;re in! 🎉</h2>
         {successData && (
           <div className="px-4 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <p className="text-xs text-zinc-500 mb-1">Your ticket code</p>
