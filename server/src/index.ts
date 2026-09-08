@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
+import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
@@ -69,6 +70,14 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-room-id', 'x-host-token', 'x-user-id'],
 }));
 app.options('*', cors());
+app.use(helmet({
+  // This is a pure JSON API (no HTML/static assets served from here —
+  // images/recordings are served from S3/R2, not this server), so the
+  // default HTML-oriented CSP is unnecessary and left off rather than
+  // risking it interfering with anything; the rest of helmet's defaults
+  // (X-Content-Type-Options, X-Frame-Options, HSTS, etc.) all apply.
+  contentSecurityPolicy: false,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 

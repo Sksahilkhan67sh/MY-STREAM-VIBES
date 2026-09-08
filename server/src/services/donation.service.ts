@@ -6,6 +6,7 @@
 
 import prisma from '../lib/prisma';
 import { broadcastToRoom } from '../lib/socket';
+import { decryptSecret, encryptFields } from '../lib/crypto';
 import crypto from 'crypto';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -143,7 +144,7 @@ export async function createDonation(payload: CreateOrderPayload) {
 
   if (payload.gateway === 'razorpay' && config?.razorpayKeyId && config?.razorpayKeySecret) {
     const order = await createRazorpayOrder(
-      { razorpayKeyId: config.razorpayKeyId, razorpayKeySecret: config.razorpayKeySecret },
+      { razorpayKeyId: config.razorpayKeyId, razorpayKeySecret: decryptSecret(config.razorpayKeySecret) },
       payload.amount,
       payload.currency,
       donation.id
@@ -164,7 +165,7 @@ export async function createDonation(payload: CreateOrderPayload) {
 
   if (payload.gateway === 'stripe' && config?.stripeSecretKey) {
     const { clientSecret, intentId } = await createStripePaymentIntent(
-      config.stripeSecretKey,
+      decryptSecret(config.stripeSecretKey),
       payload.amount,
       payload.currency,
       donation.id
@@ -204,7 +205,7 @@ export async function completeDonation(payload: VerifyPaymentPayload): Promise<b
       payload.gatewayOrderId,
       payload.gatewayPaymentId,
       payload.gatewaySignature ?? '',
-      config.razorpayKeySecret
+      decryptSecret(config.razorpayKeySecret)
     );
     if (!valid) {
       await prisma.donation.update({ where: { id: donation.id }, data: { status: 'failed' } });
@@ -366,10 +367,13 @@ export async function upsertDonationConfig(
     alertDuration: number; alertSound: boolean; thankYouMessage: string;
   }>
 ) {
+  // Payment-provider secret keys are encrypted at rest — never stored as
+  // plain text in the database. See lib/crypto.ts.
+  const encrypted = encryptFields(data, ['razorpayKeySecret', 'stripeSecretKey', 'stripeWebhookSecret']);
   return prisma.donationConfig.upsert({
     where:  { userId },
-    create: { userId, ...data },
-    update: data,
+    create: { userId, ...encrypted },
+    update: encrypted,
   });
 }
 
