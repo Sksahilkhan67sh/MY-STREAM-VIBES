@@ -142,6 +142,26 @@ router.put('/config/by-user/:userId', async (req: Request, res: Response) => {
   try {
     const parsed = ConfigSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    // SECURITY: this route has no session/identity verification (userId is
+    // taken directly from the URL) — see PR description for the full
+    // explanation of why a real fix needs auth infra this app doesn't have
+    // yet. Until that exists, block the highest-severity exploit path
+    // (overwriting an ALREADY-CONFIGURED creator's payout destination,
+    // silently redirecting their real revenue to an attacker) while still
+    // allowing first-time setup, which is this route's actual stated
+    // purpose ("configure payouts before any stream exists").
+    const existing = await getDonationConfig(req.params.userId);
+    const alreadyConfigured = !!(existing && (
+      existing.stripeSecretKey || existing.razorpayKeyId || existing.upiId
+    ));
+    if (alreadyConfigured) {
+      return res.status(409).json({
+        error: 'Payout config already exists for this account. Use PUT /api/donations/config ' +
+               '(which requires a hostToken tied to your stream) to update it.',
+      });
+    }
+
     const config = await upsertDonationConfig(req.params.userId, parsed.data);
     res.json({ ok: true, currency: config.currency });
   } catch (err) {
